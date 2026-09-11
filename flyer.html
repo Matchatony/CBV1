@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Crackbotics Flyer — 8.5 x 11</title>
+<style>
+/* ==========================================================================
+   Crackbotics bulletin-board flyer — 8.5 x 11 in, print-ready.
+   Print from Chrome: Ctrl/Cmd+P -> Letter -> Margins: None -> Background
+   graphics: ON -> Scale 100%. "Save as PDF" gives you a clean print file.
+   ========================================================================== */
+
+@page { size: 8.5in 11in; margin: 0; }
+
+:root {
+  --ink: #15181c;
+  --accent: #ff6b1a;
+  --paper: #ffffff;
+  --line: #d8dbd6;
+  --mute: #5d646d;
+  --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+
+html, body { margin: 0; padding: 0; background: #9aa0a6; }
+
+body {
+  font-family: var(--font);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* The page itself. On screen it sits on a grey backdrop; in print it is the sheet. */
+.page {
+  width: 8.5in;
+  height: 11in;
+  margin: 24px auto;
+  background: var(--paper);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 10px 40px rgba(0,0,0,.35);
+}
+
+/* ------------------------------------------------------------- masthead --- */
+.masthead {
+  background: var(--ink);
+  color: #fff;
+  padding: 0.34in 0.5in 0.3in;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.logo-mark {
+  width: 26px; height: 26px;
+  border: 5px solid var(--accent);
+  border-radius: 4px;
+}
+.logo-name {
+  font-size: 25px;
+  font-weight: 850;
+  letter-spacing: .16em;
+}
+.masthead-tag {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--accent);
+  text-align: right;
+  line-height: 1.5;
+}
+
+/* ---------------------------------------------------------------- hero --- */
+.hero {
+  padding: 0.26in 0.5in 0.22in;
+}
+.hero h1 {
+  margin: 0;
+  font-size: 54px;
+  line-height: .98;
+  font-weight: 850;
+  letter-spacing: -0.025em;
+  text-transform: uppercase;
+}
+.hero h1 em {
+  font-style: normal;
+  color: var(--accent);
+}
+.hero .sub {
+  margin: 11px 0 0;
+  font-size: 17px;
+  line-height: 1.45;
+  max-width: 6.9in;
+  color: #33383f;
+}
+.hero .sub strong { color: var(--ink); }
+
+/* --------------------------------------------------------------- claim --- */
+.claims {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0;
+  margin: 0 0.5in;
+  border: 2.5px solid var(--ink);
+}
+.claim {
+  padding: 11px 15px;
+  border-right: 2.5px solid var(--ink);
+}
+.claim:last-child { border-right: 0; }
+.claim b {
+  display: block;
+  font-size: 21px;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+}
+.claim span {
+  display: block;
+  font-size: 13.5px;
+  color: var(--mute);
+  line-height: 1.35;
+  margin-top: 3px;
+}
+
+/* ------------------------------------------------------------- product --- */
+.what {
+  padding: 0.2in 0.5in 0;
+}
+.kicker {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin: 0 0 8px;
+}
+.parts {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+.part {
+  border: 1.5px solid var(--line);
+  border-radius: 7px;
+  padding: 11px 13px;
+}
+.part h3 {
+  margin: 0 0 4px;
+  font-size: 16.5px;
+}
+.part p {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.42;
+  color: var(--mute);
+}
+
+/* --------------------------------------------------------------- teams --- */
+.teams {
+  margin: 0.18in 0.5in 0;
+  background: #f3f4f2;
+  border-left: 5px solid var(--accent);
+  padding: 12px 17px;
+}
+.teams p { margin: 0; font-size: 14.5px; line-height: 1.5; }
+.teams .names { font-weight: 750; }
+
+/* --------------------------------------------------------------- order --- */
+.order {
+  margin-top: auto;
+  padding: 0.2in 0.5in 0.16in;
+  display: flex;
+  gap: 22px;
+  align-items: center;
+}
+.qr {
+  flex: 0 0 1.6in;
+  height: 1.6in;
+  border: 3px dashed var(--ink);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 4px;
+  padding: 8px;
+}
+/* Replace the whole .qr block with:
+   <img class="qr" src="images/qr.png" alt="Scan for our Discord"> */
+.qr b {
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+.qr span { font-size: 11.5px; color: var(--mute); line-height: 1.35; }
+
+.order-text h2 {
+  margin: 0 0 6px;
+  font-size: 27px;
+  text-transform: uppercase;
+  letter-spacing: -0.02em;
+}
+.order-text p { margin: 0 0 8px; font-size: 14.5px; line-height: 1.45; color: #33383f; }
+.contact {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.55;
+}
+.contact span { color: var(--accent); }
+
+/* ----------------------------------------------------------- tear tabs --- */
+/* Five wide tabs rather than eight narrow ones — the URL has to stay readable
+   once a strip is torn off. Delete the .tabs block in the markup below if you
+   would rather post a plain sheet. */
+.tabs {
+  border-top: 2px dashed #a9aeb4;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  height: 0.9in;
+}
+.tab {
+  border-right: 1.5px dashed #a9aeb4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 2px;
+  padding: 6px;
+  color: var(--ink);
+}
+.tab:last-child { border-right: 0; }
+.tab b {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .1em;
+  color: var(--accent);
+}
+.tab span {
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+/* -------------------------------------------------------------- footer --- */
+.legal {
+  padding: 0 0.5in 0.1in;
+  font-size: 8.5px;
+  line-height: 1.4;
+  color: #8b9199;
+}
+
+@media print {
+  html, body { background: #fff; }
+  .page { margin: 0; box-shadow: none; }
+  .screen-only { display: none !important; }
+}
+
+.screen-only {
+  max-width: 8.5in;
+  margin: 0 auto 32px;
+  color: #fff;
+  font-size: 14px;
+  line-height: 1.5;
+  text-align: center;
+}
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <header class="masthead">
+    <div class="logo">
+      <div class="logo-mark"></div>
+      <div class="logo-name">CRACKBOTICS</div>
+    </div>
+    <div class="masthead-tag">
+      Custom CNC aluminum<br>for FTC teams · San Diego
+    </div>
+  </header>
+
+  <section class="hero">
+    <h1>Stop overpaying<br>for <em>aluminum.</em></h1>
+    <p class="sub">
+      Custom plates, square beams, standoffs and brackets on an <strong>8&nbsp;mm grid</strong> —
+      machined by FTC students, priced well under <strong>SendCutSend</strong> and
+      <strong>goBILDA</strong>, and in your hands in <strong>1–3 days</strong>.
+    </p>
+  </section>
+
+  <section class="claims">
+    <div class="claim">
+      <b>Way cheaper</b>
+      <span>We heavily undercut the big suppliers on the same parts.</span>
+    </div>
+    <div class="claim">
+      <b>1–3 days, local</b>
+      <span>San Diego delivery or shop pickup. No shipping wait.</span>
+    </div>
+    <div class="claim">
+      <b>No minimums</b>
+      <span>One bracket or fifty standoffs — both are fine.</span>
+    </div>
+  </section>
+
+  <section class="what">
+    <p class="kicker">What we make</p>
+    <div class="parts">
+      <div class="part">
+        <h3>Pocketed plates</h3>
+        <p>Custom outlines, weight-saving pockets, clearance or tapped holes.</p>
+      </div>
+      <div class="part">
+        <h3>Square beams</h3>
+        <p>Threaded or unthreaded, cut to length, deburred and ready to bolt.</p>
+      </div>
+      <div class="part">
+        <h3>Standoffs</h3>
+        <p>goBILDA-style aluminum standoffs for a fraction of the price.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="teams">
+    <p>
+      <span class="names">Built by students from Runtime Terror (FTC #22105) and All Systems Go (FTC #21239)</span>
+      — two of the strongest programs in San Diego and Kentucky. We've waited on the same
+      overpriced parts you have. Send a DXF, a STEP file, or a dimensioned sketch and we'll quote it same day.
+    </p>
+  </section>
+
+  <section class="order">
+    <div class="qr">
+      <b>QR CODE</b>
+      <span>Drop your Discord<br>or site QR here</span>
+    </div>
+    <div class="order-text">
+      <h2>Get a quote today</h2>
+      <p>Message us on Discord with your part and quantity. Real person, real number, usually within a few hours.</p>
+      <p class="contact">
+        <span>Discord:</span> discord.gg/YOUR-INVITE<br>
+        <span>Email:</span> hello@crackbotics.com<br>
+        <span>Web:</span> crackbotics.com
+      </p>
+    </div>
+  </section>
+
+  <p class="legal">
+    Parts use 8&nbsp;mm grid spacing. Crackbotics is an independent student business and is not affiliated with,
+    sponsored by or endorsed by goBILDA, SendCutSend, REV Robotics, or <i>FIRST</i>&reg;.
+  </p>
+
+  <div class="tabs">
+    <div class="tab"><b>CRACKBOTICS</b><span>discord.gg/<br>YOUR-INVITE</span></div>
+    <div class="tab"><b>CRACKBOTICS</b><span>discord.gg/<br>YOUR-INVITE</span></div>
+    <div class="tab"><b>CRACKBOTICS</b><span>discord.gg/<br>YOUR-INVITE</span></div>
+    <div class="tab"><b>CRACKBOTICS</b><span>discord.gg/<br>YOUR-INVITE</span></div>
+    <div class="tab"><b>CRACKBOTICS</b><span>discord.gg/<br>YOUR-INVITE</span></div>
+  </div>
+
+</div>
+
+<p class="screen-only">
+  Print: Chrome → Ctrl/Cmd+P → Letter → Margins <b>None</b> → Background graphics <b>ON</b> → Scale 100%.<br>
+  Remove the tear-off tab strip at the bottom of flyer.html if you'd rather post a plain sheet.
+</p>
+
+</body>
+</html>

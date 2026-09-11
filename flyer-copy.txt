@@ -1,0 +1,94 @@
+CRACKBOTICS — FLYER COPY (plain text, tweak freely)
+===================================================
+Everything below matches what's in flyer.html. Edit here first, then paste
+into the HTML — or just hand this to whoever's doing the layout.
+
+
+MASTHEAD
+--------
+CRACKBOTICS
+Custom CNC aluminum for FTC teams · San Diego
+
+
+HEADLINE
+--------
+STOP OVERPAYING FOR ALUMINUM.
+
+  Alternates, if you want a different angle:
+  · CNC ALUMINUM WITHOUT THE CNC PRICE.
+  · YOUR PARTS. THIS WEEK. HALF THE PRICE.
+  · WE MACHINE WHAT YOU'RE OVERPAYING FOR.
+  · STOP WAITING ON SHIPPING.
+
+
+SUBHEAD
+-------
+Custom plates, square beams, standoffs and brackets on an 8 mm grid —
+machined by FTC students, priced well under SendCutSend and goBILDA,
+and in your hands in 1-3 days.
+
+
+THREE CLAIMS
+------------
+WAY CHEAPER
+We heavily undercut the big suppliers on the same parts.
+
+1-3 DAYS, LOCAL
+San Diego delivery or shop pickup. No shipping wait.
+
+NO MINIMUMS
+One bracket or fifty standoffs — both are fine.
+
+
+WHAT WE MAKE
+------------
+POCKETED PLATES
+Custom outlines, weight-saving pockets, clearance or tapped holes.
+
+SQUARE BEAMS
+Threaded or unthreaded, cut to length, deburred and ready to bolt.
+
+STANDOFFS
+goBILDA-style aluminum standoffs for a fraction of the price.
+
+
+WHO WE ARE (callout box)
+------------------------
+Built by students from Runtime Terror (FTC #22105) and All Systems Go
+(FTC #21239) — two of the strongest programs in San Diego and Kentucky.
+We've waited on the same overpriced parts you have. Send a DXF, a STEP
+file, or a dimensioned sketch and we'll quote it same day.
+
+
+CALL TO ACTION
+--------------
+GET A QUOTE TODAY
+Message us on Discord with your part and quantity. Real person, real
+number, usually within a few hours.
+
+Discord: discord.gg/YOUR-INVITE
+Email:   hello@crackbotics.com
+Web:     crackbotics.com
+
+[QR CODE — points at your Discord invite or the site]
+
+
+TEAR-OFF TABS (bottom strip, x5)
+--------------------------------
+CRACKBOTICS
+discord.gg/YOUR-INVITE
+
+
+FINE PRINT
+----------
+Parts use 8 mm grid spacing. Crackbotics is an independent student
+business and is not affiliated with, sponsored by or endorsed by
+goBILDA, SendCutSend, REV Robotics, or FIRST®.
+
+
+BEFORE YOU PRINT — replace these
+--------------------------------
+[ ] discord.gg/YOUR-INVITE  -> your real invite (make it non-expiring)
+[ ] hello@crackbotics.com   -> your real email
+[ ] crackbotics.com         -> your real site URL
+[ ] QR placeholder box      -> a real QR PNG (see README)
