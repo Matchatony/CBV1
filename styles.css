@@ -14,6 +14,11 @@
 
   --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
           "Helvetica Neue", Arial, sans-serif;
+
+  /* The background lattice is literally 8mm — the grid the parts are drilled on.
+     It is set on the body element and on the hero, both starting at the top-left of the
+     document, so the lines stay aligned from the masthead to the footer. */
+  --grid: 8mm;
 }
 
 * { box-sizing: border-box; }
@@ -24,8 +29,13 @@ body {
   font-size: 17px;
   line-height: 1.6;
   color: var(--text);
-  background: var(--paper);
   -webkit-font-smoothing: antialiased;
+
+  background-color: var(--paper);
+  background-image:
+    linear-gradient(rgba(21, 24, 28, .055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(21, 24, 28, .055) 1px, transparent 1px);
+  background-size: var(--grid) var(--grid);
 }
 
 h1, h2, h3 { line-height: 1.15; letter-spacing: -0.02em; margin: 0 0 .5em; }
@@ -41,8 +51,12 @@ a { color: inherit; }
 
 /* --------------------------------------------------------------- hero --- */
 .hero {
-  background: var(--ink);
   color: #fff;
+  background-color: var(--ink);
+  background-image:
+    linear-gradient(rgba(255, 255, 255, .05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, .05) 1px, transparent 1px);
+  background-size: var(--grid) var(--grid);
 }
 .hero .wrap { padding-block: 72px; }
 .brand {
@@ -89,8 +103,9 @@ h2 {
   font-size: 26px;
   margin-bottom: 24px;
 }
-/* Tinted full-width band; its inner .wrap keeps the text on the same column. */
-.band { background: var(--alt); }
+/* Tinted full-width band. The fill is translucent so the page lattice runs
+   through it unbroken; an opaque --alt here would cut the grid into strips. */
+.band { background: rgba(21, 24, 28, .038); }
 
 .text { color: var(--mute); margin: 0; }
 .text b { color: var(--text); }
@@ -102,6 +117,14 @@ h2 {
   gap: 24px;
 }
 .parts h3 { font-size: 18px; margin: 14px 0 4px; }
+.parts .spec {
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin: 0 0 6px;
+}
 .parts p { margin: 0; color: var(--mute); font-size: 15px; }
 
 /* Photo placeholder. Swap the div for an <img> and these styles still apply. */
@@ -112,6 +135,7 @@ h2 {
   object-fit: cover;
   background: var(--alt);
   border: 1px solid var(--line);
+  /* opaque, so a photo slot reads as an object sitting on the lattice */
   border-radius: 6px;
   position: relative;
 }

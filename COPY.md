@@ -26,8 +26,8 @@ One-line descriptors (for a Discord server description, Instagram bio, or the
 
 - Custom CNC aluminum for FTC teams — cheaper than the big suppliers, 1–3 day
   local delivery or shop pickup in San Diego.
-- Plates, beams, standoffs and brackets on an 8 mm grid, machined by students
-  from Runtime Terror (#22105) and All Systems Go (#21239).
+- 1/8 in. plates, threaded 8 mm grid beams and custom 3D printed parts, made by
+  students from Runtime Terror (#22105) and All Systems Go (#21239).
 
 ## Voice
 
@@ -51,11 +51,11 @@ legal and normal — but keep it defensible:
   prices. Keep it truthful and current. If you later post a comparison table
   with their actual prices, date it ("prices checked Sept 2026") so a stale
   screenshot doesn't become a false claim.
-- **"goBILDA-style standoffs"** describes compatibility, not origin. Don't call
-  them goBILDA standoffs, don't use goBILDA's logo or product photos, and don't
-  copy their patented hole *pattern* — the 8 mm grid spacing itself is fine,
-  which is why the copy says "8 mm grid spacing" rather than anything more
-  specific.
+- **Describing fit, not origin.** The copy says "8 mm grid" because the grid
+  *spacing* isn't patented; goBILDA's specific hole *pattern* is. Don't copy that
+  pattern, don't use their logo or product photos, and don't describe a part as a
+  goBILDA part. If you add standoffs to the lineup later, "goBILDA-style" is a
+  compatibility claim and is fine — "goBILDA standoffs" is not.
 - **Team names.** Runtime Terror and All Systems Go are your teams, but the
   teams themselves (and their sponsors) may have opinions about being named on
   a commercial flyer. Worth a quick heads-up to your coaches — cheaper than
@@ -72,7 +72,7 @@ legal and normal — but keep it defensible:
 - A real email address on your own domain if you can — `hello@crackbotics.com`
   reads better than a personal Gmail on a flyer.
 - Actual prices. Right now the site says "ask us." That's fine to start, but a
-  few anchor prices ("standoffs from $X", "plates from $Y") convert far better
+  few anchor prices ("plates from $X", "beams from $Y") convert far better
   than a quote form, because the whole pitch is that you're cheap. As soon as
   you know your numbers, put three of them on the site.
 - Photos. Even one good shot of a finished part beats three placeholders.
