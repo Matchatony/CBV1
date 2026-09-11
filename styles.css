@@ -17,8 +17,10 @@
 
   /* The background lattice is literally 8mm — the grid the parts are drilled on.
      It is set on the body element and on the hero, both starting at the top-left of the
-     document, so the lines stay aligned from the masthead to the footer. */
+     document, so the lines stay aligned from the masthead to the footer. One line
+     color is used everywhere, dark section included. */
   --grid: 8mm;
+  --grid-line: rgba(21, 24, 28, .055);
 }
 
 * { box-sizing: border-box; }
@@ -33,8 +35,8 @@ body {
 
   background-color: var(--paper);
   background-image:
-    linear-gradient(rgba(21, 24, 28, .055) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(21, 24, 28, .055) 1px, transparent 1px);
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
   background-size: var(--grid) var(--grid);
 }
 
@@ -54,8 +56,8 @@ a { color: inherit; }
   color: #fff;
   background-color: var(--ink);
   background-image:
-    linear-gradient(rgba(255, 255, 255, .05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, .05) 1px, transparent 1px);
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
   background-size: var(--grid) var(--grid);
 }
 .hero .wrap { padding-block: 72px; }
