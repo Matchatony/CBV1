@@ -174,7 +174,7 @@
     <!-- Posts to Formspree, which forwards submissions to the address set on
          the form. To point it somewhere else, change the endpoint id here and
          in the Formspree dashboard. -->
-    <form class="form" id="quote" action="https://formspree.io/f/mgaeqjvd" method="POST">
+    <form class="form" id="quote" action="https://formspree.io/f/mgaeqjvd" method="POST" enctype="multipart/form-data">
       <!-- Formspree uses a field named "email" as the reply-to address. -->
       <input type="hidden" name="_subject" value="New part request — Crackbotics">
       <!-- Honeypot: bots fill this in, people never see it. -->
@@ -211,8 +211,15 @@
       </div>
 
       <div class="field field-wide">
+        <label for="f-files">CAD files <span class="opt">optional</span></label>
+        <input id="f-files" name="upload" type="file" multiple
+               accept=".dxf,.dwg,.step,.stp,.stl,.iges,.igs,.f3d,.sldprt,.ipt,.pdf,.zip">
+        <p class="hint" id="f-files-hint">DXF, STEP, STL, F3D or a ZIP. Up to 10&nbsp;MB in total.</p>
+      </div>
+
+      <div class="field field-wide">
         <label for="f-details">Details</label>
-        <textarea id="f-details" name="details" rows="4" placeholder="Material, thickness, deadline — and whether you have a DXF or STEP file ready to send."></textarea>
+        <textarea id="f-details" name="details" rows="4" placeholder="Material, thickness, deadline, and anything the files don't say."></textarea>
       </div>
 
       <div class="field-wide form-send">
@@ -255,6 +262,17 @@
   var note = document.getElementById('form-note');
   var EMAIL = 'anthonyhuynh980@gmail.com';
 
+  var MAX_UPLOAD = 10 * 1024 * 1024; /* Formspree caps attachments */
+
+  function uploadBytes() {
+    var input = form.elements['upload'];
+    var total = 0;
+    if (input && input.files) {
+      for (var i = 0; i < input.files.length; i++) total += input.files[i].size;
+    }
+    return total;
+  }
+
   function value(name) {
     var el = form.elements[name];
     return el && el.value ? el.value.trim() : '';
@@ -293,6 +311,12 @@
       return;
     }
 
+    if (uploadBytes() > MAX_UPLOAD) {
+      say('Those files add up to more than 10 MB. Send a ZIP, or leave them off and '
+        + 'we will ask for them by email.', 'bad');
+      return;
+    }
+
     button.disabled = true;
     var label = button.textContent;
     button.textContent = 'Sending…';
@@ -314,7 +338,10 @@
       retry.textContent = 'Open your email app instead';
       retry.addEventListener('click', openMailApp);
       status.appendChild(retry);
-      status.appendChild(document.createTextNode(' — or write to ' + EMAIL + '.'));
+      status.appendChild(document.createTextNode(
+        uploadBytes()
+          ? ' — your details will be filled in, but attach the files yourself.'
+          : ' — or write to ' + EMAIL + '.'));
     }).then(function () {
       button.disabled = false;
       button.textContent = label;

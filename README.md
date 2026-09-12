@@ -53,6 +53,23 @@ To change where requests land, change the destination on the form in the
 Formspree dashboard — not in this code. To point at a different form entirely,
 replace the endpoint id in the `<form action>` in `index.html`.
 
+### File uploads
+
+The form has a **CAD files** field so teams can attach DXF/STEP/STL/ZIP with
+their request. The page enforces a 10 MB total and refuses to send past it,
+since a rejected 40 MB upload is a worse experience than being told up front.
+
+**Check your Formspree plan.** File uploads are a paid feature there — on a
+free plan the attachment is dropped or the submission rejected, and the team
+sees the send fail. If you are on the free plan, either upgrade or remove the
+upload field (delete the `f-files` block in `index.html`) so nobody attaches a
+file that never arrives. Send yourself a test **with a file attached** to
+confirm which behaviour you get.
+
+If a send fails while files were attached, the page says so and offers the
+pre-filled email — noting the files have to be attached by hand, since a
+mailto link cannot carry them.
+
 Free tier is 50 submissions a month. If you outgrow it, the upgrade is on
 Formspree's side and needs no change here.
 

@@ -424,3 +424,35 @@ a:focus-visible {
   cursor: pointer;
   text-decoration: underline;
 }
+
+/* --------------------------------------------------------- file upload --- */
+.opt {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: #6e767f;
+}
+.form input[type="file"] {
+  padding: 9px 12px;
+  cursor: pointer;
+}
+.form input[type="file"]::file-selector-button {
+  font: inherit;
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--text);
+  background: rgba(255, 255, 255, .08);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 6px 12px;
+  margin-right: 12px;
+  cursor: pointer;
+}
+.form input[type="file"]::file-selector-button:hover {
+  background: rgba(255, 255, 255, .14);
+}
+.hint {
+  margin: 0;
+  font-size: 13.5px;
+  color: #79818b;
+}
