@@ -20,6 +20,22 @@
 </head>
 <body id="top">
 
+<!-- ================================= NAV ================================= -->
+<nav class="nav" aria-label="Main">
+  <div class="nav-inner">
+    <a class="nav-brand" href="#top">
+      <span class="nav-crack">crack</span><span class="nav-botics">botics</span>
+    </a>
+    <ul class="nav-links">
+      <li><a href="#parts">Parts</a></li>
+      <li><a href="#gallery">Gallery</a></li>
+      <li><a href="#why">Why us</a></li>
+      <li><a href="#team">Who we are</a></li>
+      <li><a class="nav-cta" href="#order">Order</a></li>
+    </ul>
+  </div>
+</nav>
+
 <!-- ================================ HERO ================================ -->
 <header class="hero">
   <div class="wrap">
@@ -37,7 +53,7 @@
     </a>
 
     <h1>Stop overpaying<br>for <span class="hl">aluminum.</span></h1>
-    <p class="lede">
+    <p class="lede prose">
       Custom plates, square beams and 3D printed parts for FTC teams — well under
       what the big suppliers charge, on an 8&nbsp;mm grid. San Diego pickup or
       1–3 day local delivery.
@@ -49,7 +65,7 @@
 <main>
 
   <!-- ============================== PARTS ============================== -->
-  <section class="wrap">
+  <section class="wrap" id="parts">
     <h2>What we make</h2>
     <div class="parts">
 
@@ -81,8 +97,49 @@
     <p class="aside">Need a bracket nobody sells? Send the geometry and we'll quote it.</p>
   </section>
 
+  <!-- ============================= GALLERY =============================
+       Drop photos in images/ and swap each placeholder div for an img:
+         <figure class="shot"><img src="images/cut-01.jpg" alt="...">
+           <figcaption>What it is</figcaption></figure>
+       The grid crops every shot to 4:3. =============================== -->
+  <section class="band" id="gallery">
+   <div class="wrap">
+    <h2>Examples of our cuts</h2>
+    <p class="text prose">Parts we've actually run. Every one of these came off the machine and onto a robot.</p>
+
+    <div class="gallery">
+      <figure class="shot">
+        <div class="photo" data-label="Cut 01"></div>
+        <figcaption>Pocketed side plate, 1/8 in. 6061</figcaption>
+      </figure>
+      <figure class="shot">
+        <div class="photo" data-label="Cut 02"></div>
+        <figcaption>Polycarbonate guard, 1/8 in.</figcaption>
+      </figure>
+      <figure class="shot">
+        <div class="photo" data-label="Cut 03"></div>
+        <figcaption>Threaded square beam, cut to length</figcaption>
+      </figure>
+      <figure class="shot">
+        <div class="photo" data-label="Cut 04"></div>
+        <figcaption>Custom motor mount bracket</figcaption>
+      </figure>
+      <figure class="shot">
+        <div class="photo" data-label="Cut 05"></div>
+        <figcaption>Gearbox plate with bearing bores</figcaption>
+      </figure>
+      <figure class="shot">
+        <div class="photo" data-label="Cut 06"></div>
+        <figcaption>3D printed intake guide</figcaption>
+      </figure>
+    </div>
+
+    <p class="aside">Want something like one of these? <a href="#order">Send us the geometry.</a></p>
+   </div>
+  </section>
+
   <!-- ============================== WHY US ============================== -->
-  <section class="band">
+  <section class="band" id="why">
    <div class="wrap">
     <h2>Why us</h2>
     <ul class="why">
@@ -95,9 +152,9 @@
   </section>
 
   <!-- =============================== TEAM =============================== -->
-  <section class="wrap">
+  <section class="wrap" id="team">
     <h2>Who we are</h2>
-    <p class="text">
+    <p class="text prose">
       Three students from <b>Runtime Terror (FTC #22105)</b> in San Diego and
       <b>All Systems Go (FTC #21239)</b> in Kentucky. We kept paying three times what a
       simple bracket should cost, and we already had the CAD skills and the machine time —
@@ -109,7 +166,7 @@
   <section class="band" id="order">
    <div class="wrap">
     <h2>Order a part</h2>
-    <p class="text">
+    <p class="text prose">
       Tell us what you need and it comes straight to our inbox. We quote same day,
       machine in 1–3 days, and you pick up at the shop or we deliver locally.
     </p>
@@ -178,7 +235,7 @@
 
 <footer class="wrap">
   <p>Crackbotics · Custom CNC aluminum for FTC teams · San Diego, CA</p>
-  <p class="fine">
+  <p class="fine prose">
     Parts use 8&nbsp;mm grid spacing. Crackbotics is an independent student business and is not
     affiliated with, sponsored by or endorsed by goBILDA, SendCutSend, REV Robotics, or
     <i>FIRST</i>®. FIRST® Tech Challenge is a trademark of FIRST®.

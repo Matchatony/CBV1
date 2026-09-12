@@ -28,6 +28,15 @@
 
 * { box-sizing: border-box; }
 
+html {
+  scroll-behavior: smooth;
+  /* anchors land below the sticky nav instead of under it */
+  scroll-padding-top: 76px;
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+}
+
 body {
   margin: 0;
   font-family: var(--font);
@@ -47,12 +56,73 @@ h1, h2, h3 { line-height: 1.15; letter-spacing: -0.02em; margin: 0 0 .5em; }
 p { margin: 0 0 1em; }
 a { color: inherit; }
 
-/* One wrapper handles the page gutter everywhere. */
+/* One wrapper handles the page gutter everywhere. The column is wide so the
+   page fills the screen; running text is reined back in by .prose. */
 .wrap {
-  max-width: 760px;
+  max-width: 1180px;
   margin: 0 auto;
-  padding: 56px 24px;
+  padding: 72px 32px;
 }
+/* Measure for anything read line by line. */
+.prose { max-width: 68ch; }
+
+/* ---------------------------------------------------------------- nav --- */
+.nav {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: rgba(21, 24, 28, .88);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--line);
+}
+.nav-inner {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 14px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+.nav-brand {
+  font-family: "Jost", var(--font);
+  font-weight: 400;
+  font-size: 19px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.nav-crack { color: var(--accent); }
+.nav-botics {
+  color: var(--text);
+  border: 1.5px solid var(--text);
+  border-radius: 5px;
+  padding: 1px 6px;
+  margin-left: 3px;
+}
+.nav-links {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.nav-links a {
+  display: block;
+  padding: 7px 12px;
+  border-radius: 6px;
+  font-size: 15px;
+  color: var(--mute);
+  text-decoration: none;
+}
+.nav-links a:hover { color: var(--text); background: rgba(255,255,255,.06); }
+.nav-cta {
+  color: #fff !important;
+  background: var(--accent);
+}
+.nav-cta:hover { background: #e2550a !important; }
 
 /* --------------------------------------------------------------- hero --- */
 /* No background of its own — it sits on the page ground like everything else. */
@@ -132,8 +202,8 @@ h2 {
 /* -------------------------------------------------------------- parts --- */
 .parts {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 24px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 28px;
 }
 .parts h3 { font-size: 18px; margin: 14px 0 4px; }
 .parts .spec {
@@ -209,10 +279,35 @@ footer {
 footer p { margin: 0 0 10px; }
 .fine { font-size: 12.5px; line-height: 1.5; margin: 0; color: #78808a; }
 
+@media (max-width: 760px) {
+  /* The nav becomes two rows: brand, then the tabs as one swipeable strip.
+     Wrapping them instead produces a staircase that eats the screen. */
+  .nav-inner {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 12px 20px;
+  }
+  .nav-links {
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    overflow-x: auto;
+    gap: 4px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .nav-links::-webkit-scrollbar { display: none; }
+  .nav-links a { white-space: nowrap; }
+  .nav-cta { margin-left: auto; }
+
+  /* the taller nav needs a deeper landing offset */
+  html { scroll-padding-top: 112px; }
+}
+
 @media (max-width: 640px) {
   body { font-size: 16px; }
-  .wrap { padding: 44px 20px; }
-  .hero .wrap { padding-block: 56px; }
+  .wrap { padding: 48px 20px; }
+  .hero .wrap { padding-block: 52px; }
 }
 
 /* -------------------------------------------------------------- form --- */
@@ -298,3 +393,23 @@ a:focus-visible {
   border-color: rgba(255, 107, 26, .5);
   background: var(--surface);
 }
+
+/* ------------------------------------------------------------- gallery --- */
+.gallery {
+  display: grid;
+  /* 300px floor puts three across on a wide screen, so six shots fill two
+     even rows rather than leaving a short one. */
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 26px;
+  margin-top: 28px;
+}
+.shot { margin: 0; }
+.shot figcaption {
+  margin-top: 10px;
+  font-size: 14px;
+  color: var(--mute);
+}
+.aside a { color: var(--accent); }
+
+/* The form is a wide grid now, but a text column that long is hard to read. */
+.form { max-width: 860px; }
