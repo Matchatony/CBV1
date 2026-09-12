@@ -413,3 +413,14 @@ a:focus-visible {
 
 /* The form is a wide grid now, but a text column that long is hard to read. */
 .form { max-width: 860px; }
+
+/* A button that reads as a link, for the recovery action in a failed send. */
+.linkish {
+  font: inherit;
+  color: var(--accent);
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+}

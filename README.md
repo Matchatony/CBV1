@@ -24,7 +24,6 @@ Both pages ship with placeholders. Search and replace:
 
 | Placeholder | Where |
 |---|---|
-| `YOUR-FORM-ID` | `index.html` — the Formspree endpoint, see below |
 | `https://discord.gg/YOUR-INVITE` | `flyer.html` (6x — one per tear-off tab) |
 | `hello@crackbotics.com` | `flyer.html` |
 | `crackbotics.com` | `flyer.html` |
@@ -32,43 +31,30 @@ Both pages ship with placeholders. Search and replace:
 | Product photos | `index.html` — see below |
 | Logo image | `index.html` — see below |
 
-## Turning on the order form
+## The order form
 
-The form posts to [Formspree](https://formspree.io), which forwards submissions
-to your inbox. It ships with a placeholder endpoint and **falls back to opening
-the visitor's mail app until you replace it**, so the button is never dead.
+The form posts to [Formspree](https://formspree.io) at endpoint
+`mgaeqjvd`, which forwards submissions to the address set on that form in the
+Formspree dashboard. **It is already wired up** — nothing to configure.
 
-1. Sign up at formspree.io and create a form. The free tier covers 50
-   submissions a month, which is plenty to start.
-2. Set the form's destination to the address you want requests at.
-3. Copy the endpoint it gives you — it looks like `https://formspree.io/f/abcdwxyz`.
-4. Replace the id in `index.html`:
+How it behaves:
 
-```sh
-sed -i 's|YOUR-FORM-ID|abcdwxyz|' index.html
-```
-
-That's the whole change. Submissions then post over fetch and the visitor gets
-an inline "your request is in" message instead of leaving the page.
-
-Notes on how it's wired:
-
+- Submitting posts over fetch, so the visitor stays on the page and gets an
+  inline "your request is in" instead of Formspree's redirect page.
 - The field named `email` becomes the **Reply-To**, so hitting reply in your
   inbox answers the team directly.
-- `_subject` sets the email subject; `_gotcha` is a hidden honeypot that
-  silently drops bot submissions.
-- Formspree emails you a confirmation link on the **first** real submission —
-  send yourself a test after deploying, or the first genuine request may sit
-  unconfirmed.
-- If a post fails, the page shows the direct email address as a fallback rather
-  than losing the request.
+- `_subject` titles the email; `_gotcha` is a hidden honeypot that silently
+  drops bot submissions.
+- If the post fails (Formspree down, visitor offline) the page offers to open
+  their mail app with the same details pre-filled, so nothing they typed is
+  lost.
 
-```sh
-# quick pass over both files
-sed -i 's|discord.gg/YOUR-INVITE|discord.gg/abc123|g' index.html flyer.html
-```
+To change where requests land, change the destination on the form in the
+Formspree dashboard — not in this code. To point at a different form entirely,
+replace the endpoint id in the `<form action>` in `index.html`.
 
-Use a **non-expiring** Discord invite. A flyer outlives a 7-day link.
+Free tier is 50 submissions a month. If you outgrow it, the upgrade is on
+Formspree's side and needs no change here.
 
 ## Adding your photos
 

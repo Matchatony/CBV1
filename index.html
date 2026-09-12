@@ -171,11 +171,10 @@
       machine in 1–3 days, and you pick up at the shop or we deliver locally.
     </p>
 
-    <!-- FORMSPREE: replace YOUR-FORM-ID below with the id from your Formspree
-         form (Formspree dashboard -> your form -> the endpoint looks like
-         https://formspree.io/f/abcdwxyz). Until that is replaced, the form
-         falls back to opening the visitor's mail app, so it keeps working. -->
-    <form class="form" id="quote" action="https://formspree.io/f/YOUR-FORM-ID" method="POST">
+    <!-- Posts to Formspree, which forwards submissions to the address set on
+         the form. To point it somewhere else, change the endpoint id here and
+         in the Formspree dashboard. -->
+    <form class="form" id="quote" action="https://formspree.io/f/mgaeqjvd" method="POST">
       <!-- Formspree uses a field named "email" as the reply-to address. -->
       <input type="hidden" name="_subject" value="New part request — Crackbotics">
       <!-- Honeypot: bots fill this in, people never see it. -->
@@ -244,10 +243,9 @@
 
 <script>
 /* The form posts to Formspree over fetch so the visitor stays on the page and
-   gets an inline result instead of Formspree's own redirect.
-
-   Until a real endpoint is filled in, submitting falls back to handing the
-   message to the visitor's mail app, so the button is never dead. */
+   gets an inline result instead of Formspree's own redirect. If the post fails
+   — Formspree down, visitor offline — the same request is offered as a
+   pre-filled email so nobody loses what they typed. */
 (function () {
   var form = document.getElementById('quote');
   if (!form) return;
@@ -295,12 +293,6 @@
       return;
     }
 
-    /* No endpoint configured yet — use the mail app instead of posting. */
-    if (form.action.indexOf('YOUR-FORM-ID') !== -1) {
-      openMailApp();
-      return;
-    }
-
     button.disabled = true;
     var label = button.textContent;
     button.textContent = 'Sending…';
@@ -315,7 +307,14 @@
       if (note) note.hidden = true;
       say('Thanks — your request is in. We\'ll reply to you by email, usually the same day.', 'ok');
     }).catch(function () {
-      say('That did not send. Email us directly at ' + EMAIL + ' and we will pick it up.', 'bad');
+      say('That did not send. ', 'bad');
+      var retry = document.createElement('button');
+      retry.type = 'button';
+      retry.className = 'linkish';
+      retry.textContent = 'Open your email app instead';
+      retry.addEventListener('click', openMailApp);
+      status.appendChild(retry);
+      status.appendChild(document.createTextNode(' — or write to ' + EMAIL + '.'));
     }).then(function () {
       button.disabled = false;
       button.textContent = label;
