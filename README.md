@@ -24,11 +24,44 @@ Both pages ship with placeholders. Search and replace:
 
 | Placeholder | Where |
 |---|---|
-| `https://discord.gg/YOUR-INVITE` | `index.html` (2x), `flyer.html` (6x — one per tear-off tab) |
-| `hello@crackbotics.com` | `index.html` (4x), `flyer.html` |
+| `YOUR-FORM-ID` | `index.html` — the Formspree endpoint, see below |
+| `https://discord.gg/YOUR-INVITE` | `flyer.html` (6x — one per tear-off tab) |
+| `hello@crackbotics.com` | `flyer.html` |
 | `crackbotics.com` | `flyer.html` |
 | QR code box | `flyer.html` — see below |
 | Product photos | `index.html` — see below |
+| Logo image | `index.html` — see below |
+
+## Turning on the order form
+
+The form posts to [Formspree](https://formspree.io), which forwards submissions
+to your inbox. It ships with a placeholder endpoint and **falls back to opening
+the visitor's mail app until you replace it**, so the button is never dead.
+
+1. Sign up at formspree.io and create a form. The free tier covers 50
+   submissions a month, which is plenty to start.
+2. Set the form's destination to the address you want requests at.
+3. Copy the endpoint it gives you — it looks like `https://formspree.io/f/abcdwxyz`.
+4. Replace the id in `index.html`:
+
+```sh
+sed -i 's|YOUR-FORM-ID|abcdwxyz|' index.html
+```
+
+That's the whole change. Submissions then post over fetch and the visitor gets
+an inline "your request is in" message instead of leaving the page.
+
+Notes on how it's wired:
+
+- The field named `email` becomes the **Reply-To**, so hitting reply in your
+  inbox answers the team directly.
+- `_subject` sets the email subject; `_gotcha` is a hidden honeypot that
+  silently drops bot submissions.
+- Formspree emails you a confirmation link on the **first** real submission —
+  send yourself a test after deploying, or the first genuine request may sit
+  unconfirmed.
+- If a post fails, the page shows the direct email address as a fallback rather
+  than losing the request.
 
 ```sh
 # quick pass over both files

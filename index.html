@@ -114,7 +114,16 @@
       machine in 1–3 days, and you pick up at the shop or we deliver locally.
     </p>
 
-    <form class="form" id="quote" novalidate>
+    <!-- FORMSPREE: replace YOUR-FORM-ID below with the id from your Formspree
+         form (Formspree dashboard -> your form -> the endpoint looks like
+         https://formspree.io/f/abcdwxyz). Until that is replaced, the form
+         falls back to opening the visitor's mail app, so it keeps working. -->
+    <form class="form" id="quote" action="https://formspree.io/f/YOUR-FORM-ID" method="POST">
+      <!-- Formspree uses a field named "email" as the reply-to address. -->
+      <input type="hidden" name="_subject" value="New part request — Crackbotics">
+      <!-- Honeypot: bots fill this in, people never see it. -->
+      <input type="text" name="_gotcha" tabindex="-1" autocomplete="off" hidden>
+
       <div class="field">
         <label for="f-name">Your name</label>
         <input id="f-name" name="name" type="text" autocomplete="name" required>
@@ -151,9 +160,11 @@
       </div>
 
       <div class="field-wide form-send">
-        <button class="btn" type="submit">Send request</button>
-        <p class="note" id="form-note">Opens your email app with the details filled in, addressed to us.</p>
+        <button class="btn" type="submit" id="f-submit">Send request</button>
+        <p class="note" id="form-note">We usually reply the same day.</p>
       </div>
+
+      <p class="form-status field-wide" id="form-status" role="status" aria-live="polite" hidden></p>
     </form>
 
     <p class="text contact-direct">
@@ -175,36 +186,83 @@
 </footer>
 
 <script>
-/* The site is static, so the form hands the request to the visitor's mail app
-   pre-addressed and pre-filled. Swapping to a form-to-inbox service later means
-   replacing this listener with an action/method on the <form>. */
+/* The form posts to Formspree over fetch so the visitor stays on the page and
+   gets an inline result instead of Formspree's own redirect.
+
+   Until a real endpoint is filled in, submitting falls back to handing the
+   message to the visitor's mail app, so the button is never dead. */
 (function () {
   var form = document.getElementById('quote');
   if (!form) return;
 
+  var status = document.getElementById('form-status');
+  var button = document.getElementById('f-submit');
+  var note = document.getElementById('form-note');
+  var EMAIL = 'anthonyhuynh980@gmail.com';
+
+  function value(name) {
+    var el = form.elements[name];
+    return el && el.value ? el.value.trim() : '';
+  }
+
+  function say(message, kind) {
+    status.textContent = message;
+    status.className = 'form-status field-wide is-' + kind;
+    status.hidden = false;
+  }
+
+  /* Fallback: compose the same request as a pre-filled email. */
+  function openMailApp() {
+    var subject = 'Part request' + (value('team') ? ' — FTC ' + value('team') : '');
+    var body = [
+      'Name: ' + (value('name') || '—'),
+      'Team: ' + (value('team') || '—'),
+      'Email: ' + (value('email') || '—'),
+      'Part: ' + value('part'),
+      'Quantity: ' + (value('qty') || '—'),
+      '',
+      'Details:',
+      value('details') || '—'
+    ].join('\n');
+
+    window.location.href = 'mailto:' + EMAIL
+      + '?subject=' + encodeURIComponent(subject)
+      + '&body=' + encodeURIComponent(body);
+  }
+
   form.addEventListener('submit', function (event) {
     event.preventDefault();
 
-    var get = function (name) {
-      var el = form.elements[name];
-      return el && el.value ? el.value.trim() : '';
-    };
+    if (!form.checkValidity()) {
+      form.reportValidity();
+      return;
+    }
 
-    var subject = 'Part request' + (get('team') ? ' — FTC ' + get('team') : '');
-    var body = [
-      'Name: ' + (get('name') || '—'),
-      'Team: ' + (get('team') || '—'),
-      'Email: ' + (get('email') || '—'),
-      'Part: ' + get('part'),
-      'Quantity: ' + (get('qty') || '—'),
-      '',
-      'Details:',
-      get('details') || '—'
-    ].join('\n');
+    /* No endpoint configured yet — use the mail app instead of posting. */
+    if (form.action.indexOf('YOUR-FORM-ID') !== -1) {
+      openMailApp();
+      return;
+    }
 
-    window.location.href = 'mailto:anthonyhuynh980@gmail.com'
-      + '?subject=' + encodeURIComponent(subject)
-      + '&body=' + encodeURIComponent(body);
+    button.disabled = true;
+    var label = button.textContent;
+    button.textContent = 'Sending…';
+
+    fetch(form.action, {
+      method: 'POST',
+      body: new FormData(form),
+      headers: { Accept: 'application/json' }
+    }).then(function (response) {
+      if (!response.ok) throw new Error('Request failed');
+      form.reset();
+      if (note) note.hidden = true;
+      say('Thanks — your request is in. We\'ll reply to you by email, usually the same day.', 'ok');
+    }).catch(function () {
+      say('That did not send. Email us directly at ' + EMAIL + ' and we will pick it up.', 'bad');
+    }).then(function () {
+      button.disabled = false;
+      button.textContent = label;
+    });
   });
 })();
 </script>

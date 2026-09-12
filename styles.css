@@ -279,3 +279,22 @@ a:focus-visible {
 .note { margin: 0; font-size: 14px; color: var(--mute); }
 .contact-direct { margin-top: 26px; font-size: 15px; }
 .contact-direct .mail { color: var(--accent); }
+
+/* Inline result after submitting, in place of Formspree's redirect page. */
+.form-status {
+  margin: 4px 0 0;
+  padding: 12px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  font-size: 15px;
+}
+.form-status.is-ok {
+  color: var(--text);
+  border-color: rgba(255, 107, 26, .5);
+  background: rgba(255, 107, 26, .1);
+}
+.form-status.is-bad {
+  color: var(--text);
+  border-color: rgba(255, 107, 26, .5);
+  background: var(--surface);
+}
