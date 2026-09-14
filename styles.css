@@ -13,7 +13,10 @@
   --line:    rgba(255,255,255,.13);
   --text:    #e9ebee;
   --mute:    #9aa2ac;
-  --accent:  #ff6b1a;
+  --accent:      #ff4d8d;       /* pink: text, borders, marks on the dark ground */
+  --accent-rgb:  255, 77, 141;  /* same pink, for translucent fills */
+  --accent-deep: #d81e68;       /* filled buttons — white label text needs the darker pink */
+  --accent-hover:#bd1a5b;
 
   --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
           "Helvetica Neue", Arial, sans-serif;
@@ -120,9 +123,9 @@ a { color: inherit; }
 .nav-links a:hover { color: var(--text); background: rgba(255,255,255,.06); }
 .nav-cta {
   color: #fff !important;
-  background: var(--accent);
+  background: var(--accent-deep);
 }
-.nav-cta:hover { background: #e2550a !important; }
+.nav-cta:hover { background: var(--accent-hover) !important; }
 
 /* --------------------------------------------------------------- hero --- */
 /* No background of its own — it sits on the page ground like everything else. */
@@ -178,14 +181,14 @@ h1 {
 /* ------------------------------------------------------------- button --- */
 .btn {
   display: inline-block;
-  background: var(--accent);
+  background: var(--accent-deep);
   color: #fff;
   padding: 12px 22px;
   border-radius: 6px;
   font-weight: 650;
   text-decoration: none;
 }
-.btn:hover { background: #e2550a; }
+.btn:hover { background: var(--accent-hover); }
 
 /* ------------------------------------------------------------ sections --- */
 h2 {
@@ -385,12 +388,12 @@ a:focus-visible {
 }
 .form-status.is-ok {
   color: var(--text);
-  border-color: rgba(255, 107, 26, .5);
-  background: rgba(255, 107, 26, .1);
+  border-color: rgba(var(--accent-rgb), .5);
+  background: rgba(var(--accent-rgb), .1);
 }
 .form-status.is-bad {
   color: var(--text);
-  border-color: rgba(255, 107, 26, .5);
+  border-color: rgba(var(--accent-rgb), .5);
   background: var(--surface);
 }
 
