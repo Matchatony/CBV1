@@ -188,12 +188,22 @@
       the machine time, so we started cutting parts for other teams.
     </p>
 
-    <figure class="robot">
-      <img src="images/robot.jpg"
-           alt="Runtime Terror's competition robot driving across the field"
-           onerror="this.closest('figure').hidden = true">
-      <figcaption>Runtime Terror (FTC&nbsp;#22105) on the field</figcaption>
-    </figure>
+    <!-- Both figures hide themselves until their file exists, so the row can
+         hold one, both or neither without looking broken. -->
+    <div class="media">
+      <figure class="media-cad">
+        <img src="images/robot-cad.png"
+             alt="CAD assembly of the 22105 robot"
+             onerror="this.closest('figure').hidden = true">
+        <figcaption>22105 in CAD</figcaption>
+      </figure>
+      <figure class="media-photo">
+        <img src="images/robot.jpg"
+             alt="Runtime Terror's competition robot driving across the field"
+             onerror="this.closest('figure').hidden = true">
+        <figcaption>The same robot on the field</figcaption>
+      </figure>
+    </div>
   </section>
 
   <!-- ============================== ORDER ============================== -->
