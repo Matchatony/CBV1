@@ -1,40 +1,46 @@
 /* ==========================================================================
    Crackbotics — one-page site. Plain CSS, no build step, no dependencies.
-   Colors live in :root; change them there, not inline.
 
-   The page is one continuous dark ground: the hero's black runs from the
-   masthead to the footer, with a single 8mm lattice drawn over all of it.
+   Two ideas hold the page together:
+     1. Hairline rules and space do the dividing, not boxes. Only things you
+        can actually operate (buttons, inputs) get a fill or a radius.
+     2. IBM Plex Mono carries every measured value — thickness, grid, lead
+        time. A shop writes its numbers in mono, so the data reads as data.
    ========================================================================== */
 
 :root {
-  --bg:      #15181c;              /* the page ground — the hero's black */
-  --surface: #1d2128;              /* lifted panels: photo slots */
-  --band:    rgba(255,255,255,.035); /* tinted section, translucent so the grid shows */
-  --line:    rgba(255,255,255,.13);
-  --text:    #e9ebee;
-  --mute:    #9aa2ac;
-  --accent:      #ff4d8d;       /* pink: text, borders, marks on the dark ground */
-  --accent-rgb:  255, 77, 141;  /* same pink, for translucent fills */
-  --accent-deep: #d81e68;       /* filled buttons — white label text needs the darker pink */
-  --accent-hover:#bd1a5b;
+  /* Near-black carries a faint violet cast so it sits under the magenta
+     rather than fighting it. A pure blue-grey would read as a default. */
+  --bg:        #14121a;
+  --bg-raised: #1b1822;
+  --line:      rgba(255, 255, 255, .09);
+  --line-firm: rgba(255, 255, 255, .16);
 
-  --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
-          "Helvetica Neue", Arial, sans-serif;
+  --text:  #f2eff4;
+  --muted: #a49dae;
+  --faint: #6f6879;
 
-  /* The lattice is literally 8mm — the grid the parts are drilled on. It is
-     drawn once, on the body element, so the lines run unbroken from top to
-     bottom. One line color everywhere; nothing else paints an opaque ground
-     over it. */
+  /* Light matte magenta: desaturated enough to sit calmly on the dark ground,
+     light enough that filled buttons take near-black labels instead of white. */
+  --accent:     #e9a8c9;
+  --accent-lit: #f3c2da;
+  --accent-rgb: 233, 168, 201;
+
+  --sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+          Roboto, Arial, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* The lattice is literally 8mm — the grid the parts are drilled on. Drawn
+     once on the body so the lines run unbroken from the nav to the footer. */
   --grid: 8mm;
-  --grid-line: rgba(255, 255, 255, .05);
+  --grid-line: rgba(255, 255, 255, .028);
 }
 
 * { box-sizing: border-box; }
 
 html {
   scroll-behavior: smooth;
-  /* anchors land below the sticky nav instead of under it */
-  scroll-padding-top: 76px;
+  scroll-padding-top: 88px; /* clears the sticky nav */
 }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
@@ -42,382 +48,313 @@ html {
 
 body {
   margin: 0;
-  font-family: var(--font);
+  font-family: var(--sans);
   font-size: 17px;
-  line-height: 1.6;
+  line-height: 1.65;
   color: var(--text);
-  -webkit-font-smoothing: antialiased;
-
   background-color: var(--bg);
   background-image:
     linear-gradient(var(--grid-line) 1px, transparent 1px),
     linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
   background-size: var(--grid) var(--grid);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
-h1, h2, h3 { line-height: 1.15; letter-spacing: -0.02em; margin: 0 0 .5em; }
-p { margin: 0 0 1em; }
+h1, h2, h3 { margin: 0; font-weight: 600; letter-spacing: -0.025em; line-height: 1.1; }
+p { margin: 0; }
 a { color: inherit; }
 
-/* One wrapper handles the page gutter everywhere. The column is wide so the
-   page fills the screen; running text is reined back in by .prose. */
 .wrap {
-  max-width: 1180px;
+  max-width: 1080px;
   margin: 0 auto;
-  padding: 72px 32px;
+  padding-inline: 32px;
 }
-/* Measure for anything read line by line. */
-.prose { max-width: 68ch; }
+.measure { max-width: 62ch; }
+
+/* Uppercase mono label, used for every data key on the page. */
+.eyebrow,
+.tag,
+.facts dt,
+.spec-data dt,
+.form label,
+.footer-mark {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
 
 /* ---------------------------------------------------------------- nav --- */
 .nav {
   position: sticky;
   top: 0;
   z-index: 20;
-  background: rgba(21, 24, 28, .88);
-  backdrop-filter: blur(10px);
+  background: rgba(20, 18, 26, .82);
+  backdrop-filter: blur(14px);
   border-bottom: 1px solid var(--line);
 }
 .nav-inner {
-  max-width: 1180px;
+  max-width: 1080px;
   margin: 0 auto;
-  padding: 14px 32px;
+  padding: 16px 32px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 20px;
+  gap: 32px;
 }
-.nav-brand {
-  font-family: "Jost", var(--font);
-  font-weight: 400;
+.wordmark {
   font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
   text-decoration: none;
   white-space: nowrap;
 }
-.nav-crack { color: var(--accent); }
-.nav-botics {
-  color: var(--text);
-  border: 1.5px solid var(--text);
-  border-radius: 5px;
-  padding: 1px 6px;
-  margin-left: 3px;
-}
+.wordmark-crack { color: var(--accent); }
+.wordmark-botics { color: var(--text); }
+
 .nav-links {
   list-style: none;
   display: flex;
-  align-items: center;
-  gap: 6px;
+  gap: 28px;
   margin: 0;
   padding: 0;
-  flex-wrap: wrap;
-  justify-content: flex-end;
+  margin-right: auto;
 }
 .nav-links a {
-  display: block;
-  padding: 7px 12px;
-  border-radius: 6px;
   font-size: 15px;
-  color: var(--mute);
+  color: var(--muted);
   text-decoration: none;
+  padding-block: 4px;
+  border-bottom: 1px solid transparent;
+  transition: color .15s ease, border-color .15s ease;
 }
-.nav-links a:hover { color: var(--text); background: rgba(255,255,255,.06); }
-.nav-cta {
-  color: #fff !important;
-  background: var(--accent-deep);
-}
-.nav-cta:hover { background: var(--accent-hover) !important; }
-
-/* --------------------------------------------------------------- hero --- */
-/* No background of its own — it sits on the page ground like everything else. */
-.hero .wrap { padding-block: 72px; }
-/* Logo lockup: orange "crack", boxed "botics", letterspaced tagline.
-   Built in CSS so it stays crisp and reads on the dark ground. Replace with
-   the logo image when a light-text version exists — see index.html. */
-.logo {
-  display: inline-block;
-  text-decoration: none;
-  margin-bottom: 34px;
-  font-family: "Jost", var(--font);
-  font-weight: 300;
-}
-.logo img { display: block; max-width: 100%; height: auto; }
-.logo-word {
-  display: flex;
-  align-items: stretch;
-  font-size: clamp(30px, 6vw, 40px);
-  line-height: 1;
-  letter-spacing: .01em;
-}
-.logo-crack {
-  color: var(--accent);
-  padding: 6px 8px 6px 0;
-}
-.logo-botics {
+.nav-links a:hover {
   color: var(--text);
-  border: 2px solid var(--text);
-  border-radius: 7px;
-  padding: 6px 10px;
-}
-.logo-tag {
-  display: block;
-  margin-top: 10px;
-  font-size: clamp(10px, 2vw, 12.5px);
-  letter-spacing: .42em;
-  text-transform: lowercase;
-  color: var(--mute);
-}
-h1 {
-  font-size: clamp(38px, 8vw, 60px);
-  font-weight: 800;
-  margin-bottom: 18px;
-}
-.hl { color: var(--accent); }
-.lede {
-  font-size: 19px;
-  color: var(--mute);
-  margin-bottom: 28px;
+  border-bottom-color: var(--accent);
 }
 
-/* ------------------------------------------------------------- button --- */
+/* ------------------------------------------------------------- buttons --- */
+/* Light magenta with a near-black label: high contrast, and it keeps the
+   accent feeling matte rather than neon. */
 .btn {
   display: inline-block;
-  background: var(--accent-deep);
-  color: #fff;
-  padding: 12px 22px;
-  border-radius: 6px;
-  font-weight: 650;
+  background: var(--accent);
+  color: #171320;
+  font: 500 16px/1 var(--sans);
+  padding: 14px 22px;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
   text-decoration: none;
+  cursor: pointer;
+  transition: background-color .15s ease, border-color .15s ease;
 }
-.btn:hover { background: var(--accent-hover); }
+.btn:hover { background: var(--accent-lit); border-color: var(--accent-lit); }
+.btn-sm { padding: 9px 15px; font-size: 14px; }
+.btn-quiet {
+  background: transparent;
+  color: var(--text);
+  border-color: var(--line-firm);
+}
+.btn-quiet:hover { background: rgba(255,255,255,.05); border-color: var(--muted); }
+
+/* --------------------------------------------------------------- hero --- */
+.hero { padding-block: clamp(72px, 12vw, 132px) 0; }
+.eyebrow { color: var(--accent); margin-bottom: 28px; }
+.hero h1 {
+  font-size: clamp(44px, 7.2vw, 82px);
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  margin-bottom: 28px;
+}
+.hero h1 em { font-style: normal; color: var(--accent); }
+.lede {
+  max-width: 56ch;
+  font-size: clamp(17px, 1.7vw, 19px);
+  color: var(--muted);
+  margin-bottom: 36px;
+}
+.actions { display: flex; flex-wrap: wrap; gap: 12px; }
+
+/* Four facts on one rule — the page's only "stat" row, so it stays quiet. */
+.facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 28px;
+  margin: 72px 0 0;
+  padding-top: 26px;
+  border-top: 1px solid var(--line);
+}
+.facts dt { color: var(--faint); margin-bottom: 6px; }
+.facts dd {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
 
 /* ------------------------------------------------------------ sections --- */
-h2 {
-  font-size: 26px;
-  margin-bottom: 24px;
+.section { padding-block: clamp(64px, 8vw, 96px); }
+.section-head { margin-bottom: 48px; }
+/* A heading that carries its own body text, with no .section-head wrapper. */
+.section > h2 { margin-bottom: 20px; }
+.section h2 { font-size: clamp(28px, 3.4vw, 36px); }
+.section-note {
+  margin-top: 12px;
+  max-width: 56ch;
+  color: var(--muted);
 }
-/* Tinted full-width band. The fill is translucent so the lattice runs through
-   it unbroken; an opaque fill would cut the grid into strips. */
-.band { background: var(--band); }
 
-.text { color: var(--mute); margin: 0; }
-.text b { color: var(--text); }
-
-/* -------------------------------------------------------------- parts --- */
-.parts {
+/* ------------------------------------------------------------ specs --- */
+/* A spec sheet, not cards: name, data, note across one hairline-ruled row. */
+.specs { border-top: 1px solid var(--line); }
+.spec-row {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 28px;
+  grid-template-columns: minmax(170px, 1fr) minmax(220px, 1.1fr) minmax(240px, 1.4fr);
+  gap: 32px;
+  padding-block: 34px;
+  border-bottom: 1px solid var(--line);
+  align-items: start;
 }
-.parts h3 { font-size: 18px; margin: 14px 0 4px; }
-.parts .spec {
-  font-size: 13px;
-  font-weight: 650;
-  letter-spacing: .04em;
-  text-transform: uppercase;
-  color: var(--accent);
-  margin: 0 0 6px;
-}
-.parts p { margin: 0; color: var(--mute); font-size: 15px; }
+.spec-name h3 { font-size: 23px; margin-bottom: 8px; }
+.tag { color: var(--faint); }
+.spec-data { margin: 0; display: grid; gap: 14px; }
+.spec-data dt { color: var(--faint); margin-bottom: 3px; }
+.spec-data dd { margin: 0; font-size: 15.5px; }
+.spec-note { color: var(--muted); font-size: 15.5px; }
 
-/* Photo placeholder. Swap the div for an <img> and these styles still apply. */
-.photo, .parts img {
+/* ------------------------------------------------------------- split --- */
+/* Argument on the left, the short version on the right. */
+.split {
+  display: grid;
+  grid-template-columns: minmax(300px, 1.15fr) minmax(280px, 1fr);
+  gap: clamp(40px, 6vw, 88px);
+  align-items: start;
+}
+.split-main h2 { margin-bottom: 24px; }
+.split-main p { color: var(--muted); max-width: 54ch; }
+.split-main p + p { margin-top: 18px; }
+
+.terms { list-style: none; margin: 0; padding: 0; }
+.terms li {
+  padding-block: 16px;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 15.5px;
+}
+.terms li:first-child { border-top: 1px solid var(--line); }
+.terms span { color: var(--text); font-weight: 500; }
+
+/* -------------------------------------------------------------- work --- */
+.work-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 24px;
+}
+.work-grid figure { margin: 0; }
+/* Swap .frame for an <img class="frame"> and the sizing carries over. */
+.frame,
+.work-grid img {
   display: block;
   width: 100%;
   aspect-ratio: 4 / 3;
   object-fit: cover;
-  background: var(--surface);
+  background: var(--bg-raised);
   border: 1px solid var(--line);
-  border-radius: 6px;
-  position: relative;
+  border-radius: 3px;
 }
-.photo::after {
-  content: attr(data-label);
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  font-size: 13px;
+.work-grid figcaption {
+  margin-top: 12px;
+  font-family: var(--mono);
+  font-size: 12px;
   letter-spacing: .08em;
   text-transform: uppercase;
-  color: #6e767f;
+  color: var(--faint);
 }
-.aside {
-  margin: 28px 0 0;
-  color: var(--mute);
-  font-size: 15px;
-}
-
-/* --------------------------------------------------------------- why --- */
-.why {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 14px;
-  color: var(--mute);
-}
-.why li {
-  padding-left: 18px;
-  border-left: 3px solid var(--accent);
-}
-.why b { color: var(--text); }
 
 /* ------------------------------------------------------------- order --- */
-.contact {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 16px 20px;
-  margin: 24px 0 0;
-}
-.mail { color: var(--mute); }
-
-/* ------------------------------------------------------------ footer --- */
-footer {
+.order {
   border-top: 1px solid var(--line);
-  color: var(--mute);
-  font-size: 15px;
-  padding-block: 32px;
+  background: rgba(255, 255, 255, .015);
 }
-footer p { margin: 0 0 10px; }
-.fine { font-size: 12.5px; line-height: 1.5; margin: 0; color: #78808a; }
-
-@media (max-width: 760px) {
-  /* The nav becomes two rows: brand, then the tabs as one swipeable strip.
-     Wrapping them instead produces a staircase that eats the screen. */
-  .nav-inner {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 10px;
-    padding: 12px 20px;
-  }
-  .nav-links {
-    flex-wrap: nowrap;
-    justify-content: flex-start;
-    overflow-x: auto;
-    gap: 4px;
-    scrollbar-width: none;
-    -webkit-overflow-scrolling: touch;
-  }
-  .nav-links::-webkit-scrollbar { display: none; }
-  .nav-links a { white-space: nowrap; }
-  .nav-cta { margin-left: auto; }
-
-  /* the taller nav needs a deeper landing offset */
-  html { scroll-padding-top: 112px; }
-}
-
-@media (max-width: 640px) {
-  body { font-size: 16px; }
-  .wrap { padding: 48px 20px; }
-  .hero .wrap { padding-block: 52px; }
-}
-
-/* -------------------------------------------------------------- form --- */
 .form {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 18px;
-  margin-top: 28px;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 22px;
+  max-width: 820px;
 }
-.field { display: flex; flex-direction: column; gap: 6px; }
+.field { display: flex; flex-direction: column; gap: 8px; }
 .field-wide { grid-column: 1 / -1; }
+.form label { color: var(--faint); }
+.opt { text-transform: none; letter-spacing: 0; color: var(--faint); }
 
-.form label {
-  font-size: 13px;
-  font-weight: 650;
-  letter-spacing: .04em;
-  text-transform: uppercase;
-  color: var(--mute);
-}
 .form input,
 .form select,
 .form textarea {
-  font: inherit;
-  font-size: 16px;
+  font: 400 16px/1.5 var(--sans);
   color: var(--text);
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  padding: 11px 12px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line-firm);
+  border-radius: 4px;
+  padding: 12px 13px;
   width: 100%;
-  /* iOS adds its own inner shadow and rounding to form controls */
   -webkit-appearance: none;
   appearance: none;
+  transition: border-color .15s ease;
 }
-.form textarea { resize: vertical; min-height: 96px; }
-.form input::placeholder,
-.form textarea::placeholder { color: #6e767f; }
-.form input:focus,
-.form select:focus,
-.form textarea:focus,
+.form input:hover,
+.form select:hover,
+.form textarea:hover { border-color: var(--muted); }
+.form textarea { resize: vertical; min-height: 104px; }
+.form ::placeholder { color: var(--faint); }
+.form input:focus-visible,
+.form select:focus-visible,
+.form textarea:focus-visible,
 .btn:focus-visible,
 a:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
-/* the select needs its own arrow back once appearance is stripped */
 .form select {
   background-image:
-    linear-gradient(45deg, transparent 50%, var(--mute) 50%),
-    linear-gradient(135deg, var(--mute) 50%, transparent 50%);
-  background-position: right 16px center, right 11px center;
+    linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position: right 17px center, right 12px center;
   background-size: 5px 5px, 5px 5px;
   background-repeat: no-repeat;
-  padding-right: 34px;
+  padding-right: 36px;
 }
-.form-send {
+.form input[type="file"] { padding: 10px 13px; cursor: pointer; }
+.form input[type="file"]::file-selector-button {
+  font: 500 14px var(--sans);
+  color: var(--text);
+  background: rgba(255,255,255,.07);
+  border: 1px solid var(--line-firm);
+  border-radius: 3px;
+  padding: 7px 13px;
+  margin-right: 13px;
+  cursor: pointer;
+}
+.form input[type="file"]::file-selector-button:hover { background: rgba(255,255,255,.13); }
+
+.hint { font-size: 14px; color: var(--faint); }
+.hint a { color: var(--accent); }
+.submit-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 10px 16px;
-  margin-top: 4px;
+  gap: 12px 20px;
+  margin-top: 6px;
 }
-.form .btn { border: 0; cursor: pointer; font-family: inherit; }
-.note { margin: 0; font-size: 14px; color: var(--mute); }
-.contact-direct { margin-top: 26px; font-size: 15px; }
-.contact-direct .mail { color: var(--accent); }
 
-/* Inline result after submitting, in place of Formspree's redirect page. */
 .form-status {
-  margin: 4px 0 0;
-  padding: 12px 14px;
-  border-radius: 6px;
-  border: 1px solid var(--line);
-  font-size: 15px;
+  padding: 14px 16px;
+  border: 1px solid rgba(var(--accent-rgb), .45);
+  border-radius: 4px;
+  font-size: 15.5px;
 }
-.form-status.is-ok {
-  color: var(--text);
-  border-color: rgba(var(--accent-rgb), .5);
-  background: rgba(var(--accent-rgb), .1);
-}
-.form-status.is-bad {
-  color: var(--text);
-  border-color: rgba(var(--accent-rgb), .5);
-  background: var(--surface);
-}
-
-/* ------------------------------------------------------------- gallery --- */
-.gallery {
-  display: grid;
-  /* 300px floor puts three across on a wide screen, so six shots fill two
-     even rows rather than leaving a short one. */
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 26px;
-  margin-top: 28px;
-}
-.shot { margin: 0; }
-.shot figcaption {
-  margin-top: 10px;
-  font-size: 14px;
-  color: var(--mute);
-}
-.aside a { color: var(--accent); }
-
-/* The form is a wide grid now, but a text column that long is hard to read. */
-.form { max-width: 860px; }
-
-/* A button that reads as a link, for the recovery action in a failed send. */
+.form-status.is-ok { background: rgba(var(--accent-rgb), .09); }
+.form-status.is-bad { background: var(--bg-raised); }
 .linkish {
   font: inherit;
   color: var(--accent);
@@ -428,34 +365,44 @@ a:focus-visible {
   text-decoration: underline;
 }
 
-/* --------------------------------------------------------- file upload --- */
-.opt {
-  font-weight: 400;
-  text-transform: none;
-  letter-spacing: 0;
-  color: #6e767f;
+/* ------------------------------------------------------------ footer --- */
+footer { padding-block: 48px 56px; border-top: 1px solid var(--line); }
+.footer-inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 20px;
+  margin-bottom: 22px;
 }
-.form input[type="file"] {
-  padding: 9px 12px;
-  cursor: pointer;
+.footer-mark { color: var(--accent); }
+.footer-line { color: var(--muted); font-size: 15px; }
+.fine { font-size: 12.5px; line-height: 1.6; color: var(--faint); max-width: 76ch; }
+
+/* -------------------------------------------------------------- small --- */
+@media (max-width: 860px) {
+  .spec-row { grid-template-columns: 1fr; gap: 18px; padding-block: 28px; }
+  .split { grid-template-columns: 1fr; }
 }
-.form input[type="file"]::file-selector-button {
-  font: inherit;
-  font-size: 14px;
-  font-weight: 650;
-  color: var(--text);
-  background: rgba(255, 255, 255, .08);
-  border: 1px solid var(--line);
-  border-radius: 5px;
-  padding: 6px 12px;
-  margin-right: 12px;
-  cursor: pointer;
+
+@media (max-width: 720px) {
+  .nav-inner { gap: 16px; padding: 12px 20px; flex-wrap: wrap; }
+  /* Tabs move to their own swipeable row rather than wrapping into a staircase. */
+  .nav-links {
+    order: 3;
+    width: 100%;
+    gap: 20px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding-bottom: 2px;
+  }
+  .nav-links::-webkit-scrollbar { display: none; }
+  .nav-links a { white-space: nowrap; }
+  .btn-sm { margin-left: auto; }
+  html { scroll-padding-top: 116px; }
 }
-.form input[type="file"]::file-selector-button:hover {
-  background: rgba(255, 255, 255, .14);
-}
-.hint {
-  margin: 0;
-  font-size: 13.5px;
-  color: #79818b;
+
+@media (max-width: 640px) {
+  body { font-size: 16px; }
+  .wrap { padding-inline: 20px; }
+  .facts { margin-top: 48px; gap: 20px; }
 }
