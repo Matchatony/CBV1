@@ -41,11 +41,13 @@
   <!-- ================================ HERO ================================ -->
   <header class="hero">
     <div class="wrap">
+     <div class="hero-grid">
+      <div class="hero-text">
       <a class="lockup" href="#top" aria-label="Crackbotics, addicted to precision">
         <span class="lockup-word"><span class="wordmark-crack">crack</span><span class="wordmark-botics">botics</span></span>
         <span class="lockup-tag">addicted to precision</span>
       </a>
-      <h1>We cut custom parts<br>for <em>FTC teams</em></h1>
+      <h1>We cut custom parts for <em>FTC teams</em></h1>
       <p class="lede">
         Plates, square beams and 3D printed parts, made to your drawings on the
         8&nbsp;mm grid. We charge less than SendCutSend and goBILDA. Pick your parts
@@ -55,6 +57,14 @@
         <a class="btn" href="#order">Get a quote</a>
         <a class="btn btn-quiet" href="#parts">See what we make</a>
       </div>
+      </div>
+
+      <figure class="hero-shot">
+        <img src="images/robot.jpg"
+             alt="Runtime Terror's competition robot driving across the field"
+             onerror="this.closest('figure').hidden = true">
+      </figure>
+     </div>
 
       <dl class="facts">
         <div><dt>Turnaround</dt><dd>1–3 days</dd></div>
@@ -188,22 +198,13 @@
       the machine time, so we started cutting parts for other teams.
     </p>
 
-    <!-- Both figures hide themselves until their file exists, so the row can
-         hold one, both or neither without looking broken. -->
-    <div class="media">
-      <figure class="media-cad">
-        <img src="images/robot-cad.png"
-             alt="CAD assembly of the 22105 robot"
-             onerror="this.closest('figure').hidden = true">
-        <figcaption>22105 in CAD</figcaption>
-      </figure>
-      <figure class="media-photo">
-        <img src="images/robot.jpg"
-             alt="Runtime Terror's competition robot driving across the field"
-             onerror="this.closest('figure').hidden = true">
-        <figcaption>The same robot on the field</figcaption>
-      </figure>
-    </div>
+    <!-- Hides itself until the file exists, so no broken frame in the meantime. -->
+    <figure class="media-cad">
+      <img src="images/robot-cad.png"
+           alt="CAD assembly of the 22105 robot"
+           onerror="this.closest('figure').hidden = true">
+      <figcaption>22105 in CAD</figcaption>
+    </figure>
   </section>
 
   <!-- ============================== ORDER ============================== -->

@@ -168,7 +168,8 @@ a { color: inherit; }
 /* --------------------------------------------------------------- hero --- */
 .hero { padding-block: clamp(72px, 12vw, 132px) 0; }
 .hero h1 {
-  font-size: clamp(44px, 7.2vw, 82px);
+  font-size: clamp(40px, 5.2vw, 64px);
+  text-wrap: balance;
   font-weight: 700;
   letter-spacing: -0.04em;
   margin-bottom: 28px;
@@ -446,39 +447,50 @@ footer { padding-block: 48px 56px; border-top: 1px solid var(--line); }
 }
 .footer-lockup .lockup-tag { margin-top: 9px; font-size: 11px; }
 
-/* -------------------------------------------------------------- media --- */
-/* CAD render next to the competition photo in the About section. Each figure
-   is hidden by its img's onerror until the file is added, so a missing photo
-   never shows a broken frame. */
-.media {
+/* --------------------------------------------------------------- hero --- */
+/* Text left, robot right. If the photo file is missing its figure hides and
+   :has() drops the row back to one column, so the copy still fills the width. */
+.hero-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 24px;
-  margin-top: 44px;
-  align-items: start;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr);
+  gap: clamp(32px, 5vw, 60px);
+  align-items: center;
 }
-.media figure { margin: 0; }
-.media img {
+.hero-grid:has(figure[hidden]) { grid-template-columns: 1fr; }
+.hero-text .lede { margin-bottom: 32px; }
+.hero-shot { margin: 0; }
+.hero-shot img {
   display: block;
   width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
   border: 1px solid var(--line);
-  border-radius: 4px;
+  border-radius: 6px;
 }
-/* A render on a white ground reads as a drawing, so give it paper to sit on
-   and contain it rather than cropping the assembly. */
+@media (max-width: 900px) {
+  .hero-grid { grid-template-columns: 1fr; gap: 36px; }
+}
+
+/* --------------------------------------------------------------- media --- */
+/* The CAD render in About. Capped so a single figure doesn't blow up to the
+   full column width. */
+.media-cad {
+  margin: 44px 0 0;
+  max-width: 420px;
+}
 .media-cad img {
-  /* Square so the pair matches. The render is portrait, but contained on a
-     white panel the leftover space is invisible against its own background. */
+  display: block;
+  width: 100%;
+  /* A render on a white ground reads as a drawing, so give it paper to sit on
+     and contain it rather than cropping the assembly. */
   aspect-ratio: 1 / 1;
   object-fit: contain;
   background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 4px;
   padding: 14px;
 }
-.media-photo img {
-  aspect-ratio: 1 / 1;
-  object-fit: cover;
-}
-.media figcaption {
+.media-cad figcaption {
   margin-top: 12px;
   font-family: var(--mono);
   font-size: 12px;
