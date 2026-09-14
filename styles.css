@@ -445,3 +445,24 @@ footer { padding-block: 48px 56px; border-top: 1px solid var(--line); }
   font-weight: 400;
 }
 .footer-lockup .lockup-tag { margin-top: 9px; font-size: 11px; }
+
+/* -------------------------------------------------------------- robot --- */
+/* Team photo in the About section. Hidden by the img's onerror until the
+   file exists, so a missing photo never shows a broken frame. */
+.robot { margin: 44px 0 0; }
+.robot img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+.robot figcaption {
+  margin-top: 12px;
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
