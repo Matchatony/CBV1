@@ -74,7 +74,6 @@ a { color: inherit; }
 
 /* Uppercase mono label, used for every data key on the page. */
 .eyebrow,
-.tag,
 .facts dt,
 .spec-data dt,
 .form label,
@@ -216,8 +215,7 @@ a { color: inherit; }
   border-bottom: 1px solid var(--line);
   align-items: start;
 }
-.spec-name h3 { font-size: 23px; margin-bottom: 8px; }
-.tag { color: var(--faint); }
+.spec-name h3 { font-size: 23px; }
 .spec-data { margin: 0; display: grid; gap: 14px; }
 .spec-data dt { color: var(--faint); margin-bottom: 3px; }
 .spec-data dd { margin: 0; font-size: 15.5px; }
