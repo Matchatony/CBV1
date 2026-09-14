@@ -7,7 +7,7 @@ Plain HTML and CSS. No build step, no dependencies, no framework. Open the
 files in a browser and they work; drop the folder on a host and it's live.
 
 ```
-crackbotics/
+.
 ├── index.html      one-page site
 ├── styles.css      site styles (all colors are CSS variables at the top)
 ├── flyer.html      8.5 x 11 flyer, print-ready
@@ -141,7 +141,7 @@ most of the attention-grabbing, so a black-and-white print loses a lot.
 3. Pick the repo, then set:
    - **Framework preset:** None
    - **Build command:** *(leave empty)*
-   - **Build output directory:** `crackbotics`
+   - **Build output directory:** *(leave empty — the site is at the repo root)*
 4. Save and Deploy. You get `your-project.pages.dev` in about a minute.
 5. Custom domain: Pages → your project → Custom domains → add `crackbotics.com`.
    If the domain is registered at Cloudflare, DNS is automatic.
@@ -150,25 +150,28 @@ Every push to your default branch redeploys.
 
 ### GitHub Pages
 
-This folder lives inside a larger repo, so Pages needs a workflow to publish
-just this subdirectory. Move the included file into place:
+The site is at the repo root, so Pages can serve it with no build. Move the
+included workflow into place:
 
 ```sh
-mkdir -p ../.github/workflows
-git mv github-pages.yml ../.github/workflows/pages.yml
+mkdir -p .github/workflows
+git mv github-pages.yml .github/workflows/pages.yml
 ```
 
 Then in the repo: Settings → Pages → Source: **GitHub Actions**. Push, and the
-site lands at `https://<user>.github.io/<repo>/`.
+site lands at `https://<user>.github.io/crackBotics/`.
 
-Note the trailing-slash path — all links here are relative, so it works from a
-subpath without changes. For a custom domain, add a `CNAME` file next to
-`index.html` containing just your domain.
+All links here are relative, so serving from a subpath needs no changes. For a
+custom domain, add a `CNAME` file next to `index.html` containing just your
+domain.
+
+Pages on a private repo needs GitHub Pro. On a free account, make the repo
+public first or stay on Vercel.
 
 ### Testing locally
 
 ```sh
-python3 -m http.server 8000     # then open http://localhost:8000/crackbotics/
+python3 -m http.server 8000     # then open http://localhost:8000/
 ```
 
 Or just double-click `index.html` — there's no JavaScript or fetching, so

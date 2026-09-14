@@ -1,4 +1,4 @@
-# Publishes the crackbotics/ folder to GitHub Pages.
+# Publishes this site to GitHub Pages.
 # Move this file to .github/workflows/pages.yml, then set
 # Settings -> Pages -> Source: GitHub Actions.
 
@@ -8,8 +8,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'crackbotics/**'
-      - '.github/workflows/pages.yml'
+      - '**'
   workflow_dispatch:
 
 permissions:
@@ -35,7 +34,7 @@ jobs:
       # No build step — the site is plain HTML/CSS.
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: crackbotics
+          path: .
 
       - id: deployment
         uses: actions/deploy-pages@v4
