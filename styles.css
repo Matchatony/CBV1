@@ -472,6 +472,11 @@ footer { padding-block: 48px 56px; border-top: 1px solid var(--line); }
 }
 
 /* --------------------------------------------------------------- media --- */
+/* Why us: two short paragraphs, no checklist. It sat next to Pricing's
+   checklist before and read like the same block twice. */
+.why-text { display: flex; flex-direction: column; gap: 20px; max-width: 58ch; }
+.why-text p { color: var(--muted); }
+
 /* Team text beside the CAD render. The render is portrait, so it takes a
    side column rather than being cropped square to match a photo. */
 .about-grid {
