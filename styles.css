@@ -472,36 +472,56 @@ footer { padding-block: 48px 56px; border-top: 1px solid var(--line); }
 }
 
 /* --------------------------------------------------------------- media --- */
-/* CAD render beside the competition photo in About. Each figure hides itself
-   until its file exists, and :has() lets a lone survivor keep a sane width
-   instead of stretching across the whole column. */
-.media {
+/* Team text beside the CAD render. The render is portrait, so it takes a
+   side column rather than being cropped square to match a photo. */
+.about-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 24px;
-  margin-top: 44px;
-  align-items: start;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, .8fr);
+  gap: clamp(32px, 5vw, 64px);
+  align-items: center;
 }
-.media:has(figure[hidden]) { grid-template-columns: minmax(0, 520px); }
-.media figure { margin: 0; }
-.media img {
+.about-grid:has(figure[hidden]) { grid-template-columns: 1fr; }
+.about-grid > p { color: var(--muted); max-width: 58ch; }
+
+.media-cad { margin: 0; }
+/* Framed at the render's own ratio so its grey ground fills the box edge to
+   edge and nothing is cropped. */
+.media-cad img {
   display: block;
   width: 100%;
+  aspect-ratio: 746 / 1120;
+  object-fit: cover;
   border: 1px solid var(--line);
   border-radius: 6px;
 }
-/* The render is exported on a dark ground, so it needs no white panel. It is
-   contained rather than cropped, on a surface a shade off the page. */
-.media-cad img {
-  aspect-ratio: 4 / 5;
-  object-fit: contain;
-  background: var(--bg-raised);
+@media (max-width: 860px) {
+  .about-grid { grid-template-columns: 1fr; }
+  /* Stacked, the portrait render would run the whole column height. */
+  .media-cad img { max-width: 300px; }
 }
-.media-shot img {
-  aspect-ratio: 4 / 5;
+
+/* A wide shot breaking the run of text between the spec sheet and pricing,
+   cropped down to the field so the spectator seating above it stays out of
+   frame. Narrow screens get a taller box so the strip doesn't go to a sliver. */
+.band-shot {
+  margin: 0 auto;
+  padding-block: clamp(8px, 2vw, 24px);
+}
+.band-shot img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 13 / 5;
   object-fit: cover;
+  object-position: 50% 86%;
+  border: 1px solid var(--line);
+  border-radius: 6px;
 }
-.media figcaption {
+@media (max-width: 700px) {
+  .band-shot img { aspect-ratio: 8 / 5; }
+}
+
+.media-cad figcaption,
+.band-shot figcaption {
   margin-top: 12px;
   font-family: var(--mono);
   font-size: 12px;
