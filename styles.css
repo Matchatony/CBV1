@@ -462,7 +462,7 @@ footer { padding-block: 48px 56px; border-top: 1px solid var(--line); }
 .hero-shot img {
   display: block;
   width: 100%;
-  aspect-ratio: 4 / 3;
+  aspect-ratio: 16 / 9;
   object-fit: cover;
   border: 1px solid var(--line);
   border-radius: 6px;
@@ -472,25 +472,21 @@ footer { padding-block: 48px 56px; border-top: 1px solid var(--line); }
 }
 
 /* --------------------------------------------------------------- media --- */
-/* The CAD render in About. Capped so a single figure doesn't blow up to the
-   full column width. */
-.media-cad {
+/* Second competition photo in About. Capped so one figure doesn't blow up to
+   the full column width. */
+.media-shot {
   margin: 44px 0 0;
-  max-width: 420px;
+  max-width: 520px;
 }
-.media-cad img {
+.media-shot img {
   display: block;
   width: 100%;
-  /* A render on a white ground reads as a drawing, so give it paper to sit on
-     and contain it rather than cropping the assembly. */
-  aspect-ratio: 1 / 1;
-  object-fit: contain;
-  background: #fff;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
   border: 1px solid var(--line);
-  border-radius: 4px;
-  padding: 14px;
+  border-radius: 6px;
 }
-.media-cad figcaption {
+.media-shot figcaption {
   margin-top: 12px;
   font-family: var(--mono);
   font-size: 12px;
