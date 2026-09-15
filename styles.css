@@ -30,12 +30,11 @@
           Roboto, Arial, sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
-  /* A cutting-mat grid, not page wallpaper: 8mm minor lines (the hole
-     spacing) with a bolder line every 5th square, the way a self-healing
-     mat is actually marked. Used only inside a couple of bounded panels —
-     never behind text, never across the whole page. */
-  --mat-line:       rgba(255, 255, 255, .05);
-  --mat-line-major: rgba(255, 255, 255, .11);
+  /* The lattice is literally 8mm — the grid the parts are drilled on. Drawn
+     once on the body so it runs unbroken behind every section; the nav bar
+     is solid (not blurred) so it stays legible while scrolling over it. */
+  --grid: 8mm;
+  --grid-line: rgba(255, 255, 255, .028);
 }
 
 * { box-sizing: border-box; }
@@ -55,6 +54,10 @@ body {
   line-height: 1.65;
   color: var(--text);
   background-color: var(--bg);
+  background-image:
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: var(--grid) var(--grid);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
@@ -260,13 +263,7 @@ a { color: inherit; }
   width: 100%;
   aspect-ratio: 4 / 3;
   object-fit: cover;
-  background-color: var(--bg-raised);
-  background-image:
-    linear-gradient(var(--mat-line) 1px, transparent 1px),
-    linear-gradient(90deg, var(--mat-line) 1px, transparent 1px),
-    linear-gradient(var(--mat-line-major) 1px, transparent 1px),
-    linear-gradient(90deg, var(--mat-line-major) 1px, transparent 1px);
-  background-size: 8mm 8mm, 8mm 8mm, 40mm 40mm, 40mm 40mm;
+  background: var(--bg-raised);
   border: 1px solid var(--line);
   border-radius: 0;
 }
@@ -282,13 +279,7 @@ a { color: inherit; }
 /* ------------------------------------------------------------- order --- */
 .order {
   border-top: 1px solid var(--line);
-  background-color: rgba(255, 255, 255, .015);
-  background-image:
-    linear-gradient(var(--mat-line) 1px, transparent 1px),
-    linear-gradient(90deg, var(--mat-line) 1px, transparent 1px),
-    linear-gradient(var(--mat-line-major) 1px, transparent 1px),
-    linear-gradient(90deg, var(--mat-line-major) 1px, transparent 1px);
-  background-size: 8mm 8mm, 8mm 8mm, 40mm 40mm, 40mm 40mm;
+  background: rgba(255, 255, 255, .015);
 }
 .form {
   display: grid;
