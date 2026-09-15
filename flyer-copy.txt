@@ -24,7 +24,7 @@ STOP OVERPAYING FOR ALUMINUM.
 SUBHEAD
 -------
 1/8 in. plates and custom 3D printed parts on an 8 mm grid, made by
-FTC students, priced well under SendCutSend and goBILDA, and in your
+FTC students, priced well under the big suppliers, and in your
 hands in 1-3 days.
 
 
@@ -54,8 +54,8 @@ WHO WE ARE (callout box)
 ------------------------
 Built by students from Runtime Terror (FTC #22105) and All Systems Go
 (FTC #21239) — two of the strongest programs in San Diego and Kentucky.
-We've waited on the same overpriced parts you have. Send a DXF, a STEP
-file, or a dimensioned sketch and we'll quote it same day.
+We've waited on the same overpriced parts you have. Send a DXF or a
+STEP file and we'll quote it same day.
 
 
 CALL TO ACTION
@@ -81,7 +81,7 @@ FINE PRINT
 ----------
 Parts use 8 mm grid spacing. Crackbotics is an independent student
 business and is not affiliated with, sponsored by or endorsed by
-goBILDA, SendCutSend, REV Robotics, or FIRST®.
+goBILDA, REV Robotics, or FIRST®.
 
 
 BEFORE YOU PRINT — replace these

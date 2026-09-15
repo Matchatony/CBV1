@@ -34,8 +34,9 @@ One-line descriptors (for a Discord server description, Instagram bio, or the
 A few rules that kept the copy consistent — worth keeping if you rewrite:
 
 1. **Say the number, not the adjective.** "1–3 days" beats "fast turnaround."
-2. **Name the competition.** Undercutting SendCutSend and goBILDA is the whole
-   pitch; being coy about it wastes the strongest line you have.
+2. **Lead with the price gap.** Undercutting the big suppliers is the whole
+   pitch. The site says "the big suppliers" rather than naming them — the
+   comparison still lands, and you aren't tied to anyone else's pricing page.
 3. **Sound like a team, not a vendor.** "We've waited on the same overpriced
    parts you have" does more work than any feature list.
 4. **No superlatives you can't back.** "Way cheaper" is fine. "The best CNC
@@ -44,13 +45,13 @@ A few rules that kept the copy consistent — worth keeping if you rewrite:
 
 ## Claims worth being careful with
 
-You're making direct price comparisons against two named companies, which is
-legal and normal — but keep it defensible:
+The copy compares your prices to "the big suppliers" without naming anyone,
+which is the lower-risk version of the claim. Keep it defensible anyway:
 
-- **"We heavily undercut SendCutSend and goBILDA"** is a claim about *your*
-  prices. Keep it truthful and current. If you later post a comparison table
-  with their actual prices, date it ("prices checked Sept 2026") so a stale
-  screenshot doesn't become a false claim.
+- **"We charge less than the big suppliers"** is a claim about *your* prices.
+  Keep it truthful and current. If you ever name a company or post a comparison
+  table with their actual prices, date it ("prices checked Sept 2026") so a
+  stale screenshot doesn't become a false claim.
 - **Describing fit, not origin.** The copy says "8 mm grid" because the grid
   *spacing* isn't patented; goBILDA's specific hole *pattern* is. Don't copy that
   pattern, don't use their logo or product photos, and don't describe a part as a

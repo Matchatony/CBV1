@@ -520,6 +520,20 @@ footer { padding-block: 48px 56px; border-top: 1px solid var(--line); }
   .band-shot img { aspect-ratio: 8 / 5; }
 }
 
+/* The CAD caption carries a link to the release, on its own line so it reads
+   as an invitation rather than part of the label. */
+.cad-link {
+  display: block;
+  margin-top: 6px;
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(var(--accent-rgb), .35);
+  padding-bottom: 1px;
+  width: fit-content;
+  transition: border-color .15s ease;
+}
+.cad-link:hover { border-bottom-color: var(--accent); }
+
 .media-cad figcaption,
 .band-shot figcaption {
   margin-top: 12px;
