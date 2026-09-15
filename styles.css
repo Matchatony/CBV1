@@ -2,8 +2,8 @@
    Crackbotics — one-page site. Plain CSS, no build step, no dependencies.
 
    Two ideas hold the page together:
-     1. Hairline rules and space do the dividing, not boxes. Only things you
-        can actually operate (buttons, inputs) get a fill or a radius.
+     1. Hairline rules and space do the dividing, not boxes. Corners stay
+        square, like the plates themselves — nothing on the page is rounded.
      2. IBM Plex Mono carries every measured value — thickness, grid, lead
         time. A shop writes its numbers in mono, so the data reads as data.
    ========================================================================== */
@@ -29,11 +29,6 @@
   --sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
           Roboto, Arial, sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-
-  /* The lattice is literally 8mm — the grid the parts are drilled on. Drawn
-     once on the body so the lines run unbroken from the nav to the footer. */
-  --grid: 8mm;
-  --grid-line: rgba(255, 255, 255, .028);
 }
 
 * { box-sizing: border-box; }
@@ -53,10 +48,6 @@ body {
   line-height: 1.65;
   color: var(--text);
   background-color: var(--bg);
-  background-image:
-    linear-gradient(var(--grid-line) 1px, transparent 1px),
-    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
-  background-size: var(--grid) var(--grid);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
@@ -88,8 +79,7 @@ a { color: inherit; }
   position: sticky;
   top: 0;
   z-index: 20;
-  background: rgba(20, 18, 26, .82);
-  backdrop-filter: blur(14px);
+  background: var(--bg);
   border-bottom: 1px solid var(--line);
 }
 .nav-inner {
@@ -115,7 +105,7 @@ a { color: inherit; }
 .wordmark-botics {
   color: var(--text);
   border: 1.5px solid var(--text);
-  border-radius: 5px;
+  border-radius: 0;
   padding: 2px 8px 3px;
   margin-left: 5px;
 }
@@ -134,7 +124,6 @@ a { color: inherit; }
   text-decoration: none;
   padding-block: 4px;
   border-bottom: 1px solid transparent;
-  transition: color .15s ease, border-color .15s ease;
 }
 .nav-links a:hover {
   color: var(--text);
@@ -151,10 +140,9 @@ a { color: inherit; }
   font: 500 16px/1 var(--sans);
   padding: 14px 22px;
   border: 1px solid var(--accent);
-  border-radius: 4px;
+  border-radius: 0;
   text-decoration: none;
   cursor: pointer;
-  transition: background-color .15s ease, border-color .15s ease;
 }
 .btn:hover { background: var(--accent-lit); border-color: var(--accent-lit); }
 .btn-sm { padding: 9px 15px; font-size: 14px; }
@@ -267,7 +255,7 @@ a { color: inherit; }
   object-fit: cover;
   background: var(--bg-raised);
   border: 1px solid var(--line);
-  border-radius: 3px;
+  border-radius: 0;
 }
 .work-grid figcaption {
   margin-top: 12px;
@@ -301,12 +289,11 @@ a { color: inherit; }
   color: var(--text);
   background: var(--bg-raised);
   border: 1px solid var(--line-firm);
-  border-radius: 4px;
+  border-radius: 0;
   padding: 12px 13px;
   width: 100%;
   -webkit-appearance: none;
   appearance: none;
-  transition: border-color .15s ease;
 }
 .form input:hover,
 .form select:hover,
@@ -336,7 +323,7 @@ a:focus-visible {
   color: var(--text);
   background: rgba(255,255,255,.07);
   border: 1px solid var(--line-firm);
-  border-radius: 3px;
+  border-radius: 0;
   padding: 7px 13px;
   margin-right: 13px;
   cursor: pointer;
@@ -356,7 +343,7 @@ a:focus-visible {
 .form-status {
   padding: 14px 16px;
   border: 1px solid rgba(var(--accent-rgb), .45);
-  border-radius: 4px;
+  border-radius: 0;
   font-size: 15.5px;
 }
 .form-status.is-ok { background: rgba(var(--accent-rgb), .09); }
@@ -427,7 +414,7 @@ footer { padding-block: 48px 56px; border-top: 1px solid var(--line); }
 }
 .lockup-word .wordmark-botics {
   border-width: 2px;
-  border-radius: 7px;
+  border-radius: 0;
   padding: 4px 11px 6px;
   margin-left: 7px;
 }
@@ -465,7 +452,7 @@ footer { padding-block: 48px 56px; border-top: 1px solid var(--line); }
   aspect-ratio: 16 / 9;
   object-fit: cover;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: 0;
 }
 @media (max-width: 900px) {
   .hero-grid { grid-template-columns: 1fr; gap: 36px; }
@@ -526,7 +513,7 @@ footer { padding-block: 48px 56px; border-top: 1px solid var(--line); }
   aspect-ratio: 746 / 1120;
   object-fit: cover;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: 0;
 }
 @media (max-width: 860px) {
   .about-grid { grid-template-columns: 1fr; }
@@ -548,7 +535,7 @@ footer { padding-block: 48px 56px; border-top: 1px solid var(--line); }
   object-fit: cover;
   object-position: 50% 86%;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: 0;
 }
 @media (max-width: 700px) {
   .band-shot img { aspect-ratio: 8 / 5; }
@@ -564,7 +551,6 @@ footer { padding-block: 48px 56px; border-top: 1px solid var(--line); }
   border-bottom: 1px solid rgba(var(--accent-rgb), .35);
   padding-bottom: 1px;
   width: fit-content;
-  transition: border-color .15s ease;
 }
 .cad-link:hover { border-bottom-color: var(--accent); }
 
