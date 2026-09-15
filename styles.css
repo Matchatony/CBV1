@@ -481,7 +481,36 @@ footer { padding-block: 48px 56px; border-top: 1px solid var(--line); }
   align-items: center;
 }
 .about-grid:has(figure[hidden]) { grid-template-columns: 1fr; }
-.about-grid > p { color: var(--muted); max-width: 58ch; }
+.about-text { display: flex; flex-direction: column; gap: 40px; }
+.about-text p { color: var(--muted); max-width: 58ch; }
+
+/* Big mono team numbers — read as serials, not as body copy. */
+.team-numbers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: clamp(32px, 5vw, 56px);
+  margin: 0;
+  padding-top: 32px;
+  border-top: 1px solid var(--line);
+}
+.team-numbers dt {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin-bottom: 8px;
+}
+.team-numbers dd {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: clamp(34px, 4.6vw, 50px);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  color: var(--text);
+}
 
 .media-cad { margin: 0; }
 /* Framed at the render's own ratio so its grey ground fills the box edge to
