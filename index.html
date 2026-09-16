@@ -1056,11 +1056,16 @@
       guessed: unit.guessed
     };
 
-    els.w.value = fileGeom.width.toFixed(2);
-    els.h.value = fileGeom.height.toFixed(2);
+    // The width/height fields step by 0.1 in. — a hundredths-precision fill
+    // would fail their own constraint validation, so round to match before
+    // it ever reaches the input, not just when it's displayed.
+    var wRounded = fileGeom.width.toFixed(1);
+    var hRounded = fileGeom.height.toFixed(1);
+    els.w.value = wRounded;
+    els.h.value = hRounded;
 
     els.geomNote.innerHTML = 'Measured from your file: <b>' +
-      fileGeom.width.toFixed(2) + '″ × ' + fileGeom.height.toFixed(2) + '″</b>, ' +
+      wRounded + '″ × ' + hRounded + '″</b>, ' +
       fileGeom.cutLength.toFixed(1) + '″ of cut path, ' +
       fileGeom.holes.length + (fileGeom.holes.length === 1 ? ' hole' : ' holes') + '. ' +
       (unit.guessed
