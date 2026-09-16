@@ -1281,7 +1281,38 @@
     return String(s == null ? '' : s).replace(/[′″‘’“”→]/g, function (c) { return PDF_UNSAFE[c]; });
   }
 
-  function buildPdf(q, data) {
+  /* The two wireframe team renders that go at the bottom of the PDF. Fetched
+     once as data URLs (jsPDF's addImage needs actual image data, not a URL)
+     and cached — they're static assets, the same for every quote, so there's
+     no reason to re-fetch them per PDF. Kicked off at page load, below, so
+     they're usually already resolved by the time someone submits. */
+  var PDF_TEAM_ART = [
+    { number: '22105', src: 'images/wireframe-22105.png' },
+    { number: '21239', src: 'images/wireframe-21239.png' }
+  ];
+  var pdfArtPromise = null;
+  function loadImageDataURL(url) {
+    return fetch(url).then(function (r) { return r.ok ? r.blob() : Promise.reject(); })
+      .then(function (blob) {
+        return new Promise(function (resolve, reject) {
+          var reader = new FileReader();
+          reader.onload = function () { resolve(reader.result); };
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+      });
+  }
+  function loadPdfArt() {
+    if (!pdfArtPromise) {
+      pdfArtPromise = Promise.all(PDF_TEAM_ART.map(function (t) {
+        return loadImageDataURL(t.src).catch(function () { return null; });
+      }));
+    }
+    return pdfArtPromise;
+  }
+  loadPdfArt();
+
+  function buildPdf(q, data, art) {
     if (!window.jspdf) return null;
     var doc = new window.jspdf.jsPDF({ unit: 'pt', format: 'letter' });
     var pageW = doc.internal.pageSize.getWidth();
@@ -1297,18 +1328,27 @@
       y += lines.length * lineHeight;
     }
 
+    // The real lockup: wordmark (crack + a boxed "botics", same as the site's
+    // .wordmark-botics border) with the actual tagline underneath it, letter-
+    // spaced like the site's mono tagline — not a made-up description line.
     doc.setFillColor(20, 18, 26);
     doc.rect(0, 0, pageW, 92, 'F');
     doc.setTextColor(242, 239, 244);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(22);
     doc.text('crack', x, 52);
+    var crackW = doc.getTextWidth('crack');
     doc.setTextColor(233, 168, 201);
-    doc.text('botics', x + doc.getTextWidth('crack'), 52);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(11);
+    doc.text('botics', x + crackW + 10, 52);
+    var boticsW = doc.getTextWidth('botics');
+    doc.setDrawColor(242, 239, 244);
+    doc.setLineWidth(1);
+    doc.roundedRect(x + crackW + 3, 33, boticsW + 14, 24, 3, 3, 'S');
+
+    doc.setFont('courier', 'normal');
+    doc.setFontSize(9.5);
     doc.setTextColor(164, 157, 174);
-    doc.text('Precision CNC and 3D-printed parts for San Diego FTC teams', x, 72);
+    doc.text('ADDICTED TO PRECISION', x, 72, { charSpace: 2.2 });
 
     y = 120;
     doc.setTextColor(20, 18, 26);
@@ -1388,6 +1428,43 @@
     doc.setTextColor(164, 157, 174);
     doc.setFontSize(9.5);
     doc.text('Crackbotics · San Diego, CA · ' + EMAIL + ' · discord.gg/Ct3qtWSQw', x, y);
+    y += 22;
+
+    // Two team renders, wireframe-style, each with its team number burned in
+    // as outline-only text to match the art's own look. Skipped per-image if
+    // that particular one failed to load — never a broken box.
+    var loaded = (art || []).filter(function (a) { return a; });
+    if (loaded.length) {
+      var gap = 16;
+      var imgW = (textW - gap) / 2;
+      var imgH = imgW * 0.75; // the source renders are 700x525, 4:3
+      var need = 26 + imgH + 18;
+      if (y + need > doc.internal.pageSize.getHeight() - 40) {
+        doc.addPage();
+        y = 56;
+      }
+
+      doc.setFont('courier', 'normal');
+      doc.setFontSize(9.5);
+      doc.setTextColor(233, 168, 201);
+      doc.text('OUR TEAMS', x, y, { charSpace: 1.5 });
+      y += 18;
+
+      PDF_TEAM_ART.forEach(function (t, i) {
+        var dataUrl = art[i];
+        if (!dataUrl) return;
+        var drawX = x + i * (imgW + gap);
+        doc.addImage(dataUrl, 'PNG', drawX, y, imgW, imgH);
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(30);
+        var numW = doc.getTextWidth(t.number);
+        doc.setDrawColor(255, 255, 255);
+        doc.setLineWidth(1);
+        doc.text(t.number, drawX + imgW / 2 - numW / 2, y + imgH / 2 + 10, { renderingMode: 'stroke' });
+      });
+      y += imgH;
+    }
 
     return doc;
   }
@@ -1459,8 +1536,12 @@
     var summary = quoteToSummaryText(q, data);
     els.summaryField.value = summary;
 
-    var pdfDoc = buildPdf(q, data);
-    if (pdfDoc) {
+    // Doesn't block the submit below — the art is usually already cached
+    // from the page-load prefetch, but if not, the download button just
+    // appears a moment later rather than holding up the actual request.
+    loadPdfArt().then(function (art) {
+      var pdfDoc = buildPdf(q, data, art);
+      if (!pdfDoc) return;
       var dlWrap = document.createElement('p');
       dlWrap.className = 'hint';
       var dlBtn = document.createElement('button');
@@ -1470,7 +1551,7 @@
       dlBtn.addEventListener('click', function () { pdfDoc.save('crackbotics-quote.pdf'); });
       dlWrap.appendChild(dlBtn);
       els.result.appendChild(dlWrap);
-    }
+    });
 
     els.button.disabled = true;
     var label = els.button.textContent;
