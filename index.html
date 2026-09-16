@@ -561,12 +561,14 @@
   };
   var DELIVERY_PER_HOUR_MID = (RATE.deliveryPerHourLow + RATE.deliveryPerHourHigh) / 2;
 
-  /* Where deliveries drive out from. SET THIS TO THE REAL PICKUP ADDRESS —
-     it's the origin every round-trip mile and minute below is measured from,
-     so a wrong point means wrong delivery prices. Nothing on the page shows
-     these coordinates to visitors; they only ever see the resulting
-     distance. Current value is downtown San Diego as a placeholder. */
-  var SHOP_ORIGIN = { lat: 32.7157, lon: -117.1611 };
+  /* Where deliveries drive out from — the origin every round-trip mile and
+     minute below is measured from, so a wrong address means wrong delivery
+     prices. It's geocoded once (below) and cached, the same way a typed
+     delivery address is. Nothing on the page shows this address or its
+     coordinates to visitors; they only ever see the resulting distance. */
+  var SHOP_ADDRESS = '7708 Caminito Liliana, San Diego, CA 92129';
+  var shopOrigin = null;     // filled in by geocodeOrigin() below
+  var shopOriginPromise = null;
 
   /* Keyless public endpoints: Nominatim turns the typed address into a point,
      OSRM drives between the two. Both are free community services with no
@@ -675,6 +677,33 @@
     els.drivetime.value = Math.round(minutes);
   }
 
+  /* Turns a plain address into {lat, lon} via Nominatim. Shared by the shop's
+     own fixed address and whatever a visitor types, so there's exactly one
+     place that knows how to talk to the geocoder. */
+  function geocode(address) {
+    var url = GEOCODE_URL + '?format=json&limit=1&countrycodes=us&q=' + encodeURIComponent(address);
+    return fetch(url, { headers: { Accept: 'application/json' } })
+      .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
+      .then(function (hits) {
+        if (!hits || !hits.length) return Promise.reject();
+        return { lat: hits[0].lat, lon: hits[0].lon };
+      });
+  }
+
+  /* Geocoded once, on first use, then cached for the rest of the visit —
+     the shop's address doesn't change mid-session, so there's no reason to
+     look it up again for every delivery quote. */
+  function geocodeOrigin() {
+    if (shopOrigin) return Promise.resolve(shopOrigin);
+    if (!shopOriginPromise) {
+      shopOriginPromise = geocode(SHOP_ADDRESS).then(function (point) {
+        shopOrigin = point;
+        return point;
+      });
+    }
+    return shopOriginPromise;
+  }
+
   function lookupAddress() {
     var address = els.address.value.trim();
     if (address.length < 8 || address === lastLookedUp) return;
@@ -685,13 +714,10 @@
     lastLookedUp = address;
     geoSay('Looking up the round trip…');
 
-    var geoQuery = GEOCODE_URL + '?format=json&limit=1&countrycodes=us&q=' + encodeURIComponent(address);
-    fetch(geoQuery, { headers: { Accept: 'application/json' } })
-      .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
-      .then(function (hits) {
-        if (!hits || !hits.length) return Promise.reject();
-        var dest = hits[0];
-        var pair = SHOP_ORIGIN.lon + ',' + SHOP_ORIGIN.lat + ';' + dest.lon + ',' + dest.lat;
+    Promise.all([geocodeOrigin(), geocode(address)])
+      .then(function (points) {
+        var origin = points[0], dest = points[1];
+        var pair = origin.lon + ',' + origin.lat + ';' + dest.lon + ',' + dest.lat;
         return fetch(ROUTE_URL + pair + '?overview=false').then(function (r) {
           return r.ok ? r.json() : Promise.reject();
         }).then(function (route) {
