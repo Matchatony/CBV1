@@ -1322,8 +1322,8 @@
     // Sanitizes, wraps to the page width, draws, and advances y — the one
     // path every block of text below goes through, so nothing can run off
     // the page edge or land on an unmapped character again.
-    function block(str, lineHeight) {
-      var lines = doc.splitTextToSize(pdfSafe(str), textW);
+    function block(str, lineHeight, width) {
+      var lines = doc.splitTextToSize(pdfSafe(str), width || textW);
       doc.text(lines, x, y);
       y += lines.length * lineHeight;
     }
@@ -1357,6 +1357,15 @@
     doc.text(pdfSafe('Quote — ' + new Date().toLocaleDateString()), x, y);
     y += 26;
 
+    // Team art sits beside the customer block, not buried at the end of the
+    // document — two small wireframe thumbnails, team number burned in, to
+    // the right of the name/team/email lines. Skipped per-image if that one
+    // failed to load; the customer column just uses the full width if
+    // neither did, same as before this existed.
+    var loadedArt = (art || []).filter(function (a) { return a; });
+    var custY0 = y;
+    var leftW = loadedArt.length ? textW - 216 : textW;
+
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(11);
     doc.setTextColor(233, 168, 201);
@@ -1364,9 +1373,29 @@
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(20, 18, 26);
     doc.setFontSize(11);
-    block('Name: ' + data.name, 15);
-    block('Team: ' + (data.team || '—'), 15);
-    block('Email: ' + data.email, 15);
+    block('Name: ' + data.name, 15, leftW);
+    block('Team: ' + (data.team || '—'), 15, leftW);
+    block('Email: ' + data.email, 15, leftW);
+
+    if (loadedArt.length) {
+      var artColX = x + textW - 200;
+      var thumbGap = 8;
+      var thumbW = (200 - thumbGap) / 2;
+      var thumbH = thumbW * 0.75; // source renders are 700x525, 4:3
+      PDF_TEAM_ART.forEach(function (t, i) {
+        var dataUrl = art[i];
+        if (!dataUrl) return;
+        var drawX = artColX + i * (thumbW + thumbGap);
+        doc.addImage(dataUrl, 'PNG', drawX, custY0, thumbW, thumbH);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(15);
+        var numW = doc.getTextWidth(t.number);
+        doc.setDrawColor(255, 255, 255);
+        doc.setLineWidth(0.6);
+        doc.text(t.number, drawX + thumbW / 2 - numW / 2, custY0 + thumbH / 2 + 5, { renderingMode: 'stroke' });
+      });
+      y = Math.max(y, custY0 + thumbH);
+    }
     y += 8;
 
     doc.setFont('helvetica', 'bold');
@@ -1428,43 +1457,6 @@
     doc.setTextColor(164, 157, 174);
     doc.setFontSize(9.5);
     doc.text('Crackbotics · San Diego, CA · ' + EMAIL + ' · discord.gg/Ct3qtWSQw', x, y);
-    y += 22;
-
-    // Two team renders, wireframe-style, each with its team number burned in
-    // as outline-only text to match the art's own look. Skipped per-image if
-    // that particular one failed to load — never a broken box.
-    var loaded = (art || []).filter(function (a) { return a; });
-    if (loaded.length) {
-      var gap = 16;
-      var imgW = (textW - gap) / 2;
-      var imgH = imgW * 0.75; // the source renders are 700x525, 4:3
-      var need = 26 + imgH + 18;
-      if (y + need > doc.internal.pageSize.getHeight() - 40) {
-        doc.addPage();
-        y = 56;
-      }
-
-      doc.setFont('courier', 'normal');
-      doc.setFontSize(9.5);
-      doc.setTextColor(233, 168, 201);
-      doc.text('OUR TEAMS', x, y, { charSpace: 1.5 });
-      y += 18;
-
-      PDF_TEAM_ART.forEach(function (t, i) {
-        var dataUrl = art[i];
-        if (!dataUrl) return;
-        var drawX = x + i * (imgW + gap);
-        doc.addImage(dataUrl, 'PNG', drawX, y, imgW, imgH);
-
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(30);
-        var numW = doc.getTextWidth(t.number);
-        doc.setDrawColor(255, 255, 255);
-        doc.setLineWidth(1);
-        doc.text(t.number, drawX + imgW / 2 - numW / 2, y + imgH / 2 + 10, { renderingMode: 'stroke' });
-      });
-      y += imgH;
-    }
 
     return doc;
   }
