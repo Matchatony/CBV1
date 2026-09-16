@@ -800,6 +800,16 @@ footer { padding-block: 48px 56px; border-top: 1px solid var(--line); }
 .calc-reasons li + li { margin-top: 6px; }
 .calc-estimate { color: var(--muted); font-size: 14.5px; margin-bottom: 18px; }
 
+/* What the uploaded file measured — the quote is built on these numbers, so
+   it reads as a result, not a footnote. */
+.measured {
+  grid-column: 1 / -1;
+  padding: 12px 14px;
+  background: rgba(var(--accent-rgb), .07);
+  border-left: 2px solid var(--accent);
+}
+.measured b { color: var(--text); font-weight: 500; font-family: var(--mono); }
+
 .preview-label { display: block; margin-bottom: 8px; }
 #q-preview {
   display: block;

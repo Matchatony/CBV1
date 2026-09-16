@@ -59,9 +59,14 @@
         <ul>
           <li><strong>Your name and email</strong> — required, so we can reply.</li>
           <li><strong>Team number</strong> — optional, helps us route parts for events.</li>
-          <li><strong>Part type and quantity</strong> — what you're asking us to make.</li>
-          <li><strong>Design files</strong> — optional. DXF, STEP, STL and similar files
-            you upload so we can quote and cut the part.</li>
+          <li><strong>Part details</strong> — type, material, size, quantity, and the
+            options you pick, so we can price and make it.</li>
+          <li><strong>A design file</strong> — required. A DXF, STEP, STL or 3MF you
+            upload so we can quote and cut or print the part. DXF files are measured in
+            your own browser to price the job; the file itself only leaves your computer
+            when you submit the form.</li>
+          <li><strong>A delivery address</strong> — only if you choose local delivery
+            instead of pickup. See the section on address lookups below.</li>
           <li><strong>Anything you write</strong> in the details field.</li>
         </ul>
         <p>
@@ -91,6 +96,29 @@
           <a href="https://formspree.io/legal/privacy-policy" target="_blank" rel="noopener">privacy policy</a>.
           We don't share, sell, or rent your information to anyone else, and we don't
           run ads.
+        </p>
+      </section>
+
+      <section>
+        <h2>Delivery address lookups</h2>
+        <p>
+          If you pick local delivery and type an address into the quote form, your
+          browser sends that address to
+          <a href="https://nominatim.openstreetmap.org" target="_blank" rel="noopener">Nominatim</a>
+          (run by the OpenStreetMap Foundation) to turn it into map coordinates, and
+          sends those coordinates to the public
+          <a href="https://project-osrm.org" target="_blank" rel="noopener">OSRM</a>
+          routing service to work out driving distance and time. That's what fills the
+          round-trip figure in for you. Those requests go straight from your browser to
+          those services, covered by the
+          <a href="https://osmfoundation.org/wiki/Privacy_Policy" target="_blank" rel="noopener">OpenStreetMap
+          Foundation's privacy policy</a> — we never see them, and all we keep is the
+          address and distance you submit with the form.
+        </p>
+        <p>
+          It only happens if you choose local delivery and type an address. Pickup
+          orders never trigger a lookup, and you can leave the address blank and sort
+          delivery out with us by email instead.
         </p>
       </section>
 
