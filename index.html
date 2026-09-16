@@ -1271,11 +1271,31 @@
 
   /* -------------------------- PDF -------------------------- */
 
+  /* jsPDF's built-in fonts (Helvetica etc.) only support WinAnsiEncoding —
+     roughly Latin-1 — not full Unicode. A character outside that set doesn't
+     get dropped, it gets mangled: e.g. ″ (U+2033) silently becomes "3" (its
+     low byte). × and – and · survive (they're in WinAnsi); ″ and → don't.
+     Run every string through this before it reaches doc.text(). */
+  var PDF_UNSAFE = { '′': '\'', '″': '"', '‘': '\'', '’': '\'', '“': '"', '”': '"', '→': '->' };
+  function pdfSafe(s) {
+    return String(s == null ? '' : s).replace(/[′″‘’“”→]/g, function (c) { return PDF_UNSAFE[c]; });
+  }
+
   function buildPdf(q, data) {
     if (!window.jspdf) return null;
     var doc = new window.jspdf.jsPDF({ unit: 'pt', format: 'letter' });
     var pageW = doc.internal.pageSize.getWidth();
     var x = 48, y = 56;
+    var textW = pageW - x * 2;
+
+    // Sanitizes, wraps to the page width, draws, and advances y — the one
+    // path every block of text below goes through, so nothing can run off
+    // the page edge or land on an unmapped character again.
+    function block(str, lineHeight) {
+      var lines = doc.splitTextToSize(pdfSafe(str), textW);
+      doc.text(lines, x, y);
+      y += lines.length * lineHeight;
+    }
 
     doc.setFillColor(20, 18, 26);
     doc.rect(0, 0, pageW, 92, 'F');
@@ -1294,7 +1314,7 @@
     doc.setTextColor(20, 18, 26);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(16);
-    doc.text('Quote — ' + new Date().toLocaleDateString(), x, y);
+    doc.text(pdfSafe('Quote — ' + new Date().toLocaleDateString()), x, y);
     y += 26;
 
     doc.setFont('helvetica', 'bold');
@@ -1304,11 +1324,9 @@
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(20, 18, 26);
     doc.setFontSize(11);
-    [
-      'Name: ' + data.name,
-      'Team: ' + (data.team || '—'),
-      'Email: ' + data.email
-    ].forEach(function (line) { doc.text(line, x, y); y += 15; });
+    block('Name: ' + data.name, 15);
+    block('Team: ' + (data.team || '—'), 15);
+    block('Email: ' + data.email, 15);
     y += 8;
 
     doc.setFont('helvetica', 'bold');
@@ -1316,33 +1334,26 @@
     doc.text('PART', x, y); y += 16;
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(20, 18, 26);
-    doc.text('Type: ' + data.part_type, x, y); y += 15;
+    block('Type: ' + data.part_type, 15);
 
     if (q.escalated) {
-      var reasonLines = doc.splitTextToSize(q.reason, pageW - x * 2);
-      doc.text(reasonLines, x, y); y += reasonLines.length * 15 + 10;
+      block(q.reason, 15); y += 10;
     } else {
-      doc.text(q.qty + ' × ' + q.sizeNote + (q.detailLine ? ', ' + q.detailLine : ''), x, y); y += 15;
-      doc.text('Delivery: ' + q.deliveryLine, x, y); y += 15;
-      if (q.notes.length) {
-        q.notes.forEach(function (n) {
-          var noteLines = doc.splitTextToSize('• ' + n, pageW - x * 2);
-          doc.text(noteLines, x, y); y += noteLines.length * 14;
-        });
-      }
+      block(q.qty + ' × ' + q.sizeNote + (q.detailLine ? ', ' + q.detailLine : ''), 15);
+      block('Delivery: ' + q.deliveryLine, 15);
+      q.notes.forEach(function (n) { block('• ' + n, 14); });
       y += 10;
 
       doc.setDrawColor(233, 168, 201);
       doc.line(x, y, pageW - x, y); y += 22;
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(14);
-      doc.text('Estimated total: ' + money(q.total) + (q.deliveryCost == null && q.delivery === 'delivery' ? ' + delivery (TBD)' : ''), x, y);
-      y += 22;
+      block('Estimated total: ' + money(q.total) + (q.deliveryCost == null && q.delivery === 'delivery' ? ' + delivery (TBD)' : ''), 18);
+      y += 4;
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(10.5);
       doc.setTextColor(164, 157, 174);
-      var batchLines = doc.splitTextToSize(q.batch, pageW - x * 2);
-      doc.text(batchLines, x, y); y += batchLines.length * 13 + 10;
+      block(q.batch, 13); y += 10;
     }
 
     if (data.details) {
@@ -1352,8 +1363,7 @@
       doc.text('NOTES FROM YOU', x, y); y += 16;
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(20, 18, 26);
-      var detailLines = doc.splitTextToSize(data.details, pageW - x * 2);
-      doc.text(detailLines, x, y); y += detailLines.length * 14 + 10;
+      block(data.details, 14); y += 10;
     }
 
     y += 6;
@@ -1369,14 +1379,12 @@
     [
       'This price is an estimate, confirmed once we see the actual design file.',
       'Payment via Venmo, Cash App, or PayPal, arranged by email once confirmed.',
-      'Free pickup in San Diego, or local delivery at cost (round-trip miles × $0.50/mi',
-      '+ round-trip drive time × $12–15/hr). We don\'t ship outside the local area.',
+      'Free pickup in San Diego, or local delivery at cost (round-trip miles × $0.50/mi + round-trip drive time × $12–15/hr). We don\'t ship outside the local area.',
       'Turnaround is typically 1–3 days, not guaranteed. Deburring is included, standard.',
-      'Full refund any time before we start cutting; not refundable once material is cut,',
-      'except when the mistake is ours. Full terms: crackbotics site → Terms & conditions.'
-    ].forEach(function (line) { doc.text(line, x, y); y += 13.5; });
+      'Full refund any time before we start cutting; not refundable once material is cut, except when the mistake is ours. Full terms: see the site\'s Terms & conditions.'
+    ].forEach(function (line) { block(line, 13.5); y += 2; });
 
-    y += 14;
+    y += 12;
     doc.setTextColor(164, 157, 174);
     doc.setFontSize(9.5);
     doc.text('Crackbotics · San Diego, CA · ' + EMAIL + ' · discord.gg/Ct3qtWSQw', x, y);
