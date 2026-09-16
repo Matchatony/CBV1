@@ -32,7 +32,7 @@
       <li><a href="#work">Photos</a></li>
       <li><a href="#team">About us</a></li>
     </ul>
-    <a class="btn btn-sm" href="#order">Get a quote</a>
+    <a class="btn btn-sm" href="#quote">Get a quote</a>
   </div>
 </nav>
 
@@ -54,7 +54,7 @@
         or get them in 1–3 days.
       </p>
       <div class="actions">
-        <a class="btn" href="#order">Get a quote</a>
+        <a class="btn" href="#quote">Get a quote</a>
         <a class="btn btn-quiet" href="#parts">See what we make</a>
       </div>
       </div>
@@ -235,12 +235,94 @@
     </div>
   </section>
 
+  <!-- ============================== QUOTE CALCULATOR ============================== -->
+  <!-- Runs entirely client-side: no backend, no page reload. Every rate is a named
+       constant in the <script> below (search "CALCULATOR CONSTANTS") — tune those to
+       actual shop costs without touching the layout or logic around them. -->
+  <section id="quote" class="wrap section">
+    <div class="section-head">
+      <h2>Get an instant quote</h2>
+      <p class="section-note">
+        Standard plates and prints get a price right here, no waiting on a reply.
+        Anything unusual gets flagged for a quick manual quote instead.
+      </p>
+    </div>
+
+    <div class="calc">
+      <div class="calc-form form">
+        <div class="field">
+          <label for="c-type">Part type</label>
+          <select id="c-type">
+            <option value="plate">Plate (CNC)</option>
+            <option value="print">3D printed part</option>
+            <option value="other">Something else</option>
+          </select>
+        </div>
+
+        <div class="calc-group" id="c-group-plate">
+          <div class="field">
+            <label for="c-material">Material</label>
+            <select id="c-material">
+              <option value="aluminum">6061 aluminum, 1/8 in.</option>
+              <option value="poly">Polycarbonate, 1/8 in.</option>
+              <option value="other-mat">Other material</option>
+            </select>
+          </div>
+          <div class="calc-row">
+            <div class="field">
+              <label for="c-w">Width <span class="opt">in, bounding box</span></label>
+              <input id="c-w" type="number" min="0" step="0.1" placeholder="6" inputmode="decimal">
+            </div>
+            <div class="field">
+              <label for="c-h">Height <span class="opt">in, bounding box</span></label>
+              <input id="c-h" type="number" min="0" step="0.1" placeholder="8" inputmode="decimal">
+            </div>
+          </div>
+        </div>
+
+        <div class="calc-group" id="c-group-print" hidden>
+          <div class="field">
+            <label for="c-weight">Estimated weight <span class="opt">grams</span></label>
+            <input id="c-weight" type="number" min="0" step="1" placeholder="30" inputmode="decimal">
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="c-qty">Quantity <span class="opt">identical parts</span></label>
+          <input id="c-qty" type="number" min="1" step="1" value="1" inputmode="numeric">
+        </div>
+
+        <fieldset class="calc-flags">
+          <legend>Any of these apply?</legend>
+          <label><input type="checkbox" id="c-tapped"> Tapped holes</label>
+          <label><input type="checkbox" id="c-tol"> Tight tolerances (±0.005&Prime; or tighter)</label>
+          <label><input type="checkbox" id="c-complex"> Multiple setups or unusual geometry</label>
+          <label><input type="checkbox" id="c-rush"> Needs to skip the normal batch (rush)</label>
+        </fieldset>
+
+        <fieldset class="calc-flags">
+          <legend>Delivery</legend>
+          <label><input type="radio" name="c-delivery" value="pickup" checked> San Diego pickup <span class="opt">free</span></label>
+          <label><input type="radio" name="c-delivery" value="ship"> Ship to me <span class="opt">at cost</span></label>
+        </fieldset>
+
+        <button class="btn" type="button" id="c-calc">Calculate price</button>
+      </div>
+
+      <div class="calc-result" id="c-result" role="status" aria-live="polite" hidden></div>
+    </div>
+  </section>
+
   <!-- ============================== ORDER ============================== -->
   <section id="order" class="order">
    <div class="wrap section">
     <div class="section-head">
-      <h2>Get a quote</h2>
-      <p class="section-note">Tell us what you need. We usually reply the same day.</p>
+      <h2>Manual quote</h2>
+      <p class="section-note">
+        For tapped holes, tight tolerances, big orders, rush jobs, or anything the
+        calculator above flagged — or if you'd just rather email us. We usually reply
+        the same day.
+      </p>
     </div>
 
     <!-- Posts to Formspree, which forwards to the address set on the form.
@@ -435,6 +517,248 @@
       button.disabled = false;
       button.textContent = label;
     });
+  });
+})();
+</script>
+
+<script>
+/* ===================================================================
+   INSTANT QUOTE CALCULATOR — runs entirely in the browser, no backend.
+
+   Everything price-related lives in CALCULATOR CONSTANTS below. These are
+   starting points, not measured shop numbers — check them against actual
+   cost before trusting the output, per the shop's own pricing notes.
+   =================================================================== */
+(function () {
+  var form = document.getElementById('c-type');
+  if (!form) return; // calculator markup isn't on this page
+
+  /* ----------------------------- CALCULATOR CONSTANTS ----------------------------- */
+  var RATE = {
+    // $ per sq in of bounding box, plates
+    materialPerSqIn: { aluminum: 0.15, poly: 0.08 },
+    // $ per gram of filament
+    filamentPerGram: 0.025,
+    // CNC runtime: $/min. This is a placeholder — swap in the shop's actual
+    // measured $/minute rate for the machine once you have it.
+    cncPerMin: 0.60,
+    // Rough CNC time estimate from bounding-box area alone, since there's no
+    // real toolpath to measure here: a fixed setup allowance plus a per-sq-in
+    // factor. Tune both against real job times.
+    cncSetupMin: 3,
+    cncMinPerSqIn: 0.2,
+    // 3D print machine time: $/hr (electricity + wear, filament billed separately)
+    printPerHour: 1.5,
+    // Rough print-speed assumption for turning weight into print time.
+    gramsPerHour: 10,
+    // Hands-on labor: file cleanup, loading, deburring, packaging, quoting.
+    laborPerHour: 13.5,
+    laborMinPlate: 10,        // "typical plate: 10-20 min labor"
+    laborMinPlateAreaFactor: 0.05,  // small area bump, capped below
+    laborMaxPlateMin: 20,
+    printLaborFlat: 1.5,      // "mostly slicing + removal, usually $1-2"
+    // Every part rounds up to at least this, so tiny jobs still cover base labor.
+    minPartPrice: 8,
+    // 5+ identical parts: discount on the material portion only.
+    qtyDiscountThreshold: 5,
+    qtyDiscountRate: 0.08,
+    // Orders bigger than this need batch/quantity pricing worked out by hand.
+    escalateQty: 25,
+    // Shipping, at cost, no markup. Two rough size tiers plus packaging.
+    shipSmall: 9,
+    shipLarge: 15,
+    packaging: 2,
+    // What pushes a shipment from "small" to "large" package pricing.
+    largeShipAreaSqIn: 100,   // total bounding-box area across all parts
+    largeShipWeightG: 150,    // total weight across all parts
+    largeShipQty: 5
+  };
+
+  // Cutoffs at 6pm Mon/Wed/Fri. A day-based schedule is the only one this
+  // static page can run without a backend tracking how full the current
+  // batch is — see the shop's shipping-run notes for the rolling-count
+  // alternative if that ends up easier to keep to.
+  var CUTOFF_DAYS = [1, 3, 5]; // Mon, Wed, Fri (Sun = 0)
+  var CUTOFF_HOUR = 18;
+
+  /* ------------------------------------------------------------------- */
+
+  var els = {
+    type: document.getElementById('c-type'),
+    groupPlate: document.getElementById('c-group-plate'),
+    groupPrint: document.getElementById('c-group-print'),
+    material: document.getElementById('c-material'),
+    w: document.getElementById('c-w'),
+    h: document.getElementById('c-h'),
+    weight: document.getElementById('c-weight'),
+    qty: document.getElementById('c-qty'),
+    tapped: document.getElementById('c-tapped'),
+    tol: document.getElementById('c-tol'),
+    complex: document.getElementById('c-complex'),
+    rush: document.getElementById('c-rush'),
+    calcBtn: document.getElementById('c-calc'),
+    result: document.getElementById('c-result')
+  };
+
+  els.type.addEventListener('change', function () {
+    var isPlate = els.type.value === 'plate';
+    var isPrint = els.type.value === 'print';
+    els.groupPlate.hidden = !isPlate;
+    els.groupPrint.hidden = !isPrint;
+  });
+
+  function money(n) {
+    return '$' + n.toFixed(2).replace(/\.00$/, '');
+  }
+
+  function nextCutoff(now) {
+    var d = new Date(now);
+    for (var i = 0; i < 8; i++) {
+      if (CUTOFF_DAYS.indexOf(d.getDay()) !== -1) {
+        var cutoff = new Date(d.getFullYear(), d.getMonth(), d.getDate(), CUTOFF_HOUR, 0, 0);
+        if (cutoff > now) return cutoff;
+      }
+      d.setDate(d.getDate() + 1);
+      d.setHours(0, 0, 0, 0);
+    }
+    return null;
+  }
+
+  var DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  function fmtDate(d) {
+    return DAY_NAMES[d.getDay()].slice(0, 3) + ' ' + (d.getMonth() + 1) + '/' + d.getDate();
+  }
+  function fmtTime(d) {
+    var h = d.getHours() % 12 || 12;
+    return h + (d.getHours() < 12 ? 'am' : 'pm');
+  }
+
+  function batchMessage(delivery) {
+    if (delivery === 'pickup') {
+      return 'No batch to wait for — ready for pickup as soon as it\'s cut, usually within 1–3 days.';
+    }
+    var cutoff = nextCutoff(new Date());
+    var ship = new Date(cutoff);
+    ship.setDate(ship.getDate() + 1);
+    return 'Order by ' + fmtDate(cutoff) + ' · ' + fmtTime(cutoff) +
+      ' to ship in that batch — expect it out around ' + fmtDate(ship) + '.';
+  }
+
+  function say(html, kind) {
+    els.result.innerHTML = html;
+    els.result.className = 'calc-result is-' + kind;
+    els.result.hidden = false;
+  }
+
+  function escalate(reasons, estimate) {
+    var lines = '<p class="calc-headline">This one needs a quick manual quote.</p>' +
+      '<ul class="calc-reasons">' + reasons.map(function (r) { return '<li>' + r + '</li>'; }).join('') + '</ul>';
+    if (estimate) {
+      lines += '<p class="calc-estimate">Rough ballpark: ' + estimate + ' — not final.</p>';
+    }
+    lines += '<a class="btn btn-sm" href="#order">Go to the manual quote form &darr;</a>';
+    say(lines, 'escalate');
+  }
+
+  els.calcBtn.addEventListener('click', function () {
+    var type = els.type.value;
+    var qty = Math.max(1, parseInt(els.qty.value, 10) || 1);
+    var flags = [];
+    if (els.tapped.checked) flags.push('Tapped holes need a manual check on thread depth and placement.');
+    if (els.tol.checked) flags.push('Tight tolerances need a manual look at what the machine can actually hold.');
+    if (els.complex.checked) flags.push('Multiple setups or unusual geometry take longer than this calculator assumes.');
+    if (els.rush.checked) flags.push('Skipping the normal batch means checking capacity first — no rush fee, but no promises without asking.');
+    if (qty > RATE.escalateQty) flags.push('Orders over ' + RATE.escalateQty + ' identical parts get batch pricing worked out by hand.');
+
+    var delivery = document.querySelector('input[name="c-delivery"]:checked').value;
+
+    if (type === 'other') {
+      escalate(['"Something else" doesn\'t fit the plate/print pricing below — tell us what you need.']);
+      return;
+    }
+
+    if (type === 'plate' && els.material.value === 'other-mat') {
+      flags.unshift('Materials outside 6061 aluminum and polycarbonate are priced by hand.');
+    }
+
+    var perUnitMaterial = 0, perUnitMachine = 0, perUnitLabor = 0, sizeNote = '';
+
+    if (type === 'plate') {
+      var w = parseFloat(els.w.value), h = parseFloat(els.h.value);
+      if (!w || !h || w <= 0 || h <= 0) {
+        say('<p class="calc-headline">Enter a width and height first.</p>', 'bad');
+        return;
+      }
+      var area = w * h;
+      var matRate = RATE.materialPerSqIn[els.material.value] || RATE.materialPerSqIn.aluminum;
+      perUnitMaterial = area * matRate;
+      var cncMin = RATE.cncSetupMin + area * RATE.cncMinPerSqIn;
+      perUnitMachine = cncMin * RATE.cncPerMin;
+      var laborMin = Math.min(RATE.laborMaxPlateMin, RATE.laborMinPlate + area * RATE.laborMinPlateAreaFactor);
+      perUnitLabor = (laborMin / 60) * RATE.laborPerHour;
+      sizeNote = w + '″ × ' + h + '″ (' + area.toFixed(1) + ' sq in)';
+
+      if (flags.length) {
+        var est = money(Math.max(RATE.minPartPrice, perUnitMaterial + perUnitMachine + perUnitLabor) * qty) +
+          '–' + money(Math.max(RATE.minPartPrice, perUnitMaterial + perUnitMachine + perUnitLabor) * qty * 1.6);
+        escalate(flags, est);
+        return;
+      }
+    } else if (type === 'print') {
+      var weight = parseFloat(els.weight.value);
+      if (!weight || weight <= 0) {
+        say('<p class="calc-headline">Enter an estimated weight first.</p>', 'bad');
+        return;
+      }
+      perUnitMaterial = weight * RATE.filamentPerGram;
+      var printHr = weight / RATE.gramsPerHour;
+      perUnitMachine = printHr * RATE.printPerHour;
+      perUnitLabor = RATE.printLaborFlat;
+      sizeNote = weight + ' g';
+
+      if (flags.length) {
+        var estP = money(Math.max(RATE.minPartPrice, perUnitMaterial + perUnitMachine + perUnitLabor) * qty) +
+          '–' + money(Math.max(RATE.minPartPrice, perUnitMaterial + perUnitMachine + perUnitLabor) * qty * 1.6);
+        escalate(flags, estP);
+        return;
+      }
+    }
+
+    // Quantity discount applies to material only, for 5+ identical parts.
+    var discounted = qty >= RATE.qtyDiscountThreshold;
+    var materialAfterDiscount = discounted ? perUnitMaterial * (1 - RATE.qtyDiscountRate) : perUnitMaterial;
+
+    var perUnitSubtotal = materialAfterDiscount + perUnitMachine + perUnitLabor;
+    var perUnitPrice = Math.max(RATE.minPartPrice, perUnitSubtotal);
+    var partsTotal = perUnitPrice * qty;
+
+    var shipping = 0, shipLine = 'Pickup in San Diego — free';
+    if (delivery === 'ship') {
+      var totalArea = type === 'plate' ? (parseFloat(els.w.value) * parseFloat(els.h.value) * qty) : 0;
+      var totalWeight = type === 'print' ? (parseFloat(els.weight.value) * qty) : 0;
+      var isLarge = qty >= RATE.largeShipQty || totalArea > RATE.largeShipAreaSqIn || totalWeight > RATE.largeShipWeightG;
+      shipping = (isLarge ? RATE.shipLarge : RATE.shipSmall) + RATE.packaging;
+      shipLine = 'Shipping, at cost (incl. ' + money(RATE.packaging) + ' packaging): ' + money(shipping);
+    }
+
+    var total = partsTotal + shipping;
+
+    var breakdown = '<dl class="calc-breakdown">' +
+      '<div><dt>' + (qty > 1 ? qty + ' × material' : 'Material') + (discounted ? ' (5+, 8% off)' : '') + '</dt><dd>' + money(materialAfterDiscount * qty) + '</dd></div>' +
+      '<div><dt>Machine time</dt><dd>' + money(perUnitMachine * qty) + '</dd></div>' +
+      '<div><dt>Labor</dt><dd>' + money(perUnitLabor * qty) + '</dd></div>' +
+      (perUnitSubtotal < RATE.minPartPrice ? '<div><dt>Minimum applied</dt><dd>' + money(RATE.minPartPrice - perUnitSubtotal) + ' × ' + qty + '</dd></div>' : '') +
+      '<div><dt>' + (delivery === 'ship' ? 'Shipping' : 'Pickup') + '</dt><dd>' + (delivery === 'ship' ? money(shipping) : 'Free') + '</dd></div>' +
+      '</dl>';
+
+    var html = '<p class="calc-headline">' + money(total) + '</p>' +
+      '<p class="calc-sub">' + qty + ' × ' + sizeNote + (type === 'plate' ? ', ' + els.material.selectedOptions[0].text : '') + '</p>' +
+      breakdown +
+      '<p class="calc-batch">' + batchMessage(delivery) + '</p>' +
+      '<p class="calc-fineprint">Estimate from bounding box' + (type === 'plate' ? '' : '/weight') +
+      ' alone — confirmed once we see the actual file. <a href="#order">Send it in to lock it in →</a></p>';
+
+    say(html, 'ok');
   });
 })();
 </script>
