@@ -550,24 +550,17 @@ footer { padding-block: 48px 56px; border-top: 1px solid var(--line); }
 .why-text { display: flex; flex-direction: column; gap: 20px; max-width: 58ch; }
 .why-text p { color: var(--muted); }
 
-/* Team text beside the CAD render. The render is portrait, so it takes a
-   side column rather than being cropped square to match a photo. */
-.about-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, .8fr);
-  gap: clamp(32px, 5vw, 64px);
-  align-items: start;
-}
-.about-grid:has(figure[hidden]) { grid-template-columns: 1fr; }
-.about-text { display: flex; flex-direction: column; gap: 40px; }
-.about-text p { color: var(--muted); max-width: 58ch; }
+.about-lede { color: var(--muted); max-width: 62ch; margin-bottom: 40px; }
+
+/* One block per team: its number, then its two CAD renders. */
+.team-block + .team-block { margin-top: 48px; }
 
 /* Big mono team numbers — read as serials, not as body copy. */
 .team-numbers {
   display: flex;
   flex-wrap: wrap;
   gap: clamp(32px, 5vw, 56px);
-  margin: 0;
+  margin: 0 0 24px;
   padding-top: 32px;
   border-top: 1px solid var(--line);
 }
@@ -590,9 +583,17 @@ footer { padding-block: 48px 56px; border-top: 1px solid var(--line); }
   color: var(--text);
 }
 
+.team-photos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 24px;
+}
+.team-photos:has(figure[hidden]) { grid-template-columns: 1fr; }
+
 .media-cad { margin: 0; }
 /* Framed at the render's own ratio so its grey ground fills the box edge to
-   edge and nothing is cropped. */
+   edge and nothing is cropped. Most CAD renders here are portrait; .media-wide
+   overrides that for the ones shot landscape (offseason drivetrain, Viper). */
 .media-cad img {
   display: block;
   width: 100%;
@@ -601,17 +602,7 @@ footer { padding-block: 48px 56px; border-top: 1px solid var(--line); }
   border: 1px solid var(--line);
   border-radius: 8px;
 }
-/* The offseason drivetrain render sits in the text column, right under
-   the team numbers, rather than paired with 22105 in the media column.
-   .about-text's flex gap already spaces it like every other child there. */
-.media-offseason img { aspect-ratio: 4 / 3; }
-
-@media (max-width: 860px) {
-  .about-grid { grid-template-columns: 1fr; }
-  /* Stacked, a portrait render would otherwise run the whole column height. */
-  .media-cad img { max-width: 300px; }
-  .media-offseason img { max-width: 400px; }
-}
+.media-wide img { aspect-ratio: 4 / 3; }
 
 /* A wide shot breaking the run of text between the spec sheet and pricing,
    cropped down to the field so the spectator seating above it stays out of
