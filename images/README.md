@@ -12,6 +12,8 @@ name and the page picks it up with no code change.
 | `work-02.jpg` | "Photos" — machined side plates on an intake (Mech-a-Mind) | in |
 | `work-03.jpg` | "Photos" — Mech-a-Mind in comp | in |
 | `work-04.jpg` | "Photos" — Runtime Terror's offseason drivetrain, CAD render | in |
+| `work-05.jpg` | "Photos" — All Systems Go's Biobuzz, CAD render | in |
+| `work-06.jpg` | "Photos" — All Systems Go's Biobuzz drivetrain, CAD render | in |
 
 Every figure hides itself if its file is missing, so the page never shows a
 broken frame and files can be added one at a time. The `work-*` figures are
