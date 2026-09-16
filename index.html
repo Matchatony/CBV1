@@ -1328,6 +1328,19 @@
       y += lines.length * lineHeight;
     }
 
+    // One line of the cost breakdown: label on the left, amount right-
+    // aligned to the same edge every row lands on, so the column of numbers
+    // reads down the page instead of trailing off wherever the label ends.
+    function priceRow(label, amount, bold) {
+      doc.setFont('helvetica', bold ? 'bold' : 'normal');
+      doc.setFontSize(bold ? 12.5 : 11);
+      doc.setTextColor(bold ? 20 : 60, bold ? 18 : 55, bold ? 26 : 64);
+      doc.text(pdfSafe(label), x, y);
+      var amtStr = pdfSafe(amount);
+      doc.text(amtStr, x + textW - doc.getTextWidth(amtStr), y);
+      y += bold ? 20 : 16;
+    }
+
     // The real lockup: wordmark (crack + a boxed "botics", same as the site's
     // .wordmark-botics border) with the actual tagline underneath it, letter-
     // spaced like the site's mono tagline — not a made-up description line.
@@ -1409,16 +1422,42 @@
       block(q.reason, 15); y += 10;
     } else {
       block(q.qty + ' × ' + q.sizeNote + (q.detailLine ? ', ' + q.detailLine : ''), 15);
-      block('Delivery: ' + q.deliveryLine, 15);
-      q.notes.forEach(function (n) { block('• ' + n, 14); });
-      y += 10;
+      y += 6;
 
+      // Itemized, not just a total — same line items the on-screen quote
+      // breaks out (material, machine time, labor, any flagged surcharges,
+      // delivery), each right-aligned so the numbers read as a column.
+      doc.setDrawColor(220, 217, 224);
+      doc.setLineWidth(0.5);
+      doc.line(x, y, pageW - x, y); y += 16;
+
+      priceRow((q.qty > 1 ? q.qty + ' × material' : 'Material') + (q.discounted ? ' (5+, 8% off)' : ''),
+        money(q.materialAfterDiscount * q.qty));
+      priceRow('Machine time', money(q.perUnitMachine * q.qty));
+      priceRow('Labor', money(q.perUnitLabor * q.qty));
+      if (q.surcharge) priceRow('Flagged items', money(q.surcharge * q.qty));
+      if (q.perUnitSubtotal < RATE.minPartPrice) {
+        priceRow('Minimum applied', money(RATE.minPartPrice - q.perUnitSubtotal) + ' × ' + q.qty);
+      }
+      priceRow(q.delivery === 'delivery' ? 'Delivery' : 'Pickup',
+        q.deliveryCost != null ? money(q.deliveryCost) : (q.delivery === 'delivery' ? 'TBD' : 'Free'));
+
+      y += 2;
       doc.setDrawColor(233, 168, 201);
-      doc.line(x, y, pageW - x, y); y += 22;
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(14);
-      block('Estimated total: ' + money(q.total) + (q.deliveryCost == null && q.delivery === 'delivery' ? ' + delivery (TBD)' : ''), 18);
-      y += 4;
+      doc.setLineWidth(1);
+      doc.line(x, y, pageW - x, y); y += 20;
+
+      priceRow('Estimated total', money(q.total) + (q.deliveryCost == null && q.delivery === 'delivery' ? ' + TBD' : ''), true);
+      y += 6;
+
+      if (q.notes.length) {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(10);
+        doc.setTextColor(120, 113, 128);
+        q.notes.forEach(function (n) { block('• ' + n, 13); });
+        y += 6;
+      }
+
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(10.5);
       doc.setTextColor(164, 157, 174);
