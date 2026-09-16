@@ -1395,28 +1395,30 @@
       var thumbGap = 8;
       var thumbW = (200 - thumbGap) / 2;
       var thumbH = thumbW * 0.75; // source renders are 700x525, 4:3
+      var labelH = 15;
       PDF_TEAM_ART.forEach(function (t, i) {
         var dataUrl = art[i];
         if (!dataUrl) return;
         var drawX = artColX + i * (thumbW + thumbGap);
-        doc.addImage(dataUrl, 'PNG', drawX, custY0, thumbW, thumbH);
+        var imgY = custY0 + labelH;
+
+        // Team number as a caption above its wireframe, not laid over it —
+        // pink outline text, same "wireframe" treatment, just its own line.
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(13);
+        var numW = doc.getTextWidth(t.number);
+        doc.setDrawColor(214, 118, 165);
+        doc.setLineWidth(0.6);
+        doc.text(t.number, drawX + thumbW / 2 - numW / 2, custY0 + 10, { renderingMode: 'stroke' });
+
+        doc.addImage(dataUrl, 'PNG', drawX, imgY, thumbW, thumbH);
         // White background art needs its own edge on a white page — the dark
         // version didn't, it delineated itself.
         doc.setDrawColor(210, 208, 214);
         doc.setLineWidth(0.5);
-        doc.rect(drawX, custY0, thumbW, thumbH, 'S');
-
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(15);
-        var numW = doc.getTextWidth(t.number);
-        // Accent pink, not black — black-on-black-linework competes with the
-        // art underneath it; the brand color still reads as "outline" but
-        // stands apart from the drawing.
-        doc.setDrawColor(214, 118, 165);
-        doc.setLineWidth(0.7);
-        doc.text(t.number, drawX + thumbW / 2 - numW / 2, custY0 + thumbH / 2 + 5, { renderingMode: 'stroke' });
+        doc.rect(drawX, imgY, thumbW, thumbH, 'S');
       });
-      y = Math.max(y, custY0 + thumbH);
+      y = Math.max(y, custY0 + labelH + thumbH);
     }
     y += 8;
 
