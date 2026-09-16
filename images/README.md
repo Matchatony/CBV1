@@ -12,13 +12,19 @@ name and the page picks it up with no code change.
 | `work-02.jpg` | "Photos" — machined side plates on an intake (Mech-a-Mind) | in |
 | `work-03.jpg` | "Photos" — Mech-a-Mind in comp | in |
 | `work-04.jpg` | "About us" — Runtime Terror's offseason drivetrain, CAD render | in |
+| `asg-viper-1.jpg` | "Photos" — All Systems Go's Viper robot, CAD render | in |
+| `asg-viper-2.jpg` | "Photos" — Viper's drivetrain, CAD render | in |
 
 Every figure hides itself if its file is missing, so the page never shows a
-broken frame and files can be added one at a time. The `work-*` figures in
-Photos are a plain `<img>`, not a figure with a fallback — swap one in place
-to update it, or add another (`work-05.jpg`, and so on) and a matching
-`<figure>` in the Photos section for more. Photos is real parts and robots
-only — CAD renders go in About us instead, like `work-04.jpg` there.
+broken frame and files can be added one at a time. The `work-*` and
+`asg-*` figures in Photos are a plain `<img>`, not a figure with a fallback —
+swap one in place to update it, or add another and a matching `<figure>`
+inside that team's `.work-team` block for more. Photos is grouped by team —
+add a new `.work-team` block for a team that doesn't have one yet. It's real
+parts and robots only in general, but CAD renders are fine there when a team
+doesn't have finished-robot photos yet (as with All Systems Go's Viper); CAD
+for a team that also has real photos still goes in About us instead, like
+`work-04.jpg` there.
 
 Export the CAD render on the dark background, not white: the page sits on
 near-black and a white render would glare. PNG keeps the edges crisp.
