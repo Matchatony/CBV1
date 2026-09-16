@@ -14,21 +14,22 @@ name and the page picks it up with no code change.
 | `work-04.jpg` | "About us" — Runtime Terror's offseason drivetrain, CAD render | in |
 | `asg-viper-1.jpg` | "About us" — All Systems Go's Viper robot, CAD render | in |
 | `asg-viper-2.jpg` | "About us" — Viper's drivetrain, CAD render | in |
-| `wireframe-22105.png` | Quote PDF footer — Runtime Terror, Canny edge-detect over `work-04.jpg` | in |
-| `wireframe-21239.png` | Quote PDF footer — All Systems Go, Canny edge-detect over the Viper drivetrain render | in |
+| `wireframe-22105.png` | Quote PDF, next to Customer — Runtime Terror, black-line-on-white outline of `work-04.jpg` | in |
+| `wireframe-21239.png` | Quote PDF, next to Customer — All Systems Go, black-line-on-white outline of the Viper drivetrain render | in |
 
 Every figure hides itself if its file is missing, so the page never shows a
 broken frame and files can be added one at a time.
 
 **The two `wireframe-*` files** are used only by the quote PDF (`loadPdfArt()`
-/ `buildPdf()` in the inline script), not the page itself — white line art on
-a dark grey ground, 700×525 (4:3), with the matching team number burned in at
-PDF-generation time as outline-only text, not baked into the PNG. To swap one:
-keep the same white-on-dark line-art look and roughly the same line density
-(`cv2.Canny` on the source render works — see git history for the exact
-call), same 4:3 frame. If one fails to load, that side of the footer is
-skipped rather than shown broken; if both fail, the whole "OUR TEAMS" block
-is skipped.
+/ `buildPdf()` in the inline script), not the page itself — black line art on
+a white ground (print-friendly, unlike the rest of the site's dark-background
+renders), 700×525 (4:3), with the matching team number burned in at
+PDF-generation time as pink outline-only text, not baked into the PNG. To
+swap one: threshold the source render to pure black lines on white — bright
+pixels (roughly >160 on any channel) become black, everything else becomes
+white — same 4:3 frame, roughly the same line density. If one fails to load,
+that side is skipped rather than shown broken; if both fail, the customer
+block just uses the full column width.
 
 **Photos** (`work-*`) is real parts and real robots only, grouped by team —
 each gets a `.work-team` block with a plain `<img class="frame">` grid. Add a

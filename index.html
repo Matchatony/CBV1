@@ -1400,11 +1400,20 @@
         if (!dataUrl) return;
         var drawX = artColX + i * (thumbW + thumbGap);
         doc.addImage(dataUrl, 'PNG', drawX, custY0, thumbW, thumbH);
+        // White background art needs its own edge on a white page — the dark
+        // version didn't, it delineated itself.
+        doc.setDrawColor(210, 208, 214);
+        doc.setLineWidth(0.5);
+        doc.rect(drawX, custY0, thumbW, thumbH, 'S');
+
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(15);
         var numW = doc.getTextWidth(t.number);
-        doc.setDrawColor(255, 255, 255);
-        doc.setLineWidth(0.6);
+        // Accent pink, not black — black-on-black-linework competes with the
+        // art underneath it; the brand color still reads as "outline" but
+        // stands apart from the drawing.
+        doc.setDrawColor(214, 118, 165);
+        doc.setLineWidth(0.7);
         doc.text(t.number, drawX + thumbW / 2 - numW / 2, custY0 + thumbH / 2 + 5, { renderingMode: 'stroke' });
       });
       y = Math.max(y, custY0 + thumbH);
