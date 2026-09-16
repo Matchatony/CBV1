@@ -10,7 +10,8 @@ name and the page picks it up with no code change.
 | `robot-cad.png` | "About us", right of the team paragraph | in |
 | `work-01.jpg` | "Photos" — wiring on a machined frame (Mech-a-Mind, FTC #23673) | in |
 | `work-02.jpg` | "Photos" — machined side plates on an intake (Mech-a-Mind) | in |
-| `work-03.jpg` | "Photos" — Mech-a-Mind in competition | in |
+| `work-03.jpg` | "Photos" — Mech-a-Mind in comp | in |
+| `work-04.jpg` | "Photos" — Runtime Terror's offseason drivetrain, CAD render | in |
 
 Every figure hides itself if its file is missing, so the page never shows a
 broken frame and files can be added one at a time. The `work-*` figures are
