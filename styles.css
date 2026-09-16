@@ -571,17 +571,6 @@ footer { padding-block: 48px 56px; border-top: 1px solid var(--line); }
    .about-text's flex gap already spaces it like every other child there. */
 .media-offseason img { aspect-ratio: 4 / 3; }
 
-/* Media column: 22105 plus All Systems Go's renders, stacked. */
-.media-stack { display: flex; flex-direction: column; gap: 32px; }
-/* These two started as white-background screenshots; the white was
-   chroma-keyed out to real transparency, then contained on a card at
-   roughly their own (near-square) trimmed ratio instead of cropped. */
-.media-viper img {
-  aspect-ratio: 1 / 1;
-  object-fit: contain;
-  background: var(--bg-raised);
-}
-
 @media (max-width: 860px) {
   .about-grid { grid-template-columns: 1fr; }
   /* Stacked, a portrait render would otherwise run the whole column height. */
