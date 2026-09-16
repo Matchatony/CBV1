@@ -566,16 +566,25 @@ footer { padding-block: 48px 56px; border-top: 1px solid var(--line); }
   border: 1px solid var(--line);
   border-radius: 0;
 }
-/* Second render in the same column: the offseason drivetrain, landscape
-   like its Photos-section crop, stacked under the portrait 22105 render
-   rather than beside it — two different ratios side by side would fight. */
-/* Sits in the text column, right under the team numbers, rather than
-   paired with the 22105 render in the media column. .about-text's flex
-   gap already spaces it the same as every other child there. */
+/* The offseason drivetrain render sits in the text column, right under
+   the team numbers, rather than paired with 22105 in the media column.
+   .about-text's flex gap already spaces it like every other child there. */
 .media-offseason img { aspect-ratio: 4 / 3; }
+
+/* Media column: 22105 plus All Systems Go's renders, stacked. */
+.media-stack { display: flex; flex-direction: column; gap: 32px; }
+/* These two started as white-background screenshots; the white was
+   chroma-keyed out to real transparency, then contained on a card at
+   roughly their own (near-square) trimmed ratio instead of cropped. */
+.media-viper img {
+  aspect-ratio: 1 / 1;
+  object-fit: contain;
+  background: var(--bg-raised);
+}
+
 @media (max-width: 860px) {
   .about-grid { grid-template-columns: 1fr; }
-  /* Stacked, the portrait render would run the whole column height. */
+  /* Stacked, a portrait render would otherwise run the whole column height. */
   .media-cad img { max-width: 300px; }
   .media-offseason img { max-width: 400px; }
 }
