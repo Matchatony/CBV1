@@ -18,7 +18,7 @@
 
   --text:  #f2eff4;
   --muted: #a49dae;
-  --faint: #6f6879;
+  --faint: #888193; /* lightened from #6f6879: the old value failed WCAG AA (3.5:1) for label/caption text */
 
   /* Light matte magenta: desaturated enough to sit calmly on the dark ground,
      light enough that filled buttons take near-black labels instead of white. */
@@ -342,6 +342,32 @@ a:focus-visible {
 
 .hint { font-size: 14px; color: var(--faint); }
 .hint a { color: var(--accent); }
+
+/* Consent checkbox: plain sentence case, not the uppercase mono every other
+   .form label uses — it's a sentence with links in it, not a field name. */
+.consent {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 10px;
+}
+.consent input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  margin-top: 3px;
+  accent-color: var(--accent);
+}
+.consent label {
+  font-family: var(--sans);
+  font-size: 14.5px;
+  font-weight: 400;
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.consent label a { color: var(--accent); }
 .submit-row {
   display: flex;
   flex-wrap: wrap;
@@ -378,6 +404,21 @@ footer { padding-block: 48px 56px; border-top: 1px solid var(--line); }
   margin-bottom: 22px;
 }
 .footer-line { color: var(--muted); font-size: 15px; }
+.footer-line a { color: var(--accent); }
+.footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin-bottom: 22px;
+}
+.footer-links a {
+  font-size: 13px;
+  color: var(--muted);
+  text-decoration: underline;
+  text-decoration-color: var(--line-firm);
+  text-underline-offset: 3px;
+}
+.footer-links a:hover { color: var(--text); text-decoration-color: var(--accent); }
 .fine { font-size: 12.5px; line-height: 1.6; color: var(--faint); max-width: 76ch; }
 
 /* -------------------------------------------------------------- small --- */
@@ -581,3 +622,47 @@ footer { padding-block: 48px 56px; border-top: 1px solid var(--line); }
   text-transform: uppercase;
   color: var(--faint);
 }
+
+
+/* -------------------------------------------------------------- legal --- */
+/* Shared by privacy.html and terms.html: plain long-form text, not the
+   homepage's data-sheet components. */
+.legal { padding-block: clamp(56px, 8vw, 88px); }
+.legal-doc { max-width: 720px; }
+.back-link {
+  display: inline-block;
+  margin-bottom: 40px;
+  color: var(--muted);
+  font-size: 14px;
+}
+.back-link:hover { color: var(--text); }
+.legal-doc h1 {
+  font-size: clamp(32px, 4.4vw, 44px);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  margin-bottom: 10px;
+}
+.legal-doc .updated {
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin-bottom: 20px;
+}
+.legal-doc .lede { color: var(--muted); margin-bottom: 44px; }
+.legal-doc h2 {
+  font-size: 21px;
+  margin: 0 0 16px;
+  padding-top: 32px;
+  border-top: 1px solid var(--line);
+}
+.legal-doc section:first-of-type h2 { padding-top: 0; border-top: 0; }
+.legal-doc section + section { margin-top: 32px; }
+.legal-doc p { color: var(--muted); }
+.legal-doc p + p { margin-top: 14px; }
+.legal-doc ul, .legal-doc ol { margin: 14px 0 0; padding-left: 22px; color: var(--muted); }
+.legal-doc li + li { margin-top: 8px; }
+.legal-doc ul + p, .legal-doc ol + p { margin-top: 14px; }
+.legal-doc a { color: var(--accent); }
+.legal-doc strong { color: var(--text); font-weight: 600; }
