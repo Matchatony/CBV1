@@ -313,7 +313,10 @@ a { color: inherit; }
 .form label { color: var(--faint); }
 .opt { text-transform: none; letter-spacing: 0; color: var(--faint); }
 
-.form input,
+/* Checkboxes and radios are excluded here on purpose: this block is the
+   text-field look, and appearance:none on a checkbox means it can never draw
+   a tick. Style those through .consent / .calc-flags instead. */
+.form input:not([type="checkbox"]):not([type="radio"]),
 .form select,
 .form textarea {
   font: 400 16px/1.5 var(--sans);
@@ -376,8 +379,9 @@ a:focus-visible {
   width: 18px;
   height: 18px;
   min-width: 18px;
-  margin-top: 3px;
+  margin-top: 2px;
   accent-color: var(--accent);
+  cursor: pointer;
 }
 .consent label {
   font-family: var(--sans);
@@ -736,20 +740,14 @@ footer { padding-block: 48px 56px; border-top: 1px solid var(--line); }
   text-transform: none;
   letter-spacing: normal;
 }
-/* .form input styles every <input> for the text-field look; undo that for
-   the checkboxes/radios in here so they render as actual checkboxes. */
 .calc-flags input[type="checkbox"],
 .calc-flags input[type="radio"] {
   width: 17px;
   height: 17px;
   min-width: 17px;
-  padding: 0;
-  margin: 3px 0 0;
-  appearance: auto;
-  -webkit-appearance: auto;
-  background: none;
-  border: 1px solid var(--line-firm);
+  margin: 2px 0 0;
   accent-color: var(--accent);
+  cursor: pointer;
 }
 
 #c-calc { grid-column: 1 / -1; justify-self: start; }
