@@ -480,7 +480,7 @@ footer { padding-block: 48px 56px; border-top: 1px solid var(--line); }
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) minmax(0, .8fr);
   gap: clamp(32px, 5vw, 64px);
-  align-items: center;
+  align-items: start;
 }
 .about-grid:has(figure[hidden]) { grid-template-columns: 1fr; }
 .about-text { display: flex; flex-direction: column; gap: 40px; }
@@ -528,7 +528,9 @@ footer { padding-block: 48px 56px; border-top: 1px solid var(--line); }
 /* Second render in the same column: the offseason drivetrain, landscape
    like its Photos-section crop, stacked under the portrait 22105 render
    rather than beside it — two different ratios side by side would fight. */
-.media-stack { display: flex; flex-direction: column; gap: 32px; }
+/* Sits in the text column, right under the team numbers, rather than
+   paired with the 22105 render in the media column. .about-text's flex
+   gap already spaces it the same as every other child there. */
 .media-offseason img { aspect-ratio: 4 / 3; }
 @media (max-width: 860px) {
   .about-grid { grid-template-columns: 1fr; }

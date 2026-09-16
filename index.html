@@ -225,21 +225,8 @@
             <dd>21239</dd>
           </div>
         </dl>
-      </div>
 
-      <!-- Each figure hides itself if its file is missing, so no broken frame. -->
-      <div class="media-stack">
-        <figure class="media-cad">
-          <img src="images/robot-cad.png"
-               alt="CAD assembly of the 22105 robot"
-               onerror="this.closest('figure').hidden = true">
-          <figcaption>
-            22105 in CAD
-            <a class="cad-link"
-               href="https://cad.onshape.com/documents/fbf5f644193fb48f84061189/w/049b9a07ad6abe18f0ec57cb/e/f14f1bbfd54340dc9a5fc215"
-               target="_blank" rel="noopener">Check out our CAD release</a>
-          </figcaption>
-        </figure>
+        <!-- Hides itself if the file is missing, so no broken frame. -->
         <figure class="media-cad media-offseason">
           <img src="images/work-04.jpg"
                alt="CAD render of Runtime Terror's offseason drivetrain"
@@ -247,6 +234,19 @@
           <figcaption>Our offseason bot (CAD)</figcaption>
         </figure>
       </div>
+
+      <!-- Hides itself if the file is missing, so no broken frame. -->
+      <figure class="media-cad">
+        <img src="images/robot-cad.png"
+             alt="CAD assembly of the 22105 robot"
+             onerror="this.closest('figure').hidden = true">
+        <figcaption>
+          22105 in CAD
+          <a class="cad-link"
+             href="https://cad.onshape.com/documents/fbf5f644193fb48f84061189/w/049b9a07ad6abe18f0ec57cb/e/f14f1bbfd54340dc9a5fc215"
+             target="_blank" rel="noopener">Check out our CAD release</a>
+        </figcaption>
+      </figure>
     </div>
   </section>
 
