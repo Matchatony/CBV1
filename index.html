@@ -1682,11 +1682,29 @@
       body: new FormData(form),
       headers: { Accept: 'application/json' }
     }).then(function (response) {
-      if (!response.ok) throw new Error('Request failed');
+      // Formspree returns a JSON body on both success and failure — read it
+      // either way so a failure can say *why* (quota hit, domain not
+      // allowed, form disabled, ...) instead of a generic dead end.
+      return response.json().catch(function () { return null; }).then(function (payload) {
+        if (!response.ok) {
+          var detail = payload && (payload.error ||
+            (payload.errors && payload.errors.length && payload.errors[0].message));
+          var err = new Error(detail || ('Formspree returned ' + response.status));
+          err.detail = detail;
+          throw err;
+        }
+        return payload;
+      });
+    }).then(function () {
       if (els.note) els.note.hidden = true;
       say('Sent — we\'ll confirm by email, usually the same day.', 'ok');
-    }).catch(function () {
-      say('The request didn\'t send. ', 'bad');
+    }).catch(function (err) {
+      // Logged, not just swallowed — if this happens on the live site, the
+      // browser console has the actual reason even though the on-page
+      // message stays generic (a raw Formspree error isn't meant for
+      // visitors, but it's exactly what's needed to diagnose this from here).
+      console.error('Quote form submission failed:', err);
+      say('The request didn\'t send' + (err && err.detail ? ' (' + err.detail + ')' : '') + '. ', 'bad');
       var retry = document.createElement('button');
       retry.type = 'button';
       retry.className = 'linkish';
