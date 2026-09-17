@@ -246,28 +246,12 @@
     </div>
 
     <div class="team-block">
-      <dl class="team-numbers">
+      <dl class="team-numbers team-numbers-last">
         <div>
           <dt>All Systems Go · Kentucky</dt>
           <dd>21239</dd>
         </div>
       </dl>
-      <div class="team-photos">
-        <!-- Hides itself if the file is missing, so no broken frame. -->
-        <figure class="media-cad media-wide">
-          <img src="images/asg-viper-1.jpg"
-               alt="CAD render of All Systems Go's Viper robot"
-               onerror="this.closest('figure').hidden = true">
-          <figcaption>Viper, in CAD</figcaption>
-        </figure>
-        <!-- Hides itself if the file is missing, so no broken frame. -->
-        <figure class="media-cad media-wide">
-          <img src="images/asg-viper-2.jpg"
-               alt="Front-view CAD render of Viper's drivetrain"
-               onerror="this.closest('figure').hidden = true">
-          <figcaption>Drivetrain, in CAD</figcaption>
-        </figure>
-      </div>
     </div>
   </section>
 
@@ -1371,14 +1355,15 @@
     return String(s == null ? '' : s).replace(/[′″‘’“”→]/g, function (c) { return PDF_UNSAFE[c]; });
   }
 
-  /* The two wireframe team renders that go at the bottom of the PDF. Fetched
+  /* The wireframe team render(s) that go beside Customer in the PDF. Fetched
      once as data URLs (jsPDF's addImage needs actual image data, not a URL)
      and cached — they're static assets, the same for every quote, so there's
      no reason to re-fetch them per PDF. Kicked off at page load, below, so
-     they're usually already resolved by the time someone submits. */
+     they're usually already resolved by the time someone submits. Thumbnail
+     width in buildPdf() divides the fixed art column evenly by however many
+     entries are here, so this list doesn't have to stay a pair. */
   var PDF_TEAM_ART = [
-    { number: '22105', src: 'images/wireframe-22105.png' },
-    { number: '21239', src: 'images/wireframe-21239.png' }
+    { number: '22105', src: 'images/wireframe-22105.png' }
   ];
   var pdfArtPromise = null;
   function loadImageDataURL(url) {
@@ -1483,7 +1468,8 @@
     if (loadedArt.length) {
       var artColX = x + textW - 200;
       var thumbGap = 8;
-      var thumbW = (200 - thumbGap) / 2;
+      var slots = PDF_TEAM_ART.length;
+      var thumbW = (200 - thumbGap * (slots - 1)) / slots;
       var thumbH = thumbW * 0.75; // source renders are 700x525, 4:3
       var labelH = 15;
       PDF_TEAM_ART.forEach(function (t, i) {

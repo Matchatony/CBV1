@@ -597,6 +597,8 @@ footer { padding-block: 48px 56px; border-top: 1px solid var(--line); }
   padding-top: 32px;
   border-top: 1px solid var(--line);
 }
+/* A team with no photos under its number shouldn't leave that gap trailing. */
+.team-numbers-last { margin-bottom: 0; }
 .team-numbers dt {
   font-family: var(--mono);
   font-size: 12px;

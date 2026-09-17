@@ -12,36 +12,43 @@ name and the page picks it up with no code change.
 | `work-02.jpg` | "Photos" — machined side plates on an intake (Mech-a-Mind) | in |
 | `work-03.jpg` | "Photos" — Mech-a-Mind in comp | in |
 | `work-04.jpg` | "About us" — Runtime Terror's offseason drivetrain, CAD render | in |
-| `asg-viper-1.jpg` | "About us" — All Systems Go's Viper robot, CAD render | in |
-| `asg-viper-2.jpg` | "About us" — Viper's drivetrain, CAD render | in |
 | `wireframe-22105.png` | Quote PDF, next to Customer — Runtime Terror, black-line-on-white outline of `work-04.jpg` | in |
-| `wireframe-21239.png` | Quote PDF, next to Customer — All Systems Go, black-line-on-white outline of the Viper drivetrain render | in |
 
 Every figure hides itself if its file is missing, so the page never shows a
 broken frame and files can be added one at a time.
 
-**The two `wireframe-*` files** are used only by the quote PDF (`loadPdfArt()`
-/ `buildPdf()` in the inline script), not the page itself — black line art on
+All Systems Go's Viper renders (`asg-viper-1.jpg`, `asg-viper-2.jpg`) and the
+matching `wireframe-21239.png` were pulled site-wide — About us and the quote
+PDF now show only Runtime Terror's photos, with All Systems Go's name/number
+still in About us but no image under it (`.team-block` there just has no
+`.team-photos`). If ASG art comes back later, put the pair back in About us
+the way `work-04.jpg` sits under Runtime Terror, and add `{ number: '21239',
+src: 'images/wireframe-21239.png' }` back into `PDF_TEAM_ART` in the inline
+script — the art column in the PDF sizes itself to however many entries are
+in that list, so adding a second one back doesn't need any other change.
+
+**`wireframe-22105.png`** is used only by the quote PDF (`loadPdfArt()` /
+`buildPdf()` in the inline script), not the page itself — black line art on
 a white ground (print-friendly, unlike the rest of the site's dark-background
 renders), 700×525 (4:3), with the matching team number burned in at
 PDF-generation time as pink outline-only text, not baked into the PNG. To
-swap one: threshold the source render to pure black lines on white — bright
+swap it: threshold the source render to pure black lines on white — bright
 pixels (roughly >160 on any channel) become black, everything else becomes
-white — same 4:3 frame, roughly the same line density. If one fails to load,
-that side is skipped rather than shown broken; if both fail, the customer
-block just uses the full column width.
+white — same 4:3 frame, roughly the same line density. If it fails to load,
+the whole art column next to Customer is skipped rather than shown broken.
 
 **Photos** (`work-*`) is real parts and real robots only, grouped by team —
 each gets a `.work-team` block with a plain `<img class="frame">` grid. Add a
 new `.work-team` block for a team that doesn't have one yet.
 
 **About us** is where each of the three students' own teams gets its number
-and two CAD renders, in a `.team-block` (`.team-numbers` for the name/number,
-`.team-photos` for the pair of `<figure class="media-cad">`). Most renders are
-portrait and use the default aspect ratio; add `media-wide` to the `<figure>`
-for one shot landscape instead (the offseason drivetrain, both Viper renders).
-A team goes here once it's one of the three founders' own — a customer team's
-real photos belong in Photos instead, like Mech-a-Mind's.
+and, if it has renders, its CAD photos — a `.team-block` with `.team-numbers`
+for the name/number and, when there are images, `.team-photos` for the pair
+of `<figure class="media-cad">`. Most renders are portrait and use the
+default aspect ratio; add `media-wide` to the `<figure>` for one shot
+landscape instead, like the offseason drivetrain. A team goes here once it's
+one of the three founders' own — a customer team's real photos belong in
+Photos instead, like Mech-a-Mind's.
 
 Export the CAD render on the dark background, not white: the page sits on
 near-black and a white render would glare. PNG keeps the edges crisp.
