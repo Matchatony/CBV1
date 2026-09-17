@@ -425,22 +425,17 @@
       </fieldset>
 
       <div class="calc-group" id="q-delivery-group" hidden>
-        <div class="field field-wide">
+        <div class="field field-wide address-search">
           <label for="q-address">Delivery address</label>
-          <input id="q-address" name="address" type="text" placeholder="Street, city, ZIP" autocomplete="street-address">
+          <input id="q-address" name="address" type="text" placeholder="Start typing an address…"
+                 autocomplete="off" role="combobox" aria-expanded="false" aria-autocomplete="list"
+                 aria-controls="q-address-suggestions">
+          <ul class="address-suggestions" id="q-address-suggestions" role="listbox" hidden></ul>
           <p class="hint" id="q-geo-status">
-            Enter the address and we'll work out the round trip for you.
+            Start typing and pick your address from the list — we'll price the delivery from it automatically.
           </p>
-        </div>
-        <div class="calc-row">
-          <div class="field">
-            <label for="q-miles">Round-trip miles <span class="opt">auto, editable</span></label>
-            <input id="q-miles" name="roundtrip_miles" type="number" min="0" step="0.1" placeholder="12" inputmode="decimal">
-          </div>
-          <div class="field">
-            <label for="q-drivetime">Round-trip drive time <span class="opt">minutes, auto</span></label>
-            <input id="q-drivetime" name="roundtrip_minutes" type="number" min="0" step="1" placeholder="25" inputmode="decimal">
-          </div>
+          <input type="hidden" id="q-miles" name="roundtrip_miles">
+          <input type="hidden" id="q-drivetime" name="roundtrip_minutes">
         </div>
       </div>
 
@@ -606,6 +601,7 @@
     rush: document.getElementById('q-rush'),
     deliveryGroup: document.getElementById('q-delivery-group'),
     address: document.getElementById('q-address'),
+    addressList: document.getElementById('q-address-suggestions'),
     geoStatus: document.getElementById('q-geo-status'),
     geomNote: document.getElementById('q-geom-note'),
     miles: document.getElementById('q-miles'),
@@ -648,38 +644,33 @@
     return '$' + n.toFixed(2).replace(/\.00$/, '');
   }
 
-  /* -------------------- ROUND TRIP FROM THE ADDRESS -------------------- */
-  /* Typing an address fills in the round-trip miles and minutes by geocoding
-     it and routing from SHOP_ORIGIN. Both fields stay editable: once someone
-     types over one, the lookup stops overwriting their numbers. */
+  /* -------------------- ADDRESS SEARCH -> DELIVERY COST -------------------- */
+  /* A live search-as-you-type dropdown (Nominatim) replaces manual round-trip
+     entry entirely: picking a result gives an exact {lat, lon}, which skips
+     straight to routing — no second geocode of the same point. Typing a full
+     address and blurring without picking one still works as a fallback, one
+     geocode call away from the same result. Either way, the actual
+     round-trip miles/minutes only ever live in hidden fields (still sent
+     with the form, for the email) — nothing left for a visitor to edit. */
 
   var geoTimer = null;
-  var lastLookedUp = '';
-  var manualDistance = false;
-
-  /* Only a person typing fires 'input' — setDistance() writing .value doesn't —
-     so anything that lands here is a deliberate override. Emptying both fields
-     hands control back to the address lookup, which is what the status message
-     tells people to do. */
-  [els.miles, els.drivetime].forEach(function (input) {
-    input.addEventListener('input', function () {
-      manualDistance = !!(els.miles.value.trim() || els.drivetime.value.trim());
-      if (!manualDistance) { lastLookedUp = ''; lookupAddress(); }
-    });
-  });
+  var suggestions = [];
+  var activeIndex = -1;
+  var selectedDest = null;
+  var justSelected = false;
 
   function geoSay(message) {
     els.geoStatus.textContent = message;
   }
 
   function setDistance(miles, minutes) {
-    els.miles.value = miles.toFixed(1);
-    els.drivetime.value = Math.round(minutes);
+    els.miles.value = miles != null ? miles.toFixed(1) : '';
+    els.drivetime.value = minutes != null ? Math.round(minutes) : '';
   }
 
   /* Turns a plain address into {lat, lon} via Nominatim. Shared by the shop's
-     own fixed address and whatever a visitor types, so there's exactly one
-     place that knows how to talk to the geocoder. */
+     own fixed address and a manually-typed visitor address (the dropdown
+     path skips this — it already has coordinates from the search results). */
   function geocode(address) {
     var url = GEOCODE_URL + '?format=json&limit=1&countrycodes=us&q=' + encodeURIComponent(address);
     return fetch(url, { headers: { Accept: 'application/json' } })
@@ -688,6 +679,16 @@
         if (!hits || !hits.length) return Promise.reject();
         return { lat: hits[0].lat, lon: hits[0].lon };
       });
+  }
+
+  function fetchSuggestions(query) {
+    var url = GEOCODE_URL + '?format=json&limit=5&countrycodes=us&q=' + encodeURIComponent(query);
+    return fetch(url, { headers: { Accept: 'application/json' } })
+      .then(function (r) { return r.ok ? r.json() : []; })
+      .then(function (hits) {
+        return (hits || []).map(function (h) { return { label: h.display_name, lat: h.lat, lon: h.lon }; });
+      })
+      .catch(function () { return []; });
   }
 
   /* Geocoded once, on first use, then cached for the rest of the visit —
@@ -704,44 +705,133 @@
     return shopOriginPromise;
   }
 
-  function lookupAddress() {
-    var address = els.address.value.trim();
-    if (address.length < 8 || address === lastLookedUp) return;
-    if (manualDistance) {
-      geoSay('Using the round trip you entered. Clear those two fields to look it up from the address instead.');
-      return;
-    }
-    lastLookedUp = address;
-    geoSay('Looking up the round trip…');
-
-    Promise.all([geocodeOrigin(), geocode(address)])
-      .then(function (points) {
-        var origin = points[0], dest = points[1];
-        var pair = origin.lon + ',' + origin.lat + ';' + dest.lon + ',' + dest.lat;
-        return fetch(ROUTE_URL + pair + '?overview=false').then(function (r) {
-          return r.ok ? r.json() : Promise.reject();
-        }).then(function (route) {
-          if (!route.routes || !route.routes.length) return Promise.reject();
-          var leg = route.routes[0];
-          // One way out and the same back again.
-          var miles = (leg.distance / 1609.344) * 2;
-          var minutes = (leg.duration / 60) * 2;
-          setDistance(miles, minutes);
-          geoSay(miles.toFixed(1) + ' mi round trip, about ' + Math.round(minutes) +
-            ' min driving — ' + money(miles * RATE.deliveryPerMile + (minutes / 60) * DELIVERY_PER_HOUR_MID) +
-            ' delivery. Edit either number to override it.');
-        });
-      })
-      .catch(function () {
-        lastLookedUp = '';
-        geoSay('Couldn\'t look that address up automatically. Fill in the round-trip miles and drive time yourself, or leave them blank and we\'ll work it out and confirm by email.');
+  function computeRouteTo(dest) {
+    geoSay('Working out the delivery cost…');
+    return geocodeOrigin().then(function (origin) {
+      var pair = origin.lon + ',' + origin.lat + ';' + dest.lon + ',' + dest.lat;
+      return fetch(ROUTE_URL + pair + '?overview=false').then(function (r) {
+        return r.ok ? r.json() : Promise.reject();
       });
+    }).then(function (route) {
+      if (!route.routes || !route.routes.length) return Promise.reject();
+      var leg = route.routes[0];
+      // One way out and the same back again.
+      var miles = (leg.distance / 1609.344) * 2;
+      var minutes = (leg.duration / 60) * 2;
+      setDistance(miles, minutes);
+      geoSay(money(miles * RATE.deliveryPerMile + (minutes / 60) * DELIVERY_PER_HOUR_MID) +
+        ' delivery to that address (' + Math.round(minutes) + ' min round trip driving).');
+    }).catch(function () {
+      setDistance(null, null);
+      geoSay('Couldn\'t work out the delivery cost automatically — we\'ll confirm it by email.');
+    });
   }
 
-  els.address.addEventListener('change', lookupAddress);
+  function updateActiveSuggestion() {
+    var items = els.addressList.querySelectorAll('button');
+    items.forEach(function (btn, i) { btn.classList.toggle('is-active', i === activeIndex); });
+  }
+
+  function hideSuggestions() {
+    els.addressList.hidden = true;
+    els.addressList.innerHTML = '';
+    suggestions = [];
+    activeIndex = -1;
+    els.address.setAttribute('aria-expanded', 'false');
+  }
+
+  function selectSuggestion(item) {
+    justSelected = true;
+    els.address.value = item.label;
+    hideSuggestions();
+    selectedDest = { lat: item.lat, lon: item.lon };
+    computeRouteTo(selectedDest);
+  }
+
+  function renderSuggestions(list) {
+    suggestions = list;
+    activeIndex = -1;
+    els.addressList.innerHTML = '';
+    if (!list.length) { hideSuggestions(); return; }
+    list.forEach(function (item) {
+      var li = document.createElement('li');
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = item.label;
+      // mousedown (not click) fires before the input blurs, so the pick
+      // registers before anything treats this as "typed and walked away".
+      btn.addEventListener('mousedown', function (e) {
+        e.preventDefault();
+        selectSuggestion(item);
+      });
+      li.appendChild(btn);
+      els.addressList.appendChild(li);
+    });
+    els.addressList.hidden = false;
+    els.address.setAttribute('aria-expanded', 'true');
+  }
+
   els.address.addEventListener('input', function () {
+    if (justSelected) { justSelected = false; return; }
+    selectedDest = null;
+    setDistance(null, null);
     clearTimeout(geoTimer);
-    geoTimer = setTimeout(lookupAddress, 1200);
+
+    var query = els.address.value.trim();
+    if (query.length < 4) {
+      hideSuggestions();
+      geoSay('Start typing and pick your address from the list — we\'ll price the delivery from it automatically.');
+      return;
+    }
+    geoSay('Searching…');
+    geoTimer = setTimeout(function () {
+      fetchSuggestions(query).then(function (list) {
+        if (els.address.value.trim() !== query) return; // input moved on; drop this stale response
+        renderSuggestions(list);
+        geoSay(list.length
+          ? 'Pick your address from the list below.'
+          : 'No matches yet — keep typing, or enter the full address and we\'ll confirm delivery cost by email.');
+      });
+    }, 350);
+  });
+
+  els.address.addEventListener('keydown', function (e) {
+    if (els.addressList.hidden) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      activeIndex = Math.min(activeIndex + 1, suggestions.length - 1);
+      updateActiveSuggestion();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      activeIndex = Math.max(activeIndex - 1, 0);
+      updateActiveSuggestion();
+    } else if (e.key === 'Enter' && activeIndex >= 0) {
+      e.preventDefault();
+      selectSuggestion(suggestions[activeIndex]);
+    } else if (e.key === 'Escape') {
+      hideSuggestions();
+    }
+  });
+
+  // Typed (or pasted) a full address and moved on without picking a
+  // suggestion — geocode what's there directly rather than requiring a click.
+  els.address.addEventListener('blur', function () {
+    setTimeout(function () {
+      hideSuggestions();
+      if (selectedDest) return;
+      var query = els.address.value.trim();
+      if (query.length < 8) return;
+      geocode(query).then(function (point) {
+        selectedDest = point;
+        return computeRouteTo(point);
+      }).catch(function () {
+        geoSay('Couldn\'t look that address up automatically — we\'ll confirm delivery cost by email.');
+      });
+    }, 150); // outlasts the suggestion button's mousedown, so a click still wins
+  });
+
+  document.addEventListener('click', function (e) {
+    if (!els.address.contains(e.target) && !els.addressList.contains(e.target)) hideSuggestions();
   });
 
   function nextCutoff(now) {
