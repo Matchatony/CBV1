@@ -1355,15 +1355,13 @@
     return String(s == null ? '' : s).replace(/[′″‘’“”→]/g, function (c) { return PDF_UNSAFE[c]; });
   }
 
-  /* The wireframe team render(s) that go beside Customer in the PDF. Fetched
-     once as data URLs (jsPDF's addImage needs actual image data, not a URL)
-     and cached — they're static assets, the same for every quote, so there's
-     no reason to re-fetch them per PDF. Kicked off at page load, below, so
-     they're usually already resolved by the time someone submits. Thumbnail
-     width in buildPdf() divides the fixed art column evenly by however many
-     entries are here, so this list doesn't have to stay a pair. */
+  /* The wireframe team render shown large near the top of the PDF. Fetched
+     once as a data URL (jsPDF's addImage needs actual image data, not a URL)
+     and cached — it's a static asset, the same for every quote, so there's
+     no reason to re-fetch it per PDF. Kicked off at page load, below, so
+     it's usually already resolved by the time someone submits. */
   var PDF_TEAM_ART = [
-    { number: '22105', src: 'images/wireframe-22105.png' }
+    { number: '22105', name: 'Runtime Terror', src: 'images/wireframe-22105.png' }
   ];
   var pdfArtPromise = null;
   function loadImageDataURL(url) {
@@ -1438,21 +1436,46 @@
     doc.setTextColor(164, 157, 174);
     doc.text('ADDICTED TO PRECISION', x, 72, { charSpace: 2.2 });
 
-    y = 120;
+    // A large team photo up top, not a sidebar thumbnail — plain filled
+    // captions under it (team number big, team name smaller), not the
+    // outline "wireframe text" treatment used elsewhere. A 5x5in image plus
+    // captions leaves too little of page 1 for the rest of the quote to fit
+    // without crowding it, so that content starts clean on its own page
+    // instead — this is what keeps everything from overlapping.
+    var heroArt = (art || [])[0];
+    var heroTeam = PDF_TEAM_ART[0];
+    if (heroArt && heroTeam) {
+      var heroSize = 360; // 5in x 5in
+      var heroX = (pageW - heroSize) / 2;
+      var heroY = 116;
+      doc.addImage(heroArt, 'PNG', heroX, heroY, heroSize, heroSize);
+      doc.setDrawColor(210, 208, 214);
+      doc.setLineWidth(0.5);
+      doc.rect(heroX, heroY, heroSize, heroSize, 'S');
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(32);
+      doc.setTextColor(20, 18, 26);
+      var numW = doc.getTextWidth(heroTeam.number);
+      doc.text(heroTeam.number, (pageW - numW) / 2, heroY + heroSize + 40);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(13);
+      doc.setTextColor(164, 157, 174);
+      var nameW = doc.getTextWidth(heroTeam.name);
+      doc.text(heroTeam.name, (pageW - nameW) / 2, heroY + heroSize + 62);
+
+      doc.addPage();
+      y = 56;
+    } else {
+      y = 120;
+    }
+
     doc.setTextColor(20, 18, 26);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(16);
     doc.text(pdfSafe('Quote — ' + new Date().toLocaleDateString()), x, y);
     y += 26;
-
-    // Team art sits beside the customer block, not buried at the end of the
-    // document — two small wireframe thumbnails, team number burned in, to
-    // the right of the name/team/email lines. Skipped per-image if that one
-    // failed to load; the customer column just uses the full width if
-    // neither did, same as before this existed.
-    var loadedArt = (art || []).filter(function (a) { return a; });
-    var custY0 = y;
-    var leftW = loadedArt.length ? textW - 216 : textW;
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(11);
@@ -1461,41 +1484,9 @@
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(20, 18, 26);
     doc.setFontSize(11);
-    block('Name: ' + data.name, 15, leftW);
-    block('Team: ' + (data.team || '—'), 15, leftW);
-    block('Email: ' + data.email, 15, leftW);
-
-    if (loadedArt.length) {
-      var artColX = x + textW - 200;
-      var thumbGap = 8;
-      var slots = PDF_TEAM_ART.length;
-      var thumbW = (200 - thumbGap * (slots - 1)) / slots;
-      var thumbH = thumbW * 0.75; // source renders are 700x525, 4:3
-      var labelH = 15;
-      PDF_TEAM_ART.forEach(function (t, i) {
-        var dataUrl = art[i];
-        if (!dataUrl) return;
-        var drawX = artColX + i * (thumbW + thumbGap);
-        var imgY = custY0 + labelH;
-
-        // Team number as a caption above its wireframe, not laid over it —
-        // pink outline text, same "wireframe" treatment, just its own line.
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(13);
-        var numW = doc.getTextWidth(t.number);
-        doc.setDrawColor(214, 118, 165);
-        doc.setLineWidth(0.6);
-        doc.text(t.number, drawX + thumbW / 2 - numW / 2, custY0 + 10, { renderingMode: 'stroke' });
-
-        doc.addImage(dataUrl, 'PNG', drawX, imgY, thumbW, thumbH);
-        // White background art needs its own edge on a white page — the dark
-        // version didn't, it delineated itself.
-        doc.setDrawColor(210, 208, 214);
-        doc.setLineWidth(0.5);
-        doc.rect(drawX, imgY, thumbW, thumbH, 'S');
-      });
-      y = Math.max(y, custY0 + labelH + thumbH);
-    }
+    block('Name: ' + data.name, 15);
+    block('Team: ' + (data.team || '—'), 15);
+    block('Email: ' + data.email, 15);
     y += 8;
 
     doc.setFont('helvetica', 'bold');
