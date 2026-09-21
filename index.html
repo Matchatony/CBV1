@@ -138,9 +138,8 @@
           flagged with suggested revisions before work begins.
         </p>
         <p>
-          Pickup in San Diego is free. Local delivery is billed at cost: round-trip
-          miles &times; $0.50/mile, plus round-trip drive time &times; $12&ndash;15/hr —
-          no markup added on top.
+          Pickup in San Diego is free. Local delivery is a flat $30, regardless
+          of distance.
         </p>
       </div>
       <ul class="terms">
@@ -264,7 +263,7 @@
     <ul class="terms contract-terms">
       <li><span>Estimates, confirmed by file</span> — the price you see here is final once we see the actual design; if the real file costs more (extra material, tighter tolerances, extra setup), we tell you before starting, not after.</li>
       <li><span>Payment</span> — Venmo, Cash App, or PayPal, arranged by email once a quote is confirmed. We don't take payment on this site.</li>
-      <li><span>Pickup or local delivery</span> — free pickup in San Diego, or delivery billed at cost (round-trip miles &times; $0.50/mile + round-trip drive time &times; $12&ndash;15/hr). We don't ship outside the local area.</li>
+      <li><span>Pickup or local delivery</span> — free pickup in San Diego, or local delivery for a flat $30. We don't ship outside the local area.</li>
       <li><span>Turnaround</span> — 1&ndash;3 days is typical, not guaranteed; material availability or order volume can push it out, and we'll say so.</li>
       <li><span>Cancellations</span> — full refund any time before we start cutting. Once material is cut it isn't refundable, except when we made the mistake.</li>
       <li><span>Deburring</span> — included standard, no added charge.</li>
@@ -405,7 +404,7 @@
       <fieldset class="calc-flags">
         <legend>Delivery</legend>
         <label><input type="radio" name="delivery" value="pickup" id="q-delivery-pickup" checked> Pickup — San Diego, CA <span class="opt">free</span></label>
-        <label><input type="radio" name="delivery" value="delivery" id="q-delivery-drive"> Local delivery <span class="opt">at cost</span></label>
+        <label><input type="radio" name="delivery" value="delivery" id="q-delivery-drive"> Local delivery <span class="opt">flat $30</span></label>
       </fieldset>
 
       <div class="calc-group" id="q-delivery-group" hidden>
@@ -416,10 +415,8 @@
                  aria-controls="q-address-suggestions">
           <ul class="address-suggestions" id="q-address-suggestions" role="listbox" hidden></ul>
           <p class="hint" id="q-geo-status">
-            Start typing and pick your address from the list — we'll price the delivery from it automatically.
+            Start typing and pick your address from the list. Local delivery is a flat $30.
           </p>
-          <input type="hidden" id="q-miles" name="roundtrip_miles">
-          <input type="hidden" id="q-drivetime" name="roundtrip_minutes">
         </div>
       </div>
 
@@ -534,26 +531,13 @@
     surchargeTapped: 4,
     surchargeTolerance: 6,
     surchargeComplex: 8,
-    deliveryPerMile: 0.50,
-    deliveryPerHourLow: 12,
-    deliveryPerHourHigh: 15
+    flatDeliveryRate: 30
   };
-  var DELIVERY_PER_HOUR_MID = (RATE.deliveryPerHourLow + RATE.deliveryPerHourHigh) / 2;
 
-  /* Where deliveries drive out from — the origin every round-trip mile and
-     minute below is measured from, so a wrong address means wrong delivery
-     prices. It's geocoded once (below) and cached, the same way a typed
-     delivery address is. Nothing on the page shows this address or its
-     coordinates to visitors; they only ever see the resulting distance. */
-  var SHOP_ADDRESS = '7708 Caminito Liliana, San Diego, CA 92129';
-  var shopOrigin = null;     // filled in by geocodeOrigin() below
-  var shopOriginPromise = null;
-
-  /* Keyless public endpoints: Nominatim turns the typed address into a point,
-     OSRM drives between the two. Both are free community services with no
-     uptime promise, so every failure path falls back to manual entry. */
+  /* Keyless public endpoint: Nominatim turns the typed address into a list
+     of matching suggestions. It's a free community service with no uptime
+     promise, so a failed lookup just falls back to whatever was typed. */
   var GEOCODE_URL = 'https://nominatim.openstreetmap.org/search';
-  var ROUTE_URL = 'https://router.project-osrm.org/route/v1/driving/';
 
   var CUTOFF_DAYS = [1, 3, 5]; // Mon, Wed, Fri (Sun = 0)
   var CUTOFF_HOUR = 18;
@@ -588,8 +572,6 @@
     addressList: document.getElementById('q-address-suggestions'),
     geoStatus: document.getElementById('q-geo-status'),
     geomNote: document.getElementById('q-geom-note'),
-    miles: document.getElementById('q-miles'),
-    drivetime: document.getElementById('q-drivetime'),
     summaryField: document.getElementById('q-summary-field'),
     result: document.getElementById('q-result'),
     status: document.getElementById('form-status'),
@@ -628,41 +610,19 @@
     return '$' + n.toFixed(2).replace(/\.00$/, '');
   }
 
-  /* -------------------- ADDRESS SEARCH -> DELIVERY COST -------------------- */
-  /* A live search-as-you-type dropdown (Nominatim) replaces manual round-trip
-     entry entirely: picking a result gives an exact {lat, lon}, which skips
-     straight to routing — no second geocode of the same point. Typing a full
-     address and blurring without picking one still works as a fallback, one
-     geocode call away from the same result. Either way, the actual
-     round-trip miles/minutes only ever live in hidden fields (still sent
-     with the form, for the email) — nothing left for a visitor to edit. */
+  /* -------------------- ADDRESS SEARCH -------------------- */
+  /* A live search-as-you-type dropdown (Nominatim) so visitors pick a real,
+     unambiguous address instead of typing something we might misread. It
+     doesn't feed pricing — delivery is a flat rate regardless of distance —
+     it's just there to get a clean address for the email. */
 
   var geoTimer = null;
   var suggestions = [];
   var activeIndex = -1;
-  var selectedDest = null;
   var justSelected = false;
 
   function geoSay(message) {
     els.geoStatus.textContent = message;
-  }
-
-  function setDistance(miles, minutes) {
-    els.miles.value = miles != null ? miles.toFixed(1) : '';
-    els.drivetime.value = minutes != null ? Math.round(minutes) : '';
-  }
-
-  /* Turns a plain address into {lat, lon} via Nominatim. Shared by the shop's
-     own fixed address and a manually-typed visitor address (the dropdown
-     path skips this — it already has coordinates from the search results). */
-  function geocode(address) {
-    var url = GEOCODE_URL + '?format=json&limit=1&countrycodes=us&q=' + encodeURIComponent(address);
-    return fetch(url, { headers: { Accept: 'application/json' } })
-      .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
-      .then(function (hits) {
-        if (!hits || !hits.length) return Promise.reject();
-        return { lat: hits[0].lat, lon: hits[0].lon };
-      });
   }
 
   function fetchSuggestions(query) {
@@ -670,45 +630,9 @@
     return fetch(url, { headers: { Accept: 'application/json' } })
       .then(function (r) { return r.ok ? r.json() : []; })
       .then(function (hits) {
-        return (hits || []).map(function (h) { return { label: h.display_name, lat: h.lat, lon: h.lon }; });
+        return (hits || []).map(function (h) { return { label: h.display_name }; });
       })
       .catch(function () { return []; });
-  }
-
-  /* Geocoded once, on first use, then cached for the rest of the visit —
-     the shop's address doesn't change mid-session, so there's no reason to
-     look it up again for every delivery quote. */
-  function geocodeOrigin() {
-    if (shopOrigin) return Promise.resolve(shopOrigin);
-    if (!shopOriginPromise) {
-      shopOriginPromise = geocode(SHOP_ADDRESS).then(function (point) {
-        shopOrigin = point;
-        return point;
-      });
-    }
-    return shopOriginPromise;
-  }
-
-  function computeRouteTo(dest) {
-    geoSay('Working out the delivery cost…');
-    return geocodeOrigin().then(function (origin) {
-      var pair = origin.lon + ',' + origin.lat + ';' + dest.lon + ',' + dest.lat;
-      return fetch(ROUTE_URL + pair + '?overview=false').then(function (r) {
-        return r.ok ? r.json() : Promise.reject();
-      });
-    }).then(function (route) {
-      if (!route.routes || !route.routes.length) return Promise.reject();
-      var leg = route.routes[0];
-      // One way out and the same back again.
-      var miles = (leg.distance / 1609.344) * 2;
-      var minutes = (leg.duration / 60) * 2;
-      setDistance(miles, minutes);
-      geoSay(money(miles * RATE.deliveryPerMile + (minutes / 60) * DELIVERY_PER_HOUR_MID) +
-        ' delivery to that address (' + Math.round(minutes) + ' min round trip driving).');
-    }).catch(function () {
-      setDistance(null, null);
-      geoSay('Couldn\'t work out the delivery cost automatically — we\'ll confirm it by email.');
-    });
   }
 
   function updateActiveSuggestion() {
@@ -728,8 +652,7 @@
     justSelected = true;
     els.address.value = item.label;
     hideSuggestions();
-    selectedDest = { lat: item.lat, lon: item.lon };
-    computeRouteTo(selectedDest);
+    geoSay('Local delivery is a flat $30 to that address.');
   }
 
   function renderSuggestions(list) {
@@ -757,14 +680,12 @@
 
   els.address.addEventListener('input', function () {
     if (justSelected) { justSelected = false; return; }
-    selectedDest = null;
-    setDistance(null, null);
     clearTimeout(geoTimer);
 
     var query = els.address.value.trim();
     if (query.length < 4) {
       hideSuggestions();
-      geoSay('Start typing and pick your address from the list — we\'ll price the delivery from it automatically.');
+      geoSay('Start typing and pick your address from the list. Local delivery is a flat $30.');
       return;
     }
     geoSay('Searching…');
@@ -774,7 +695,7 @@
         renderSuggestions(list);
         geoSay(list.length
           ? 'Pick your address from the list below.'
-          : 'No matches yet — keep typing, or enter the full address and we\'ll confirm delivery cost by email.');
+          : 'No matches yet — keep typing, or enter the full address and we\'ll take it as typed.');
       });
     }, 350);
   });
@@ -798,20 +719,9 @@
   });
 
   // Typed (or pasted) a full address and moved on without picking a
-  // suggestion — geocode what's there directly rather than requiring a click.
+  // suggestion — that's fine, we take it as typed since it doesn't affect price.
   els.address.addEventListener('blur', function () {
-    setTimeout(function () {
-      hideSuggestions();
-      if (selectedDest) return;
-      var query = els.address.value.trim();
-      if (query.length < 8) return;
-      geocode(query).then(function (point) {
-        selectedDest = point;
-        return computeRouteTo(point);
-      }).catch(function () {
-        geoSay('Couldn\'t look that address up automatically — we\'ll confirm delivery cost by email.');
-      });
-    }, 150); // outlasts the suggestion button's mousedown, so a click still wins
+    setTimeout(function () { hideSuggestions(); }, 150); // outlasts the suggestion button's mousedown, so a click still wins
   });
 
   document.addEventListener('click', function (e) {
@@ -1282,13 +1192,8 @@
 
     var deliveryCost = null, deliveryLine = 'Pickup in San Diego — free';
     if (delivery === 'delivery') {
-      var miles = parseFloat(els.miles.value), minutes = parseFloat(els.drivetime.value);
-      if (miles > 0 && minutes > 0) {
-        deliveryCost = miles * RATE.deliveryPerMile + (minutes / 60) * DELIVERY_PER_HOUR_MID;
-        deliveryLine = 'Local delivery (' + miles + ' mi round trip, ' + minutes + ' min): ' + money(deliveryCost);
-      } else {
-        deliveryLine = 'Local delivery — exact cost confirmed by email from your address ($0.50/mi + $12–15/hr round trip)';
-      }
+      deliveryCost = RATE.flatDeliveryRate;
+      deliveryLine = 'Local delivery (flat rate): ' + money(deliveryCost);
     }
 
     var total = partsTotal + (deliveryCost || 0);
@@ -1316,10 +1221,10 @@
       '<div><dt>Labor</dt><dd>' + money(q.perUnitLabor * q.qty) + '</dd></div>' +
       (q.surcharge ? '<div><dt>Flagged items</dt><dd>' + money(q.surcharge * q.qty) + '</dd></div>' : '') +
       (q.perUnitSubtotal < RATE.minPartPrice ? '<div><dt>Minimum applied</dt><dd>' + money(RATE.minPartPrice - q.perUnitSubtotal) + ' × ' + q.qty + '</dd></div>' : '') +
-      '<div><dt>' + (q.delivery === 'delivery' ? 'Delivery' : 'Pickup') + '</dt><dd>' + (q.deliveryCost != null ? money(q.deliveryCost) : (q.delivery === 'delivery' ? 'TBD' : 'Free')) + '</dd></div>' +
+      '<div><dt>' + (q.delivery === 'delivery' ? 'Delivery' : 'Pickup') + '</dt><dd>' + (q.delivery === 'delivery' ? money(q.deliveryCost) : 'Free') + '</dd></div>' +
       '</dl>';
     var notesHtml = q.notes.length ? '<ul class="calc-reasons">' + q.notes.map(function (n) { return '<li>' + n + '</li>'; }).join('') + '</ul>' : '';
-    return '<p class="calc-headline">' + money(q.total) + (q.deliveryCost == null && q.delivery === 'delivery' ? ' + delivery (TBD)' : '') + '</p>' +
+    return '<p class="calc-headline">' + money(q.total) + '</p>' +
       '<p class="calc-sub">' + q.qty + ' × ' + q.sizeNote + (q.detailLine ? ', ' + q.detailLine : '') + '</p>' +
       breakdown + notesHtml +
       '<p class="calc-batch">' + q.batch + '</p>' +
@@ -1337,7 +1242,7 @@
       lines.push('Details: ' + q.qty + ' × ' + q.sizeNote + (q.detailLine ? ', ' + q.detailLine : ''));
       lines.push('Delivery: ' + q.deliveryLine);
       if (q.notes.length) lines.push('Flags: ' + q.notes.join(' | '));
-      lines.push('ESTIMATED TOTAL: ' + money(q.total) + (q.deliveryCost == null && q.delivery === 'delivery' ? ' + delivery TBD' : ''));
+      lines.push('ESTIMATED TOTAL: ' + money(q.total));
     }
     if (data.details) lines.push('', 'Customer notes: ' + data.details);
     return lines.join('\n');
@@ -1527,14 +1432,14 @@
         priceRow('Minimum applied', money(RATE.minPartPrice - q.perUnitSubtotal) + ' × ' + q.qty);
       }
       priceRow(q.delivery === 'delivery' ? 'Delivery' : 'Pickup',
-        q.deliveryCost != null ? money(q.deliveryCost) : (q.delivery === 'delivery' ? 'TBD' : 'Free'));
+        q.delivery === 'delivery' ? money(q.deliveryCost) : 'Free');
 
       y += 2;
       doc.setDrawColor(233, 168, 201);
       doc.setLineWidth(1);
       doc.line(x, y, pageW - x, y); y += 20;
 
-      priceRow('Estimated total', money(q.total) + (q.deliveryCost == null && q.delivery === 'delivery' ? ' + TBD' : ''), true);
+      priceRow('Estimated total', money(q.total), true);
       y += 6;
 
       if (q.notes.length) {
@@ -1574,7 +1479,7 @@
     [
       'This price is an estimate, confirmed once we see the actual design file.',
       'Payment via Venmo, Cash App, or PayPal, arranged by email once confirmed.',
-      'Free pickup in San Diego, or local delivery at cost (round-trip miles × $0.50/mi + round-trip drive time × $12–15/hr). We don\'t ship outside the local area.',
+      'Free pickup in San Diego, or local delivery for a flat $30. We don\'t ship outside the local area.',
       'Turnaround is typically 1–3 days, not guaranteed. Deburring is included, standard.',
       'Full refund any time before we start cutting; not refundable once material is cut, except when the mistake is ours. Full terms: see the site\'s Terms & conditions.'
     ].forEach(function (line) { block(line, 13.5); y += 2; });
