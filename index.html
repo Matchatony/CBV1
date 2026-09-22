@@ -1609,7 +1609,15 @@
       // message stays generic (a raw Formspree error isn't meant for
       // visitors, but it's exactly what's needed to diagnose this from here).
       console.error('Quote form submission failed:', err);
-      say('The request didn\'t send' + (err && err.detail ? ' (' + err.detail + ')' : '') + '. ', 'bad');
+      // No `.detail` means the browser never got a readable response at all
+      // (a plain fetch/CORS failure) — Formspree never got a chance to say
+      // why. That almost always means an ad blocker/privacy extension ate
+      // the request, or this domain isn't on Formspree's allowed-domains
+      // list yet, not a bug in what we sent.
+      var reason = err && err.detail
+        ? ' (' + err.detail + ').'
+        : ' — the connection to Formspree was blocked before we got a response. Try disabling an ad blocker or privacy extension, or use another browser/network.';
+      say('The request didn\'t send' + reason, 'bad');
       var retry = document.createElement('button');
       retry.type = 'button';
       retry.className = 'linkish';
