@@ -483,6 +483,7 @@ footer { padding-block: 48px 56px; border-top: 1px solid var(--line); }
 }
 .footer-links a:hover { color: var(--text); text-decoration-color: var(--accent); }
 .fine { font-size: 12.5px; line-height: 1.6; color: var(--faint); max-width: 76ch; }
+.fine + .fine { margin-top: 14px; }
 
 /* -------------------------------------------------------------- small --- */
 @media (max-width: 860px) {
@@ -638,6 +639,16 @@ footer { padding-block: 48px 56px; border-top: 1px solid var(--line); }
   border-radius: 8px;
 }
 .media-wide img { aspect-ratio: 4 / 3; }
+/* Side by side, a landscape render next to a portrait one left a tall empty
+   gap under it. Give it the portrait's box and letterbox it on the renders'
+   own #333 ground so the two panels read as a matched pair. */
+@media (min-width: 700px) {
+  .media-wide img {
+    aspect-ratio: 746 / 1120;
+    object-fit: contain;
+    background: #333;
+  }
+}
 
 /* A wide shot breaking the run of text between the spec sheet and pricing,
    cropped down to the field so the spectator seating above it stays out of
