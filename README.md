@@ -33,45 +33,37 @@ Both pages ship with placeholders. Search and replace:
 
 ## The order form
 
-The form posts to [Formspree](https://formspree.io) at endpoint
-`mgaeqjvd`, which forwards submissions to the address set on that form in the
-Formspree dashboard. **It is already wired up** — nothing to configure.
+The form posts to [FormSubmit](https://formsubmit.co) at
+`https://formsubmit.co/ajax/anthonyhuynh980@gmail.com` (the `<form action>` in
+`index.html`). FormSubmit emails every submission to that address, with the
+design file attached. It's free, including file uploads up to 10 MB.
+(Formspree was used before, but its free plan rejects file uploads, and the
+design file is required here, so every request failed.)
+
+**One-time activation.** The very first submission doesn't arrive as a quote:
+FormSubmit emails that Gmail an **Activate Form** link instead. Click it once
+and every submission after that comes through. Until then the site shows
+"This form needs Activation" when someone submits.
+
+To change where requests land, change the email at the end of the
+`<form action>` URL (and activate the new address the same way). After
+activating, FormSubmit also offers a random-string alias you can use in place
+of the email so the address isn't visible in the page source.
 
 How it behaves:
 
 - Submitting posts over fetch, so the visitor stays on the page and gets an
-  inline "your request is in" instead of Formspree's redirect page.
+  inline "sent" message. A send that hasn't finished after 90 seconds is
+  cancelled, so the button never gets stuck on "Sending…".
 - The field named `email` becomes the **Reply-To**, so hitting reply in your
   inbox answers the team directly.
-- `_subject` titles the email; `_gotcha` is a hidden honeypot that silently
-  drops bot submissions.
-- If the post fails (Formspree down, visitor offline) the page offers to open
-  their mail app with the same details pre-filled, so nothing they typed is
-  lost.
-
-To change where requests land, change the destination on the form in the
-Formspree dashboard — not in this code. To point at a different form entirely,
-replace the endpoint id in the `<form action>` in `index.html`.
-
-### File uploads
-
-The form has a **CAD files** field so teams can attach DXF/STEP/STL/ZIP with
-their request. The page enforces a 10 MB total and refuses to send past it,
-since a rejected 40 MB upload is a worse experience than being told up front.
-
-**Check your Formspree plan.** File uploads are a paid feature there — on a
-free plan the attachment is dropped or the submission rejected, and the team
-sees the send fail. If you are on the free plan, either upgrade or remove the
-upload field (delete the `f-files` block in `index.html`) so nobody attaches a
-file that never arrives. Send yourself a test **with a file attached** to
-confirm which behaviour you get.
-
-If a send fails while files were attached, the page says so and offers the
-pre-filled email — noting the files have to be attached by hand, since a
-mailto link cannot carry them.
-
-Free tier is 50 submissions a month. If you outgrow it, the upgrade is on
-Formspree's side and needs no change here.
+- `_subject` titles the email, `_template` lays it out as a table, and
+  `_honey` is a hidden honeypot that drops bot submissions.
+- If the post fails (service down, ad blocker, visitor offline) the page
+  explains why and offers to open their mail app with the same details
+  pre-filled. The file has to be attached by hand there, since a mailto link
+  can't carry it.
+- The page refuses files over 10 MB up front, matching FormSubmit's limit.
 
 ## Adding your photos
 

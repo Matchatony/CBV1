@@ -290,12 +290,14 @@
       </p>
     </div>
 
-    <!-- Posts to Formspree, which forwards to the address set on the form.
-         Every submission goes through, regardless of what's flagged below. -->
-    <form class="form" id="quote-form" action="https://formspree.io/f/mgaeqjvd" method="POST" enctype="multipart/form-data">
+    <!-- Posts to FormSubmit, which emails the submission (design file attached)
+         to the address in the URL. Formspree was dropped because its free plan
+         rejects file uploads, and the design file is required here. -->
+    <form class="form" id="quote-form" action="https://formsubmit.co/ajax/anthonyhuynh980@gmail.com" method="POST" enctype="multipart/form-data">
       <input type="hidden" name="_subject" value="New quote request — Crackbotics">
+      <input type="hidden" name="_template" value="table">
       <!-- Honeypot: bots fill this in, people never see it. -->
-      <input type="text" name="_gotcha" tabindex="-1" autocomplete="off" hidden>
+      <input type="text" name="_honey" tabindex="-1" autocomplete="off" hidden>
       <input type="hidden" name="quote_summary" id="q-summary-field">
 
       <div class="field">
@@ -330,16 +332,6 @@
             <option value="poly">Polycarbonate, 1/8 in.</option>
             <option value="other-mat">Other material</option>
           </select>
-        </div>
-        <div class="calc-row">
-          <div class="field">
-            <label for="q-w">Width <span class="opt">in, bounding box</span></label>
-            <input id="q-w" name="width_in" type="number" min="0" step="0.1" placeholder="6" inputmode="decimal">
-          </div>
-          <div class="field">
-            <label for="q-h">Height <span class="opt">in, bounding box</span></label>
-            <input id="q-h" name="height_in" type="number" min="0" step="0.1" placeholder="8" inputmode="decimal">
-          </div>
         </div>
         <p class="hint measured" id="q-geom-note" hidden></p>
       </div>
@@ -388,7 +380,7 @@
       <div class="field field-wide">
         <label for="q-files">Design file <span class="opt">required</span></label>
         <input id="q-files" name="upload" type="file" required accept=".dxf,.step,.stp">
-        <p class="hint" id="q-file-hint">DXF or STEP for a CNC plate. 10&nbsp;MB max.</p>
+        <p class="hint" id="q-file-hint">DXF or STEP for a CNC plate. A DXF gets measured and priced automatically; a STEP file is quoted by hand. 10&nbsp;MB max.</p>
       </div>
 
       <div class="field field-wide" id="q-preview-wrap" hidden>
@@ -486,8 +478,9 @@
 <script>
 /* ===================================================================
    QUICK QUOTE — pricing, file preview, PDF, and submission, all in one
-   form. Runs entirely client-side; the only network call is the
-   Formspree POST that actually sends the request.
+   form. Runs entirely client-side; the only network calls are the
+   FormSubmit POST that actually sends the request and the optional
+   address-suggestion lookups.
 
    Every rate lives in QUOTE CONSTANTS below. These are starting points,
    not measured shop numbers — check them against actual cost before
@@ -509,9 +502,6 @@
     premiumFilamentPerGram: 0.05,  // nylon, PC, ASA, TPU, etc.
     cncPerMin: 0.60,
     cncSetupMin: 3,
-    // Used only when nothing measured the part — a DXF gets priced off its
-    // real toolpath (cncFeedIpm / cncPasses / cncPerHoleMin) instead.
-    cncMinPerSqIn: 0.2,
     // Cutting feed in inches/min, and how many depth passes 1/8 in. stock
     // takes. Both are estimates — time a real job and correct them.
     cncFeedIpm: 25,
@@ -554,8 +544,6 @@
     groupPlate: document.getElementById('q-group-plate'),
     groupPrint: document.getElementById('q-group-print'),
     material: document.getElementById('q-material'),
-    w: document.getElementById('q-w'),
-    h: document.getElementById('q-h'),
     printMaterial: document.getElementById('q-print-material'),
     premiumNote: document.getElementById('q-premium-note'),
     color: document.getElementById('q-color'),
@@ -585,7 +573,7 @@
   };
 
   var ACCEPT = {
-    plate: { ext: '.dxf,.step,.stp', hint: 'DXF or STEP for a CNC plate. A DXF gets measured and priced automatically. 10 MB max.' },
+    plate: { ext: '.dxf,.step,.stp', hint: 'DXF or STEP for a CNC plate. A DXF gets measured and priced automatically; a STEP file is quoted by hand. 10 MB max.' },
     print: { ext: '.stl,.3mf', hint: 'STL or 3MF for a 3D printed part. 10 MB max.' },
     other: { ext: '.dxf,.step,.stp,.stl,.3mf,.pdf,.zip', hint: 'Whatever helps us understand the part. 10 MB max.' }
   };
@@ -773,10 +761,77 @@
   }
 
   /* -------------------------- FILE PREVIEW -------------------------- */
-  /* STL: parsed by hand (binary or ASCII) and drawn with Three.js in an
-     isometric-ish view. DXF: a minimal LINE/LWPOLYLINE/CIRCLE/ARC parser
-     drawn straight on the canvas. Anything else (3MF, STEP, ...) gets an
-     honest "can't preview this" note instead of a fake render. */
+  /* STL: parsed by hand (binary or ASCII). STEP: OpenCascade compiled to
+     WebAssembly (occt-import-js). 3MF: Three.js's own 3MF loader. All three
+     become one flat triangle list drawn with Three.js in an isometric-ish
+     view. DXF: a minimal LINE/LWPOLYLINE/CIRCLE/ARC parser drawn straight on
+     the canvas. The STEP and 3MF libraries are only downloaded when someone
+     actually picks one of those files — the STEP one is ~7.6 MB. */
+
+  var LIB = {
+    fflate: 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/libs/fflate.min.js',
+    threeMf: 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/3MFLoader.js',
+    occtBase: 'https://cdn.jsdelivr.net/npm/occt-import-js@0.0.23/dist/'
+  };
+  var scriptLoads = {};
+  function loadScript(src) {
+    if (!scriptLoads[src]) {
+      scriptLoads[src] = new Promise(function (resolve, reject) {
+        var s = document.createElement('script');
+        s.src = src;
+        s.onload = resolve;
+        s.onerror = function () { delete scriptLoads[src]; reject(new Error('Could not load ' + src)); };
+        document.head.appendChild(s);
+      });
+    }
+    return scriptLoads[src];
+  }
+  var occtReady = null;
+  function loadOcct() {
+    if (!occtReady) {
+      occtReady = loadScript(LIB.occtBase + 'occt-import-js.js').then(function () {
+        return window.occtimportjs({ locateFile: function (name) { return LIB.occtBase + name; } });
+      });
+      occtReady.catch(function () { occtReady = null; });
+    }
+    return occtReady;
+  }
+  function load3mf() {
+    return loadScript(LIB.fflate).then(function () { return loadScript(LIB.threeMf); });
+  }
+
+  function stepToPositions(buffer, occt) {
+    var result = occt.ReadStepFile(new Uint8Array(buffer), null);
+    if (!result || !result.success) return [];
+    var positions = [];
+    result.meshes.forEach(function (m) {
+      var p = m.attributes.position.array;
+      var idx = m.index && m.index.array;
+      if (idx) {
+        for (var i = 0; i < idx.length; i++) positions.push(p[idx[i] * 3], p[idx[i] * 3 + 1], p[idx[i] * 3 + 2]);
+      } else {
+        for (var j = 0; j < p.length; j++) positions.push(p[j]);
+      }
+    });
+    return positions;
+  }
+
+  function threeMfToPositions(buffer) {
+    var group = new THREE.ThreeMFLoader().parse(buffer);
+    group.updateMatrixWorld(true);
+    var positions = [];
+    var v = new THREE.Vector3();
+    group.traverse(function (o) {
+      if (!o.isMesh) return;
+      var g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry;
+      var a = g.attributes.position;
+      for (var i = 0; i < a.count; i++) {
+        v.fromBufferAttribute(a, i).applyMatrix4(o.matrixWorld);
+        positions.push(v.x, v.y, v.z);
+      }
+    });
+    return positions;
+  }
 
   function parseStl(buffer) {
     var view = new DataView(buffer);
@@ -818,7 +873,7 @@
     return positions;
   }
 
-  function renderStlPreview(positions) {
+  function renderMeshPreview(positions) {
     if (typeof THREE === 'undefined' || !positions.length) return false;
     var canvas = els.previewCanvas;
     var w = canvas.width, h = canvas.height;
@@ -832,7 +887,10 @@
     scene.background = new THREE.Color(0x14121a);
 
     var radius = geometry.boundingSphere ? geometry.boundingSphere.radius || 1 : 1;
-    var camera = new THREE.OrthographicCamera(-radius * 1.3, radius * 1.3, radius * 1.3 * (h / w), -radius * 1.3 * (h / w), 0.01, radius * 10);
+    // Fit the whole bounding sphere into the shorter (vertical) side of the
+    // wide canvas, so tall parts aren't cropped top and bottom.
+    var halfH = radius * 1.1, halfW = halfH * (w / h);
+    var camera = new THREE.OrthographicCamera(-halfW, halfW, halfH, -halfH, 0.01, radius * 10);
     var center = geometry.boundingSphere.center;
     camera.position.set(center.x + radius * 1.6, center.y + radius * 1.6, center.z + radius * 1.6);
     camera.lookAt(center);
@@ -1031,7 +1089,6 @@
   var fileGeom = null;
 
   function applyDxfMeasurement(dxf) {
-    if (els.type.value !== 'plate') return;
     var measured = measureDxf(dxf.entities);
     if (!measured || measured.width <= 0 || measured.height <= 0) return;
 
@@ -1045,26 +1102,38 @@
       guessed: unit.guessed
     };
 
-    // The width/height fields step by 0.1 in. — a hundredths-precision fill
-    // would fail their own constraint validation, so round to match before
-    // it ever reaches the input, not just when it's displayed.
-    var wRounded = fileGeom.width.toFixed(1);
-    var hRounded = fileGeom.height.toFixed(1);
-    els.w.value = wRounded;
-    els.h.value = hRounded;
-
     els.geomNote.innerHTML = 'Measured from your file: <b>' +
-      wRounded + '″ × ' + hRounded + '″</b>, ' +
+      fileGeom.width.toFixed(1) + '″ × ' + fileGeom.height.toFixed(1) + '″</b>, ' +
       fileGeom.cutLength.toFixed(1) + '″ of cut path, ' +
-      fileGeom.holes.length + (fileGeom.holes.length === 1 ? ' hole' : ' holes') + '. ' +
+      fileGeom.holes.length + (fileGeom.holes.length === 1 ? ' hole' : ' holes') + '.' +
       (unit.guessed
-        ? 'Your file doesn\'t state its units, so we read it as ' + unit.units + ' — correct the size above if that\'s wrong and the quote follows it.'
-        : 'Correct the size above if it looks off and the quote follows it.');
+        ? ' Your file doesn\'t state its units, so we read it as ' + unit.units + ' — if that\'s wrong, say so in the details and we\'ll re-price it.'
+        : '');
     els.geomNote.hidden = false;
+  }
+
+  // Bumped on every new upload, so a slow STEP/3MF load for an older file
+  // can't draw over the preview of the one picked after it.
+  var previewToken = 0;
+
+  function previewMesh(label, token, toPositions) {
+    toPositions().then(function (positions) {
+      if (token !== previewToken) return;
+      if (renderMeshPreview(positions)) {
+        els.previewNote.textContent = 'Rough isometric preview from your ' + label + ' — not to exact scale.';
+      } else {
+        showPreviewFallback('Couldn\'t render a preview for this ' + label + ' — we\'ll open it on our end.');
+      }
+    }).catch(function (err) {
+      if (token !== previewToken) return;
+      console.error('Preview failed:', err);
+      showPreviewFallback('Couldn\'t preview this ' + label + ' — we\'ll open it on our end.');
+    });
   }
 
   els.files.addEventListener('change', function () {
     var file = els.files.files[0];
+    var token = ++previewToken;
     els.previewWrap.hidden = true;
     els.previewNote.textContent = '';
     fileGeom = null;
@@ -1073,23 +1142,27 @@
     resetPreviewCanvas();
 
     var ext = (file.name.split('.').pop() || '').toLowerCase();
-    if (ext === 'stl') {
+    if (ext === 'stl' || ext === 'step' || ext === 'stp' || ext === '3mf') {
       els.previewWrap.hidden = false;
-      els.previewNote.textContent = 'Rendering preview…';
-      file.arrayBuffer().then(function (buffer) {
-        var positions = parseStl(buffer);
-        if (renderStlPreview(positions)) {
-          els.previewNote.textContent = 'Rough isometric preview from your STL — not to exact scale.';
-        } else {
-          showPreviewFallback('Couldn\'t render a preview for this STL — we\'ll open it on our end.');
-        }
-      }).catch(function () {
-        showPreviewFallback('Couldn\'t read this file for a preview — we\'ll open it on our end.');
-      });
+      els.previewNote.textContent = ext === 'stl' ? 'Rendering preview…'
+        : ext === '3mf' ? 'Loading the 3MF viewer…'
+        : 'Loading the STEP viewer — the first STEP file takes a few seconds…';
+      if (ext === 'stl') {
+        previewMesh('STL', token, function () { return file.arrayBuffer().then(parseStl); });
+      } else if (ext === '3mf') {
+        previewMesh('3MF', token, function () {
+          return Promise.all([file.arrayBuffer(), load3mf()]).then(function (r) { return threeMfToPositions(r[0]); });
+        });
+      } else {
+        previewMesh('STEP file', token, function () {
+          return Promise.all([file.arrayBuffer(), loadOcct()]).then(function (r) { return stepToPositions(r[0], r[1]); });
+        });
+      }
     } else if (ext === 'dxf') {
       els.previewWrap.hidden = false;
       els.previewNote.textContent = 'Rendering preview…';
       file.text().then(function (text) {
+        if (token !== previewToken) return;
         var dxf = parseDxf(text);
         if (renderDxfPreview(dxf.entities)) {
           els.previewNote.textContent = '2D preview from your DXF geometry.';
@@ -1098,10 +1171,9 @@
         }
         applyDxfMeasurement(dxf);
       }).catch(function () {
+        if (token !== previewToken) return;
         showPreviewFallback('Couldn\'t read this file for a preview — we\'ll open it on our end.');
       });
-    } else if (ext === '3mf' || ext === 'step' || ext === 'stp') {
-      showPreviewFallback('Preview isn\'t available for .' + ext + ' files yet — we\'ll open it on our end once you submit.');
     }
   });
 
@@ -1124,42 +1196,36 @@
     var sizeNote = '', detailLine = '', measuredNote = '';
 
     if (type === 'plate') {
-      var w = parseFloat(els.w.value), h = parseFloat(els.h.value);
-      if (!w || !h || w <= 0 || h <= 0) return { error: 'Enter a width and height first.' };
+      // Plates are priced only from a measured DXF. A STEP file (or a DXF with
+      // no geometry we can read) can't be measured in the browser, so it
+      // goes to a hand quote instead of a guess.
+      if (!fileGeom) {
+        return { escalated: true, reason: 'We price plates automatically from a DXF. For a STEP file (or a DXF we couldn\'t measure), we\'ll quote it by hand from your file and email you.' };
+      }
+      var w = fileGeom.width, h = fileGeom.height;
       var area = w * h;
       var matRate = RATE.materialPerSqIn[els.material.value] || RATE.materialPerSqIn.aluminum;
       perUnitMaterial = area * matRate;
-      var cncMin;
 
-      if (fileGeom) {
-        // Priced off the real toolpath. If the visitor corrected the size, the
-        // cut path is off by the same factor, so scale it with them — that's
-        // also what fixes a file whose units we had to guess at.
-        var scale = fileGeom.width > 0 ? w / fileGeom.width : 1;
-        var cutLength = fileGeom.cutLength * scale;
-        cncMin = RATE.cncSetupMin +
-          (cutLength * RATE.cncPasses) / RATE.cncFeedIpm +
-          fileGeom.holes.length * RATE.cncPerHoleMin;
-        measuredNote = cutLength.toFixed(1) + '″ cut path, ' + fileGeom.holes.length +
-          (fileGeom.holes.length === 1 ? ' hole' : ' holes');
-        notes.push('Priced from your DXF: ' + measuredNote + '. No bounding-box guesswork.');
+      var cncMin = RATE.cncSetupMin +
+        (fileGeom.cutLength * RATE.cncPasses) / RATE.cncFeedIpm +
+        fileGeom.holes.length * RATE.cncPerHoleMin;
+      measuredNote = fileGeom.cutLength.toFixed(1) + '″ cut path, ' + fileGeom.holes.length +
+        (fileGeom.holes.length === 1 ? ' hole' : ' holes');
+      notes.push('Priced from your DXF: ' + measuredNote + '.');
 
-        var tooSmall = fileGeom.holes.filter(function (d) {
-          return d * scale < RATE.minToolDiaIn - 1e-6;
-        }).length;
-        if (tooSmall) {
-          notes.push(tooSmall + (tooSmall === 1 ? ' hole is' : ' holes are') +
-            ' under our ' + RATE.minToolDiaIn + '″ minimum tool diameter — we\'ll confirm those with you before cutting.');
-        }
-      } else {
-        cncMin = RATE.cncSetupMin + area * RATE.cncMinPerSqIn;
+      var tooSmall = fileGeom.holes.filter(function (d) {
+        return d < RATE.minToolDiaIn - 1e-6;
+      }).length;
+      if (tooSmall) {
+        notes.push(tooSmall + (tooSmall === 1 ? ' hole is' : ' holes are') +
+          ' under our ' + RATE.minToolDiaIn + '″ minimum tool diameter — we\'ll confirm those with you before cutting.');
       }
 
       perUnitMachine = cncMin * RATE.cncPerMin;
       var laborMin = Math.min(RATE.laborMaxPlateMin, RATE.laborMinPlate + area * RATE.laborMinPlateAreaFactor);
       perUnitLabor = (laborMin / 60) * RATE.laborPerHour;
-      sizeNote = w + '″ × ' + h + '″ (' + area.toFixed(1) + ' sq in)' +
-        (measuredNote ? ', ' + measuredNote : '');
+      sizeNote = w.toFixed(1) + '″ × ' + h.toFixed(1) + '″ (' + area.toFixed(1) + ' sq in), ' + measuredNote;
       detailLine = els.material.selectedOptions[0].text;
     } else if (type === 'print') {
       var weight = parseFloat(els.weight.value);
@@ -1532,7 +1598,7 @@
     }
 
     // Honeypot: bots fill this field in. Pretend success and stop, quietly.
-    if (value('_gotcha')) {
+    if (value('_honey')) {
       form.reset();
       say('Got it. We\'ll email you back, usually the same day.', 'ok');
       return;
@@ -1586,20 +1652,24 @@
     els.button.textContent = 'Sending…';
 
     // Sends no matter what was computed above — escalated or priced, this
-    // always reaches the shop by email.
+    // always reaches the shop by email. A hung connection must not leave the
+    // button on "Sending…" forever, so give up after 90s (enough for a 10 MB
+    // file on a slow connection).
+    var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    var timer = controller ? setTimeout(function () { controller.abort(); }, 90000) : null;
     fetch(form.action, {
       method: 'POST',
       body: new FormData(form),
-      headers: { Accept: 'application/json' }
+      headers: { Accept: 'application/json' },
+      signal: controller ? controller.signal : undefined
     }).then(function (response) {
-      // Formspree returns a JSON body on both success and failure — read it
-      // either way so a failure can say *why* (quota hit, domain not
-      // allowed, form disabled, ...) instead of a generic dead end.
+      // FormSubmit answers {success: "true"|"false", message} — note the
+      // strings. "false" with a 200 still means not sent (e.g. the form
+      // hasn't been activated from the confirmation email yet).
       return response.json().catch(function () { return null; }).then(function (payload) {
-        if (!response.ok) {
-          var detail = payload && (payload.error ||
-            (payload.errors && payload.errors.length && payload.errors[0].message));
-          var err = new Error(detail || ('Formspree returned ' + response.status));
+        if (!response.ok || !payload || String(payload.success) !== 'true') {
+          var detail = payload && payload.message;
+          var err = new Error(detail || ('Form service returned ' + response.status));
           err.detail = detail;
           throw err;
         }
@@ -1609,19 +1679,15 @@
       if (els.note) els.note.hidden = true;
       say('Sent — we\'ll confirm by email, usually the same day.', 'ok');
     }).catch(function (err) {
-      // Logged, not just swallowed — if this happens on the live site, the
-      // browser console has the actual reason even though the on-page
-      // message stays generic (a raw Formspree error isn't meant for
-      // visitors, but it's exactly what's needed to diagnose this from here).
       console.error('Quote form submission failed:', err);
-      // No `.detail` means the browser never got a readable response at all
-      // (a plain fetch/CORS failure) — Formspree never got a chance to say
-      // why. That almost always means an ad blocker/privacy extension ate
-      // the request, or this domain isn't on Formspree's allowed-domains
-      // list yet, not a bug in what we sent.
-      var reason = err && err.detail
-        ? ' (' + err.detail + ').'
-        : ' — the connection to Formspree was blocked before we got a response. Try disabling an ad blocker or privacy extension, or use another browser/network.';
+      var reason;
+      if (err && err.name === 'AbortError') {
+        reason = ' — it timed out uploading. Check your connection and try again, or email us the file.';
+      } else if (err && err.detail) {
+        reason = ' (' + err.detail + ').';
+      } else {
+        reason = ' — the connection was blocked before we got a response. Try disabling an ad blocker or privacy extension, or use another browser/network.';
+      }
       say('The request didn\'t send' + reason, 'bad');
       var retry = document.createElement('button');
       retry.type = 'button';
@@ -1630,6 +1696,7 @@
       retry.addEventListener('click', function () { openMailApp(summary); });
       els.status.appendChild(retry);
     }).then(function () {
+      if (timer) clearTimeout(timer);
       els.button.disabled = false;
       els.button.textContent = label;
     });
