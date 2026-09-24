@@ -142,7 +142,7 @@
           flagged with suggested revisions before work begins.
         </p>
         <p>
-          Pickup in San Diego is free. Local delivery is a flat $30, regardless
+          Pickup in San Diego is free. Local delivery is a flat $15.99, regardless
           of distance.
         </p>
       </div>
@@ -267,7 +267,7 @@
     <ul class="terms contract-terms">
       <li><span>Estimates, confirmed by file</span> The price you see here is final once we see the actual design; if the real file costs more (extra material, tighter tolerances, extra setup), we tell you before starting, not after.</li>
       <li><span>Payment</span> Venmo, Cash App, or PayPal, arranged by email once a quote is confirmed. We don't take payment on this site.</li>
-      <li><span>Pickup or local delivery</span> Free pickup in San Diego, or local delivery for a flat $30. We don't ship outside the local area.</li>
+      <li><span>Pickup or local delivery</span> Free pickup in San Diego, or local delivery for a flat $15.99. We don't ship outside the local area.</li>
       <li><span>Turnaround</span> 1&ndash;3 days is typical, not guaranteed; material availability or order volume can push it out, and we'll say so.</li>
       <li><span>Cancellations</span> Full refund any time before we start cutting. Once material is cut it isn't refundable, except when we made the mistake.</li>
       <li><span>Deburring</span> Included standard, no added charge.</li>
@@ -407,7 +407,7 @@
       <fieldset class="calc-flags">
         <legend>Delivery</legend>
         <label><input type="radio" name="delivery" value="pickup" id="q-delivery-pickup" checked> Pickup — San Diego, CA <span class="opt">free</span></label>
-        <label><input type="radio" name="delivery" value="delivery" id="q-delivery-drive"> Local delivery <span class="opt">flat $30</span></label>
+        <label><input type="radio" name="delivery" value="delivery" id="q-delivery-drive"> Local delivery <span class="opt">flat $15.99</span></label>
       </fieldset>
 
       <div class="calc-group" id="q-delivery-group" hidden>
@@ -418,7 +418,7 @@
                  aria-controls="q-address-suggestions">
           <ul class="address-suggestions" id="q-address-suggestions" role="listbox" hidden></ul>
           <p class="hint" id="q-geo-status">
-            Start typing and pick your address from the list. Local delivery is a flat $30.
+            Start typing and pick your address from the list. Local delivery is a flat $15.99.
           </p>
         </div>
       </div>
@@ -535,7 +535,7 @@
     surchargeTapped: 4,
     surchargeTolerance: 6,
     surchargeComplex: 8,
-    flatDeliveryRate: 30
+    flatDeliveryRate: 15.99
   };
 
   /* Keyless public endpoint: Nominatim turns the typed address into a list
@@ -655,7 +655,7 @@
     justSelected = true;
     els.address.value = item.label;
     hideSuggestions();
-    geoSay('Local delivery is a flat $30 to that address.');
+    geoSay('Local delivery is a flat $15.99 to that address.');
   }
 
   function renderSuggestions(list) {
@@ -688,7 +688,7 @@
     var query = els.address.value.trim();
     if (query.length < 4) {
       hideSuggestions();
-      geoSay('Start typing and pick your address from the list. Local delivery is a flat $30.');
+      geoSay('Start typing and pick your address from the list. Local delivery is a flat $15.99.');
       return;
     }
     geoSay('Searching…');
@@ -1560,7 +1560,7 @@
     [
       'This price is an estimate, confirmed once we see the actual design file.',
       'Payment via Venmo, Cash App, or PayPal, arranged by email once confirmed.',
-      'Free pickup in San Diego, or local delivery for a flat $30. We don\'t ship outside the local area.',
+      'Free pickup in San Diego, or local delivery for a flat $15.99. We don\'t ship outside the local area.',
       'Turnaround is typically 1–3 days, not guaranteed. Deburring is included, standard.',
       'Full refund any time before we start cutting; not refundable once material is cut, except when the mistake is ours. Full terms: see the site\'s Terms & conditions.'
     ].forEach(function (line) { block(line, 13.5); y += 2; });
