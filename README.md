@@ -45,7 +45,8 @@ Sending a quote is two steps:
    Blob limits.
 2. **The details go to [FormSubmit](https://formsubmit.co)** at
    `https://formsubmit.co/anthonyhuynh980@gmail.com`, with the file's download
-   link in the `design_file` field. FormSubmit strips CAD attachments, which is
+   link in the `design_file` field. The `_cc` field copies every submission to
+   crackboticssandiego@gmail.com too (comma-separate to add more addresses). FormSubmit strips CAD attachments, which is
    why the file travels as a link. It's a plain form post into a hidden iframe;
    FormSubmit redirects the iframe to `sent.html` (the `_next` field), which is
    how the page knows the send went through, so keep `sent.html` deployed.
