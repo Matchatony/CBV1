@@ -353,15 +353,9 @@
             <option value="premium">Other (nylon, PC, ASA, TPU, etc.)</option>
           </select>
         </div>
-        <div class="calc-row">
-          <div class="field">
-            <label for="q-color">Color <span class="opt">optional</span></label>
-            <input id="q-color" name="color" type="text" placeholder="Black" autocomplete="off">
-          </div>
-          <div class="field">
-            <label for="q-weight">Estimated weight <span class="opt">grams</span></label>
-            <input id="q-weight" name="weight_g" type="number" min="0" step="1" placeholder="30" inputmode="decimal">
-          </div>
+        <div class="field">
+          <label for="q-color">Color <span class="opt">optional</span></label>
+          <input id="q-color" name="color" type="text" placeholder="Black" autocomplete="off">
         </div>
         <div class="calc-row">
           <div class="field">
@@ -373,6 +367,7 @@
             <input id="q-walls" name="wall_count" type="number" min="1" step="1" placeholder="3 (default)" inputmode="numeric">
           </div>
         </div>
+        <p class="hint measured" id="q-print-note" hidden></p>
         <p class="hint" id="q-premium-note" hidden>
           Materials beyond PLA/PETG/ABS are special-order — expect additional lead
           time while it arrives before we can start printing.
@@ -519,6 +514,10 @@
     minToolDiaIn: 0.125,     // 1/16 in. min tool radius, per the Parts spec
     printPerHour: 1.5,
     gramsPerHour: 10,
+    // Printed weight is estimated from the uploaded mesh: a shell of
+    // (walls x line width) over the surface, plus infill% of what's inside.
+    filamentDensity: 1.24,   // g/cm³ (PLA; close enough for PETG/ABS pricing)
+    lineWidthMm: 0.45,
     infillDefault: 20,
     wallsDefault: 3,
     laborPerHour: 13.5,
@@ -556,7 +555,7 @@
     printMaterial: document.getElementById('q-print-material'),
     premiumNote: document.getElementById('q-premium-note'),
     color: document.getElementById('q-color'),
-    weight: document.getElementById('q-weight'),
+    printNote: document.getElementById('q-print-note'),
     infill: document.getElementById('q-infill'),
     walls: document.getElementById('q-walls'),
     qty: document.getElementById('q-qty'),
@@ -1122,6 +1121,50 @@
     els.geomNote.hidden = false;
   }
 
+  /* Volume, surface area and size of a triangle mesh (flat xyz list, mm).
+     Volume is the signed-tetrahedron sum, so it's only meaningful for a
+     closed mesh — which every printable STL/3MF should be. */
+  function measureMesh(positions) {
+    var vol = 0, area = 0;
+    var min = [Infinity, Infinity, Infinity], max = [-Infinity, -Infinity, -Infinity];
+    for (var i = 0; i + 8 < positions.length; i += 9) {
+      var ax = positions[i], ay = positions[i + 1], az = positions[i + 2];
+      var bx = positions[i + 3], by = positions[i + 4], bz = positions[i + 5];
+      var cx = positions[i + 6], cy = positions[i + 7], cz = positions[i + 8];
+      vol += (ax * (by * cz - bz * cy) - ay * (bx * cz - bz * cx) + az * (bx * cy - by * cx)) / 6;
+      var ux = bx - ax, uy = by - ay, uz = bz - az, wx = cx - ax, wy = cy - ay, wz = cz - az;
+      var nx = uy * wz - uz * wy, ny = uz * wx - ux * wz, nz = ux * wy - uy * wx;
+      area += Math.sqrt(nx * nx + ny * ny + nz * nz) / 2;
+      for (var k = 0; k < 9; k++) {
+        var axis = k % 3, v = positions[i + k];
+        if (v < min[axis]) min[axis] = v;
+        if (v > max[axis]) max[axis] = v;
+      }
+    }
+    vol = Math.abs(vol);
+    if (!(vol > 0) || !isFinite(vol)) return null;
+    return { volumeMm3: vol, areaMm2: area, dims: [max[0] - min[0], max[1] - min[1], max[2] - min[2]] };
+  }
+
+  function printedGrams(geom, infillPct, walls) {
+    var shell = Math.min(geom.volumeMm3, geom.areaMm2 * walls * RATE.lineWidthMm);
+    var printedMm3 = shell + (geom.volumeMm3 - shell) * (infillPct / 100);
+    return (printedMm3 / 1000) * RATE.filamentDensity;
+  }
+
+  /* What the uploaded STL/3MF/STEP measured, or null when there's nothing
+     measurable yet. Prints are priced from this instead of a typed weight. */
+  var printGeom = null;
+
+  function showPrintMeasurement(geom) {
+    if (!geom) { els.printNote.hidden = true; return; }
+    els.printNote.innerHTML = 'Measured from your file: <b>' +
+      geom.dims.map(function (d) { return d.toFixed(0); }).join(' × ') + ' mm</b>, about <b>' +
+      Math.round(printedGrams(geom, RATE.infillDefault, RATE.wallsDefault)) + ' g</b> at ' +
+      RATE.infillDefault + '% infill and ' + RATE.wallsDefault + ' walls. Units are read as millimeters — if your file is in inches, say so in the details.';
+    els.printNote.hidden = false;
+  }
+
   // Bumped on every new upload, so a slow STEP/3MF load for an older file
   // can't draw over the preview of the one picked after it.
   var previewToken = 0;
@@ -1129,6 +1172,8 @@
   function previewMesh(label, token, toPositions) {
     toPositions().then(function (positions) {
       if (token !== previewToken) return;
+      printGeom = measureMesh(positions);
+      showPrintMeasurement(printGeom);
       if (renderMeshPreview(positions)) {
         els.previewNote.textContent = 'Rough isometric preview from your ' + label + ' — not to exact scale.';
       } else {
@@ -1148,6 +1193,8 @@
     els.previewNote.textContent = '';
     fileGeom = null;
     els.geomNote.hidden = true;
+    printGeom = null;
+    els.printNote.hidden = true;
     if (!file) return;
     resetPreviewCanvas();
 
@@ -1238,20 +1285,21 @@
       sizeNote = w.toFixed(1) + '″ × ' + h.toFixed(1) + '″ (' + area.toFixed(1) + ' sq in), ' + measuredNote;
       detailLine = els.material.selectedOptions[0].text;
     } else if (type === 'print') {
-      var weight = parseFloat(els.weight.value);
-      if (!weight || weight <= 0) return { error: 'Enter an estimated weight first.' };
-      var infill = parseFloat(els.infill.value) || RATE.infillDefault;
+      if (!printGeom) {
+        return { escalated: true, reason: 'We price prints automatically from an STL or 3MF. We couldn\'t measure this file, so we\'ll quote it by hand and email you.' };
+      }
+      var infill = parseFloat(els.infill.value);
+      if (isNaN(infill)) infill = RATE.infillDefault;
       var walls = parseFloat(els.walls.value) || RATE.wallsDefault;
-      var infillFactor = infill / RATE.infillDefault;
-      var wallFactor = walls / RATE.wallsDefault;
-      var adjustedWeight = weight * (0.7 * infillFactor + 0.3 * wallFactor);
+      var adjustedWeight = printedGrams(printGeom, infill, walls);
       var premium = els.printMaterial.value === 'premium';
       var filRate = premium ? RATE.premiumFilamentPerGram : RATE.filamentPerGram;
       perUnitMaterial = adjustedWeight * filRate;
       var printHr = adjustedWeight / RATE.gramsPerHour;
       perUnitMachine = printHr * RATE.printPerHour;
       perUnitLabor = RATE.printLaborFlat;
-      sizeNote = weight + ' g, ' + infill + '% infill, ' + walls + ' walls';
+      sizeNote = printGeom.dims.map(function (d) { return d.toFixed(0); }).join(' × ') + ' mm, ~' +
+        Math.round(adjustedWeight) + ' g at ' + infill + '% infill, ' + walls + ' walls';
       detailLine = els.printMaterial.selectedOptions[0].text + (els.color.value ? ', ' + els.color.value : '');
       if (premium) {
         notes.push('Special-order material — expect extra lead time while it arrives before we can start printing.');
