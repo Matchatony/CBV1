@@ -615,7 +615,10 @@
 
   document.querySelectorAll('input[name="delivery"]').forEach(function (r) {
     r.addEventListener('change', function () {
-      els.deliveryGroup.hidden = document.querySelector('input[name="delivery"]:checked').value !== 'delivery';
+      var delivering = document.querySelector('input[name="delivery"]:checked').value === 'delivery';
+      els.deliveryGroup.hidden = !delivering;
+      // A delivery order with no address can't be delivered.
+      els.address.required = delivering;
     });
   });
 
@@ -765,7 +768,7 @@
 
   function batchMessage(delivery) {
     if (delivery === 'pickup') {
-      return 'No batch to wait for — ready for pickup as soon as it\'s cut, usually within 1–3 days.';
+      return 'No batch to wait for — ready for pickup as soon as it\'s made, usually within 1–3 days.';
     }
     var cutoff = nextCutoff(new Date());
     var out = new Date(cutoff);
@@ -1313,7 +1316,7 @@
       perUnitMachine = RATE.printMachineFlat;
       perUnitLabor = RATE.printLaborFlat;
       sizeNote = printGeom.dims.map(function (d) { return d.toFixed(0); }).join(' × ') + ' mm, ~' +
-        Math.round(adjustedWeight) + ' g at ' + infill + '% infill, ' + walls + ' walls';
+        Math.round(adjustedWeight) + ' g at ' + infill + '% infill, ' + walls + (walls === 1 ? ' wall' : ' walls');
       detailLine = els.printMaterial.selectedOptions[0].text + (els.color.value ? ', ' + els.color.value : '');
       if (premium) {
         notes.push('Special-order material — expect extra lead time while it arrives before we can start printing.');
@@ -1657,19 +1660,32 @@
   }
 
   /* Uploads the design file straight from the browser to Vercel Blob
-     (api/upload.js only hands out the token). Gives up after 2 minutes. */
+     (api/upload.js only hands out the token). Gives up once 20 seconds pass
+     with no upload progress — a slow connection keeps going, but a dead
+     service fails fast instead of retrying silently for minutes. */
   function uploadDesignFile(file) {
     if (!file) return Promise.reject(new Error('No file selected'));
     if (typeof window.crackboticsBlobUpload !== 'function') return Promise.reject(new Error('Upload library not loaded'));
     var safeName = file.name.replace(/[^A-Za-z0-9._-]+/g, '-').slice(-80);
-    var upload = window.crackboticsBlobUpload('quotes/' + safeName, file, {
+    var controller = new AbortController();
+    var stall = null;
+    function armStall() {
+      clearTimeout(stall);
+      stall = setTimeout(function () { controller.abort(); }, 20000);
+    }
+    armStall();
+    return window.crackboticsBlobUpload('quotes/' + safeName, file, {
       access: 'public',
-      handleUploadUrl: '/api/upload'
-    }).then(function (blob) { return blob.url; });
-    var timeout = new Promise(function (resolve, reject) {
-      setTimeout(function () { reject(new Error('Upload timed out')); }, 120000);
+      handleUploadUrl: '/api/upload',
+      abortSignal: controller.signal,
+      onUploadProgress: armStall
+    }).then(function (blob) {
+      clearTimeout(stall);
+      return blob.url;
+    }, function (err) {
+      clearTimeout(stall);
+      throw err;
     });
-    return Promise.race([upload, timeout]);
   }
 
   function uploadBytes() {
