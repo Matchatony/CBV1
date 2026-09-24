@@ -291,11 +291,15 @@
     </div>
 
     <!-- Posts to FormSubmit, which emails the submission (design file attached)
-         to the address in the URL. Formspree was dropped because its free plan
-         rejects file uploads, and the design file is required here. -->
-    <form class="form" id="quote-form" action="https://formsubmit.co/ajax/anthonyhuynh980@gmail.com" method="POST" enctype="multipart/form-data">
+         to the address in the URL. It's a plain form post into a hidden iframe,
+         not FormSubmit's /ajax endpoint: that one drops file attachments.
+         FormSubmit then redirects the iframe to _next (sent.html on this site),
+         which is how the page knows it went through. -->
+    <form class="form" id="quote-form" action="https://formsubmit.co/anthonyhuynh980@gmail.com" method="POST" enctype="multipart/form-data" target="q-send-frame">
       <input type="hidden" name="_subject" value="New quote request — Crackbotics">
       <input type="hidden" name="_template" value="table">
+      <input type="hidden" name="_captcha" value="false">
+      <input type="hidden" name="_next" id="q-next">
       <!-- Honeypot: bots fill this in, people never see it. -->
       <input type="text" name="_honey" tabindex="-1" autocomplete="off" hidden>
       <input type="hidden" name="quote_summary" id="q-summary-field">
@@ -439,6 +443,7 @@
 
       <div class="calc-result field-wide" id="q-result" role="status" aria-live="polite" hidden></div>
     </form>
+    <iframe name="q-send-frame" id="q-send-frame" title="Quote form delivery" tabindex="-1" hidden></iframe>
    </div>
   </section>
 
@@ -1652,54 +1657,45 @@
     els.button.textContent = 'Sending…';
 
     // Sends no matter what was computed above — escalated or priced, this
-    // always reaches the shop by email. A hung connection must not leave the
-    // button on "Sending…" forever, so give up after 90s (enough for a 10 MB
-    // file on a slow connection).
-    var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-    var timer = controller ? setTimeout(function () { controller.abort(); }, 90000) : null;
-    fetch(form.action, {
-      method: 'POST',
-      body: new FormData(form),
-      headers: { Accept: 'application/json' },
-      signal: controller ? controller.signal : undefined
-    }).then(function (response) {
-      // FormSubmit answers {success: "true"|"false", message} — note the
-      // strings. "false" with a 200 still means not sent (e.g. the form
-      // hasn't been activated from the confirmation email yet).
-      return response.json().catch(function () { return null; }).then(function (payload) {
-        if (!response.ok || !payload || String(payload.success) !== 'true') {
-          var detail = payload && payload.message;
-          var err = new Error(detail || ('Form service returned ' + response.status));
-          err.detail = detail;
-          throw err;
-        }
-        return payload;
-      });
-    }).then(function () {
-      if (els.note) els.note.hidden = true;
-      say('Sent — we\'ll confirm by email, usually the same day.', 'ok');
-    }).catch(function (err) {
-      console.error('Quote form submission failed:', err);
-      var reason;
-      if (err && err.name === 'AbortError') {
-        reason = ' — it timed out uploading. Check your connection and try again, or email us the file.';
-      } else if (err && err.detail) {
-        reason = ' (' + err.detail + ').';
-      } else {
-        reason = ' — the connection was blocked before we got a response. Try disabling an ad blocker or privacy extension, or use another browser/network.';
+    // always reaches the shop by email. A native post (not fetch) is what
+    // carries the file attachment through FormSubmit. Success = the hidden
+    // iframe landing on our own sent.html via FormSubmit's _next redirect;
+    // anything else it lands on is FormSubmit's own page (an error, or the
+    // form needing activation), which is cross-origin and unreadable here.
+    var frame = document.getElementById('q-send-frame');
+    document.getElementById('q-next').value = new URL('sent.html', window.location.href).href;
+    var settled = false;
+    function finish(ok, reason) {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      frame.onload = null;
+      els.button.disabled = false;
+      els.button.textContent = label;
+      if (ok) {
+        if (els.note) els.note.hidden = true;
+        say('Sent — we\'ll confirm by email, usually the same day.', 'ok');
+        return;
       }
-      say('The request didn\'t send' + reason, 'bad');
+      console.error('Quote form submission failed:', reason);
+      say(reason === 'timeout'
+        ? 'The request didn\'t send — it timed out uploading. Check your connection and try again, or email us the file.'
+        : 'We couldn\'t confirm the request went through. To be safe, email it to us with the file attached.', 'bad');
       var retry = document.createElement('button');
       retry.type = 'button';
       retry.className = 'linkish';
       retry.textContent = 'Open your email app instead';
       retry.addEventListener('click', function () { openMailApp(summary); });
       els.status.appendChild(retry);
-    }).then(function () {
-      if (timer) clearTimeout(timer);
-      els.button.disabled = false;
-      els.button.textContent = label;
-    });
+    }
+    // 90s is enough for a 10 MB file on a slow connection.
+    var timer = setTimeout(function () { finish(false, 'timeout'); }, 90000);
+    frame.onload = function () {
+      var path = null;
+      try { path = frame.contentWindow.location.pathname; } catch (e) { /* cross-origin: FormSubmit's own page */ }
+      finish(!!path && /\/sent\.html$/.test(path), 'unconfirmed');
+    };
+    form.submit();
   });
 })();
 </script>

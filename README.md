@@ -34,16 +34,21 @@ Both pages ship with placeholders. Search and replace:
 ## The order form
 
 The form posts to [FormSubmit](https://formsubmit.co) at
-`https://formsubmit.co/ajax/anthonyhuynh980@gmail.com` (the `<form action>` in
+`https://formsubmit.co/anthonyhuynh980@gmail.com` (the `<form action>` in
 `index.html`). FormSubmit emails every submission to that address, with the
 design file attached. It's free, including file uploads up to 10 MB.
+It's a plain form post into a hidden iframe, **not** FormSubmit's `/ajax/`
+endpoint, because that endpoint drops file attachments. FormSubmit then
+redirects the iframe to `sent.html` (the `_next` field), which is how the page
+knows the send went through, so keep `sent.html` deployed next to
+`index.html`.
 (Formspree was used before, but its free plan rejects file uploads, and the
 design file is required here, so every request failed.)
 
 **One-time activation.** The very first submission doesn't arrive as a quote:
 FormSubmit emails that Gmail an **Activate Form** link instead. Click it once
-and every submission after that comes through. Until then the site shows
-"This form needs Activation" when someone submits.
+and every submission after that comes through. Until then the site says it
+couldn't confirm the send when someone submits.
 
 To change where requests land, change the email at the end of the
 `<form action>` URL (and activate the new address the same way). After
@@ -52,13 +57,17 @@ of the email so the address isn't visible in the page source.
 
 How it behaves:
 
-- Submitting posts over fetch, so the visitor stays on the page and gets an
-  inline "sent" message. A send that hasn't finished after 90 seconds is
-  cancelled, so the button never gets stuck on "Sending…".
+- The visitor stays on the page and gets an inline "sent" message. If
+  FormSubmit shows its own page instead (an error, or activation still
+  pending), the page says it couldn't confirm the send. A send that hasn't
+  finished after 90 seconds is reported as failed, so the button never gets
+  stuck on "Sending…".
 - The field named `email` becomes the **Reply-To**, so hitting reply in your
   inbox answers the team directly.
-- `_subject` titles the email, `_template` lays it out as a table, and
-  `_honey` is a hidden honeypot that drops bot submissions.
+- `_subject` titles the email, `_template` lays it out as a table,
+  `_captcha=false` skips FormSubmit's CAPTCHA page, `_next` is the redirect
+  back to `sent.html`, and `_honey` is a hidden honeypot that drops bot
+  submissions.
 - If the post fails (service down, ad blocker, visitor offline) the page
   explains why and offers to open their mail app with the same details
   pre-filled. The file has to be attached by hand there, since a mailto link
