@@ -290,11 +290,13 @@
       </p>
     </div>
 
-    <!-- Posts to FormSubmit, which emails the submission (design file attached)
-         to the address in the URL. It's a plain form post into a hidden iframe,
-         not FormSubmit's /ajax endpoint: that one drops file attachments.
-         FormSubmit then redirects the iframe to _next (sent.html on this site),
-         which is how the page knows it went through. -->
+    <!-- The design file is uploaded to Vercel Blob first (api/upload.js hands
+         out the upload token); its link goes in design_file. Then the form is
+         posted, without the file, to FormSubmit, which emails it to the address
+         in the URL (FormSubmit strips CAD attachments, hence the link). It's a
+         plain form post into a hidden iframe; FormSubmit redirects the iframe
+         to _next (sent.html on this site), which is how the page knows it went
+         through. -->
     <form class="form" id="quote-form" action="https://formsubmit.co/anthonyhuynh980@gmail.com" method="POST" enctype="multipart/form-data" target="q-send-frame">
       <input type="hidden" name="_subject" value="New quote request — Crackbotics">
       <input type="hidden" name="_template" value="table">
@@ -303,6 +305,7 @@
       <!-- Honeypot: bots fill this in, people never see it. -->
       <input type="text" name="_honey" tabindex="-1" autocomplete="off" hidden>
       <input type="hidden" name="quote_summary" id="q-summary-field">
+      <input type="hidden" name="design_file" id="q-file-url">
 
       <div class="field">
         <label for="q-name">Name</label>
@@ -479,6 +482,7 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
+<script src="vendor/blob-upload.js" defer></script>
 
 <script>
 /* ===================================================================
@@ -571,6 +575,7 @@
     geoStatus: document.getElementById('q-geo-status'),
     geomNote: document.getElementById('q-geom-note'),
     summaryField: document.getElementById('q-summary-field'),
+    fileUrl: document.getElementById('q-file-url'),
     result: document.getElementById('q-result'),
     status: document.getElementById('form-status'),
     button: document.getElementById('q-submit'),
@@ -1587,6 +1592,22 @@
       + '&body=' + encodeURIComponent(summary + '\n\n(Attach your file separately — it couldn\'t be sent automatically.)');
   }
 
+  /* Uploads the design file straight from the browser to Vercel Blob
+     (api/upload.js only hands out the token). Gives up after 2 minutes. */
+  function uploadDesignFile(file) {
+    if (!file) return Promise.reject(new Error('No file selected'));
+    if (typeof window.crackboticsBlobUpload !== 'function') return Promise.reject(new Error('Upload library not loaded'));
+    var safeName = file.name.replace(/[^A-Za-z0-9._-]+/g, '-').slice(-80);
+    var upload = window.crackboticsBlobUpload('quotes/' + safeName, file, {
+      access: 'public',
+      handleUploadUrl: '/api/upload'
+    }).then(function (blob) { return blob.url; });
+    var timeout = new Promise(function (resolve, reject) {
+      setTimeout(function () { reject(new Error('Upload timed out')); }, 120000);
+    });
+    return Promise.race([upload, timeout]);
+  }
+
   function uploadBytes() {
     var input = form.elements['upload'];
     var total = 0;
@@ -1654,48 +1675,70 @@
 
     els.button.disabled = true;
     var label = els.button.textContent;
-    els.button.textContent = 'Sending…';
+    var file = els.files.files[0];
 
-    // Sends no matter what was computed above — escalated or priced, this
-    // always reaches the shop by email. A native post (not fetch) is what
-    // carries the file attachment through FormSubmit. Success = the hidden
-    // iframe landing on our own sent.html via FormSubmit's _next redirect;
-    // anything else it lands on is FormSubmit's own page (an error, or the
-    // form needing activation), which is cross-origin and unreadable here.
-    var frame = document.getElementById('q-send-frame');
-    document.getElementById('q-next').value = new URL('sent.html', window.location.href).href;
-    var settled = false;
-    function finish(ok, reason) {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      frame.onload = null;
-      els.button.disabled = false;
-      els.button.textContent = label;
-      if (ok) {
-        if (els.note) els.note.hidden = true;
-        say('Sent — we\'ll confirm by email, usually the same day.', 'ok');
-        return;
+    // Step 1: upload the design file to Vercel Blob and keep its link.
+    // A failed upload doesn't stop the request — the details still go out,
+    // flagged, and the visitor is asked to email the file.
+    els.button.textContent = 'Uploading file…';
+    uploadDesignFile(file).then(function (url) {
+      els.fileUrl.value = url;
+      return true;
+    }, function (err) {
+      console.error('Design file upload failed:', err);
+      els.fileUrl.value = 'UPLOAD FAILED — ask the customer to email the file (' + (file ? file.name : 'no file') + ')';
+      return false;
+    }).then(sendForm);
+
+    // Step 2: post the details (and file link) to FormSubmit. Success = the
+    // hidden iframe landing on our own sent.html via FormSubmit's _next
+    // redirect; anything else it lands on is FormSubmit's own page (an
+    // error, or the form needing activation), which is cross-origin and
+    // unreadable here.
+    function sendForm(fileUploaded) {
+      els.button.textContent = 'Sending…';
+      var frame = document.getElementById('q-send-frame');
+      document.getElementById('q-next').value = new URL('sent.html', window.location.href).href;
+      var settled = false;
+      function finish(ok, reason) {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        frame.onload = null;
+        els.files.disabled = false;
+        els.button.disabled = false;
+        els.button.textContent = label;
+        if (ok && fileUploaded) {
+          if (els.note) els.note.hidden = true;
+          say('Sent — we\'ll confirm by email, usually the same day.', 'ok');
+          return;
+        }
+        if (ok) {
+          say('Your details were sent, but the file didn\'t upload. Please email it to ' + EMAIL + '.', 'bad');
+        } else {
+          console.error('Quote form submission failed:', reason);
+          say(reason === 'timeout'
+            ? 'The request didn\'t send — it timed out. Check your connection and try again, or email us the file.'
+            : 'We couldn\'t confirm the request went through. To be safe, email it to us with the file attached.', 'bad');
+        }
+        var retry = document.createElement('button');
+        retry.type = 'button';
+        retry.className = 'linkish';
+        retry.textContent = 'Open your email app instead';
+        retry.addEventListener('click', function () { openMailApp(summary); });
+        els.status.appendChild(retry);
       }
-      console.error('Quote form submission failed:', reason);
-      say(reason === 'timeout'
-        ? 'The request didn\'t send — it timed out uploading. Check your connection and try again, or email us the file.'
-        : 'We couldn\'t confirm the request went through. To be safe, email it to us with the file attached.', 'bad');
-      var retry = document.createElement('button');
-      retry.type = 'button';
-      retry.className = 'linkish';
-      retry.textContent = 'Open your email app instead';
-      retry.addEventListener('click', function () { openMailApp(summary); });
-      els.status.appendChild(retry);
+      var timer = setTimeout(function () { finish(false, 'timeout'); }, 60000);
+      frame.onload = function () {
+        var path = null;
+        try { path = frame.contentWindow.location.pathname; } catch (e) { /* cross-origin: FormSubmit's own page */ }
+        finish(!!path && /\/sent\.html$/.test(path), 'unconfirmed');
+      };
+      // The file already went to Blob; leave it out of this post (a disabled
+      // field isn't submitted). submit() builds the form data synchronously.
+      els.files.disabled = true;
+      form.submit();
     }
-    // 90s is enough for a 10 MB file on a slow connection.
-    var timer = setTimeout(function () { finish(false, 'timeout'); }, 90000);
-    frame.onload = function () {
-      var path = null;
-      try { path = frame.contentWindow.location.pathname; } catch (e) { /* cross-origin: FormSubmit's own page */ }
-      finish(!!path && /\/sent\.html$/.test(path), 'unconfirmed');
-    };
-    form.submit();
   });
 })();
 </script>

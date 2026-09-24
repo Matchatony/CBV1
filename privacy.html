@@ -64,7 +64,11 @@
           <li><strong>A design file</strong> — required. A DXF, STEP, STL or 3MF you
             upload so we can quote and cut or print the part. DXF files are measured in
             your own browser to price the job; the file itself only leaves your computer
-            when you submit the form.</li>
+            when you submit the form. It's then stored in our file storage on
+            <a href="https://vercel.com" target="_blank" rel="noopener">Vercel</a> (the
+            company that hosts this site) under a long, unguessable link, and that link
+            is what we receive by email. Anyone with the exact link could open the file,
+            so we don't share it, and we'll delete it on request.</li>
           <li><strong>A delivery address</strong> — only if you choose local delivery
             instead of pickup. See the section on address lookups below.</li>
           <li><strong>Anything you write</strong> in the details field.</li>
@@ -91,8 +95,10 @@
         <p>
           The form is processed by <a href="https://formsubmit.co" target="_blank"
           rel="noopener">FormSubmit</a>, a third-party form backend that emails us your
-          submission and any file you attach — we don't run our own server. FormSubmit's
-          handling of that data is covered by their own policies, published on their site.
+          submission, including the link to your design file. Your design file itself is
+          stored with <a href="https://vercel.com" target="_blank" rel="noopener">Vercel</a>,
+          which hosts this site. Each company's handling of that data is covered by its own
+          policies, published on its site.
           We don't share, sell, or rent your information to anyone else, and we don't
           run ads.
         </p>

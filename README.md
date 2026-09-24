@@ -33,22 +33,32 @@ Both pages ship with placeholders. Search and replace:
 
 ## The order form
 
-The form posts to [FormSubmit](https://formsubmit.co) at
-`https://formsubmit.co/anthonyhuynh980@gmail.com` (the `<form action>` in
-`index.html`). FormSubmit emails every submission to that address, with the
-design file attached. It's free, including file uploads up to 10 MB.
-It's a plain form post into a hidden iframe, **not** FormSubmit's `/ajax/`
-endpoint, because that endpoint drops file attachments. FormSubmit then
-redirects the iframe to `sent.html` (the `_next` field), which is how the page
-knows the send went through, so keep `sent.html` deployed next to
-`index.html`.
-(Formspree was used before, but its free plan rejects file uploads, and the
-design file is required here, so every request failed.)
+Sending a quote is two steps:
 
-**One-time activation.** The very first submission doesn't arrive as a quote:
-FormSubmit emails that Gmail an **Activate Form** link instead. Click it once
-and every submission after that comes through. Until then the site says it
-couldn't confirm the send when someone submits.
+1. **The design file goes to Vercel Blob.** The browser uploads it straight
+   to the `crackbotics-uploads` Blob store on the Vercel project, using
+   `vendor/blob-upload.js` (the `@vercel/blob` client, bundled). The small
+   function `api/upload.js` only hands out a short-lived upload token, and only
+   for `quotes/*.dxf|step|stp|stl|3mf|pdf|zip` files up to 10 MB, each given
+   an unguessable random suffix. The store is connected to the project, which
+   is what sets `BLOB_READ_WRITE_TOKEN`. Free on the Hobby plan within its
+   Blob limits.
+2. **The details go to [FormSubmit](https://formsubmit.co)** at
+   `https://formsubmit.co/anthonyhuynh980@gmail.com`, with the file's download
+   link in the `design_file` field. FormSubmit strips CAD attachments, which is
+   why the file travels as a link. It's a plain form post into a hidden iframe;
+   FormSubmit redirects the iframe to `sent.html` (the `_next` field), which is
+   how the page knows the send went through, so keep `sent.html` deployed.
+
+If the upload fails, the details are still sent with `design_file` saying
+UPLOAD FAILED, and the customer is asked to email the file.
+
+To browse or delete uploaded files: Vercel dashboard, then Storage, then
+`crackbotics-uploads`.
+
+**One-time activation.** The first submission to a new FormSubmit address
+triggers an **Activate Form** email to that Gmail instead of the quote. Click it
+once. Until then the site says it couldn't confirm the send.
 
 To change where requests land, change the email at the end of the
 `<form action>` URL (and activate the new address the same way). After
@@ -59,8 +69,8 @@ How it behaves:
 
 - The visitor stays on the page and gets an inline "sent" message. If
   FormSubmit shows its own page instead (an error, or activation still
-  pending), the page says it couldn't confirm the send. A send that hasn't
-  finished after 90 seconds is reported as failed, so the button never gets
+  pending), the page says it couldn't confirm the send. The upload gives up
+  after 2 minutes and the send after 60 seconds, so the button never gets
   stuck on "Sending…".
 - The field named `email` becomes the **Reply-To**, so hitting reply in your
   inbox answers the team directly.
@@ -72,7 +82,7 @@ How it behaves:
   explains why and offers to open their mail app with the same details
   pre-filled. The file has to be attached by hand there, since a mailto link
   can't carry it.
-- The page refuses files over 10 MB up front, matching FormSubmit's limit.
+- The page refuses files over 10 MB up front, matching the upload limit.
 
 ## Adding your photos
 
