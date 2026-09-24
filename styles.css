@@ -777,6 +777,7 @@ footer { padding-block: 48px 56px; border-top: 1px solid var(--line); }
   text-transform: none;
   letter-spacing: normal;
 }
+.calc-flags label[hidden] { display: none; }
 .calc-flags input[type="checkbox"],
 .calc-flags input[type="radio"] {
   width: 17px;

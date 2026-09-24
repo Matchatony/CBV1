@@ -393,9 +393,9 @@
 
       <fieldset class="calc-flags">
         <legend>Any of these apply?</legend>
-        <label><input type="checkbox" id="q-tapped" name="tapped_holes"> Tapped holes</label>
-        <label><input type="checkbox" id="q-tol" name="tight_tolerances"> Tight tolerances (±0.005&Prime; or tighter)</label>
-        <label><input type="checkbox" id="q-complex" name="complex_geometry"> Multiple setups or unusual geometry</label>
+        <label class="cnc-only"><input type="checkbox" id="q-tapped" name="tapped_holes"> Tapped holes</label>
+        <label class="cnc-only"><input type="checkbox" id="q-tol" name="tight_tolerances"> Tight tolerances (±0.005&Prime; or tighter)</label>
+        <label class="cnc-only"><input type="checkbox" id="q-complex" name="complex_geometry"> Multiple setups or unusual geometry</label>
         <label><input type="checkbox" id="q-rush" name="rush"> Needs to skip the normal batch (rush)</label>
       </fieldset>
 
@@ -512,7 +512,10 @@
     cncPasses: 3,
     cncPerHoleMin: 0.25,     // plunge, lead-in and retract for each hole
     minToolDiaIn: 0.125,     // 1/16 in. min tool radius, per the Parts spec
-    printPerHour: 1.5,
+    printMachineFlat: 3,     // per printed part, regardless of print time
+    // Prints past either limit get a hand quote instead of a flat price.
+    printMaxHours: 12,       // estimated from grams / gramsPerHour
+    printMaxSideMm: 250,     // longest side; bigger than a typical bed
     gramsPerHour: 10,
     // Printed weight is estimated from the uploaded mesh: a shell of
     // (walls x line width) over the surface, plus infill% of what's inside.
@@ -591,6 +594,12 @@
     var type = els.type.value;
     els.groupPlate.hidden = type !== 'plate';
     els.groupPrint.hidden = type !== 'print';
+    // Tapped holes / tolerances / setups are CNC surcharges; they don't
+    // apply to prints, so hide and clear them there.
+    document.querySelectorAll('.cnc-only').forEach(function (label) {
+      label.hidden = type === 'print';
+      if (type === 'print') label.querySelector('input').checked = false;
+    });
     var a = ACCEPT[type] || ACCEPT.other;
     els.files.setAttribute('accept', a.ext);
     els.fileHint.textContent = a.hint;
@@ -1296,7 +1305,10 @@
       var filRate = premium ? RATE.premiumFilamentPerGram : RATE.filamentPerGram;
       perUnitMaterial = adjustedWeight * filRate;
       var printHr = adjustedWeight / RATE.gramsPerHour;
-      perUnitMachine = printHr * RATE.printPerHour;
+      if (printHr > RATE.printMaxHours || Math.max.apply(null, printGeom.dims) > RATE.printMaxSideMm) {
+        return { escalated: true, reason: 'This is a big print (about ' + Math.round(adjustedWeight) + ' g, roughly ' + Math.round(printHr) + ' hours), so a Crackbotics member will quote it by hand and email you.' };
+      }
+      perUnitMachine = RATE.printMachineFlat;
       perUnitLabor = RATE.printLaborFlat;
       sizeNote = printGeom.dims.map(function (d) { return d.toFixed(0); }).join(' × ') + ' mm, ~' +
         Math.round(adjustedWeight) + ' g at ' + infill + '% infill, ' + walls + ' walls';
@@ -1307,9 +1319,11 @@
     }
 
     var surcharge = 0;
-    if (els.tapped.checked) { surcharge += RATE.surchargeTapped; notes.push('Tapped holes: +' + money(RATE.surchargeTapped) + '/part for the extra setup.'); }
-    if (els.tol.checked) { surcharge += RATE.surchargeTolerance; notes.push('Tight tolerances (±0.005″ or tighter): +' + money(RATE.surchargeTolerance) + '/part.'); }
-    if (els.complex.checked) { surcharge += RATE.surchargeComplex; notes.push('Multiple setups / unusual geometry: +' + money(RATE.surchargeComplex) + '/part.'); }
+    if (type === 'plate') {
+      if (els.tapped.checked) { surcharge += RATE.surchargeTapped; notes.push('Tapped holes: +' + money(RATE.surchargeTapped) + '/part for the extra setup.'); }
+      if (els.tol.checked) { surcharge += RATE.surchargeTolerance; notes.push('Tight tolerances (±0.005″ or tighter): +' + money(RATE.surchargeTolerance) + '/part.'); }
+      if (els.complex.checked) { surcharge += RATE.surchargeComplex; notes.push('Multiple setups / unusual geometry: +' + money(RATE.surchargeComplex) + '/part.'); }
+    }
     if (els.rush.checked) { notes.push('Skipping the normal batch: no rush fee, but we confirm capacity before promising a date.'); }
     if (qty > RATE.escalateQty) { notes.push('Orders over ' + RATE.escalateQty + ' identical parts get a final check on batch capacity before we confirm — this price is our best estimate.'); }
 
