@@ -173,6 +173,30 @@ a { color: inherit; }
   margin-bottom: 28px;
 }
 .hero h1 em { font-style: normal; color: var(--accent); }
+.hero-badge {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: fit-content;
+  margin: -8px 0 22px;
+  padding: 6px 13px 6px 11px;
+  border: 1px solid rgba(var(--accent-rgb), .45);
+  border-radius: 99px;
+  background: rgba(var(--accent-rgb), .08);
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+.hero-badge::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), .18);
+}
 .lede {
   max-width: 56ch;
   font-size: clamp(17px, 1.7vw, 19px);
