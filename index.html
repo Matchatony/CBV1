@@ -1776,6 +1776,30 @@
       return false;
     }).then(sendForm);
 
+    // Copy of the request for the admin order log (admin.html). Fire and
+    // forget: the email is the primary record, so a failure here is only
+    // logged, and keepalive lets it finish even if the page is left.
+    function logOrder() {
+      try {
+        fetch('/api/order', {
+          method: 'POST',
+          keepalive: true,
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            name: data.name, team: data.team, email: data.email, part_type: data.part_type,
+            details: data.details, address: value('address'), delivery: q.delivery || (document.querySelector('input[name="delivery"]:checked') || {}).value,
+            escalated: !!q.escalated,
+            price: q.escalated ? 'Hand quote' : money(q.total),
+            part: q.escalated ? q.reason : q.qty + ' × ' + q.sizeNote + (q.detailLine ? ', ' + q.detailLine : ''),
+            quote_summary: summary, design_file: els.fileUrl.value, file_name: file ? file.name : '',
+            _honey: value('_honey')
+          })
+        }).catch(function (err) { console.error('Order log failed:', err); });
+      } catch (err) {
+        console.error('Order log failed:', err);
+      }
+    }
+
     // Step 2: post the details (and file link) to FormSubmit. Success = the
     // hidden iframe landing on our own sent.html via FormSubmit's _next
     // redirect; anything else it lands on is FormSubmit's own page (an
@@ -1783,6 +1807,7 @@
     // unreadable here.
     function sendForm(fileUploaded) {
       els.button.textContent = 'Sending…';
+      logOrder();
       var frame = document.getElementById('q-send-frame');
       document.getElementById('q-next').value = new URL('sent.html', window.location.href).href;
       var settled = false;

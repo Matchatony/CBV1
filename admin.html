@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Orders | Crackbotics</title>
+<meta name="theme-color" content="#14121A">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="styles.css">
+<style>
+  .admin { max-width: 1040px; margin: 0 auto; padding: 32px 20px 80px; }
+  .admin-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 28px; }
+  .admin-head h1 { margin: 0; font-size: 26px; }
+  .admin-head .wordmark { font-size: 22px; }
+  .card { background: var(--bg-raised); border: 1px solid var(--line); border-radius: 8px; padding: 20px; }
+  .login { max-width: 380px; }
+  .login label { display: block; font-family: var(--mono); font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); margin-bottom: 8px; }
+  .admin input[type="password"], .admin input[type="search"], .admin select, .admin textarea {
+    font: inherit; font-size: 15px; color: var(--text); background: var(--bg); border: 1px solid var(--line-firm);
+    border-radius: 6px; padding: 9px 11px; width: 100%; box-sizing: border-box; }
+  .admin textarea { min-height: 80px; resize: vertical; }
+  .admin button { font: inherit; font-size: 14px; font-weight: 500; cursor: pointer; border-radius: 6px; padding: 9px 14px;
+    border: 1px solid var(--line-firm); background: transparent; color: var(--text); }
+  .admin button.primary { background: var(--accent); border-color: var(--accent); color: #14121a; }
+  .admin button.danger { border-color: #c96b7a; color: #f0a4b0; }
+  .admin button:disabled { opacity: .5; cursor: default; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .toolbar { display: grid; grid-template-columns: 1fr 190px auto; gap: 10px; margin-bottom: 14px; }
+  .counts { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
+  .chip { font-family: var(--mono); font-size: 12px; padding: 4px 10px; border-radius: 99px; border: 1px solid var(--line-firm); color: var(--muted); background: none; }
+  .chip b { color: var(--text); font-weight: 500; }
+  .msg { margin: 12px 0 0; color: var(--muted); font-size: 14px; }
+  .msg.bad { color: #f0a4b0; }
+  .orders { display: grid; gap: 10px; }
+  .order { background: var(--bg-raised); border: 1px solid var(--line); border-radius: 8px; }
+  .order.open { border-color: var(--line-firm); }
+  .order-head { display: grid; grid-template-columns: 1fr 150px; gap: 12px; align-items: center; padding: 0 16px 0 0; }
+  .admin button.toggle { all: unset; box-sizing: border-box; cursor: pointer; padding: 14px 0 14px 16px; display: grid;
+    grid-template-columns: 96px 1fr 120px 110px; gap: 12px; align-items: center; text-align: left; border-radius: 8px; }
+  .admin button.toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .when { font-family: var(--mono); font-size: 12px; color: var(--faint); line-height: 1.35; }
+  .who b { display: block; font-weight: 600; }
+  .who span { font-size: 13px; color: var(--muted); }
+  .price { font-family: var(--mono); font-size: 14px; }
+  .price.hand { color: var(--accent); }
+  .badge { font-family: var(--mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; padding: 3px 8px; border-radius: 4px; border: 1px solid var(--line-firm); color: var(--muted); justify-self: start; }
+  .status-select { font-size: 13px !important; padding: 6px 8px !important; }
+  .s-new { border-left: 3px solid var(--accent); }
+  .s-quoted { border-left: 3px solid #9fb7ff; }
+  .s-paid { border-left: 3px solid #8fd6a8; }
+  .s-in-progress { border-left: 3px solid #f2c27b; }
+  .s-ready { border-left: 3px solid #7fd8d8; }
+  .s-done, .s-cancelled { border-left: 3px solid var(--line-firm); opacity: .72; }
+  .body { padding: 4px 16px 18px; border-top: 1px solid var(--line); display: grid; gap: 14px; }
+  .body[hidden] { display: none; }
+  .facts { display: grid; grid-template-columns: 150px 1fr; gap: 6px 14px; margin: 12px 0 0; font-size: 14px; }
+  .facts dt { font-family: var(--mono); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--faint); padding-top: 2px; }
+  .facts dd { margin: 0; overflow-wrap: anywhere; font-size: 15px; line-height: 1.45; font-family: var(--sans); letter-spacing: normal; color: var(--text); }
+  .facts a { color: var(--accent); }
+  .warn { color: #f0a4b0; }
+  pre.summary { margin: 0; white-space: pre-wrap; font-family: var(--mono); font-size: 12.5px; line-height: 1.5; color: var(--muted);
+    background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 12px; }
+  .empty { color: var(--muted); padding: 30px 0; text-align: center; }
+  @media (max-width: 760px) {
+    .toolbar { grid-template-columns: 1fr; }
+    .order-head { grid-template-columns: 1fr; padding: 0 16px 14px 0; }
+    .order-head .status-select { margin-left: 16px; width: calc(100% - 16px); }
+    .admin button.toggle { grid-template-columns: 1fr auto; }
+    .admin button.toggle .when { grid-column: 1 / -1; }
+    .facts { grid-template-columns: 1fr; }
+    .facts dt { padding-top: 6px; }
+  }
+</style>
+</head>
+<body>
+<main class="admin">
+  <div class="admin-head">
+    <div class="row">
+      <a class="wordmark" href="index.html"><span class="wordmark-crack">crack</span><span class="wordmark-botics">botics</span></a>
+      <h1>Orders</h1>
+    </div>
+    <button type="button" id="signout" hidden>Sign out</button>
+  </div>
+
+  <form class="card login" id="login">
+    <label for="pw">Admin password</label>
+    <input type="password" id="pw" autocomplete="current-password" required>
+    <div class="row" style="margin-top:12px"><button class="primary" type="submit">Sign in</button></div>
+    <p class="msg" id="login-msg" role="status"></p>
+  </form>
+
+  <section id="app" hidden>
+    <div class="toolbar">
+      <input type="search" id="q" placeholder="Search name, team, email, part, notes…" aria-label="Search orders">
+      <select id="filter" aria-label="Filter by status"></select>
+      <button type="button" id="refresh">Refresh</button>
+    </div>
+    <div class="counts" id="counts"></div>
+    <p class="msg" id="app-msg" role="status"></p>
+    <div class="orders" id="orders"></div>
+  </section>
+</main>
+
+<script>
+(function () {
+  var LABELS = { 'new': 'New', quoted: 'Quoted', paid: 'Paid', 'in-progress': 'In progress', ready: 'Ready', done: 'Done', cancelled: 'Cancelled' };
+  var OPEN = ['new', 'quoted', 'paid', 'in-progress', 'ready'];
+  var state = { pw: '', orders: [], statuses: Object.keys(LABELS) };
+  var $ = function (id) { return document.getElementById(id); };
+
+  // Builds elements with text only — order data never goes through innerHTML.
+  function el(tag, attrs, kids) {
+    var n = document.createElement(tag);
+    Object.keys(attrs || {}).forEach(function (k) {
+      if (k === 'text') n.textContent = attrs[k];
+      else if (k === 'class') n.className = attrs[k];
+      else if (k.slice(0, 2) === 'on') n.addEventListener(k.slice(2), attrs[k]);
+      else n.setAttribute(k, attrs[k]);
+    });
+    (kids || []).forEach(function (c) { if (c) n.appendChild(typeof c === 'string' ? document.createTextNode(c) : c); });
+    return n;
+  }
+
+  function storeGet() { try { return sessionStorage.getItem('cb-admin') || ''; } catch (e) { return ''; } }
+  function storeSet(v) { try { v ? sessionStorage.setItem('cb-admin', v) : sessionStorage.removeItem('cb-admin'); } catch (e) {} }
+
+  function api(method, body) {
+    return fetch('/api/orders', {
+      method: method,
+      headers: Object.assign({ authorization: 'Bearer ' + state.pw }, body ? { 'content-type': 'application/json' } : {}),
+      body: body ? JSON.stringify(body) : undefined,
+      cache: 'no-store'
+    }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) {
+        if (r.status === 401) { signOut('Wrong password.'); throw new Error('unauthorized'); }
+        if (!r.ok) throw new Error(j.error || ('Server error ' + r.status));
+        return j;
+      });
+    });
+  }
+
+  function say(id, text, bad) { $(id).textContent = text; $(id).className = 'msg' + (bad ? ' bad' : ''); }
+
+  function signOut(message) {
+    state.pw = ''; storeSet('');
+    $('app').hidden = true; $('signout').hidden = true; $('login').hidden = false;
+    $('orders').textContent = '';
+    say('login-msg', message || '', !!message);
+  }
+
+  function load() {
+    say('app-msg', 'Loading…');
+    $('refresh').disabled = true;
+    return api('GET').then(function (j) {
+      state.orders = j.orders || [];
+      if (j.statuses) state.statuses = j.statuses;
+      $('login').hidden = true; $('app').hidden = false; $('signout').hidden = false;
+      say('app-msg', '');
+      render();
+    }).catch(function (err) {
+      if (err.message !== 'unauthorized') say(state.orders.length ? 'app-msg' : 'login-msg', 'Couldn\'t load orders: ' + err.message, true);
+    }).then(function () { $('refresh').disabled = false; });
+  }
+
+  function fmtDate(iso) {
+    var d = new Date(iso);
+    return isNaN(d) ? '' : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + '\n' +
+      d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  }
+
+  function statusSelect(order, card) {
+    var sel = el('select', { class: 'status-select', 'aria-label': 'Status for ' + order.name });
+    state.statuses.forEach(function (s) { sel.appendChild(el('option', { value: s, text: LABELS[s] || s })); });
+    sel.value = order.status;
+    sel.addEventListener('change', function () {
+      var prev = order.status;
+      sel.disabled = true;
+      api('PATCH', { id: order.id, status: sel.value }).then(function (j) {
+        Object.assign(order, j.order);
+        card.className = 'order s-' + order.status + (card.classList.contains('open') ? ' open' : '');
+        renderCounts();
+      }).catch(function (err) {
+        sel.value = prev;
+        if (err.message !== 'unauthorized') say('app-msg', 'Couldn\'t update status: ' + err.message, true);
+      }).then(function () { sel.disabled = false; });
+    });
+    return sel;
+  }
+
+  function fact(label, value) {
+    if (!value) return [];
+    return [el('dt', { text: label }), el('dd', {}, [value])];
+  }
+
+  function orderCard(o) {
+    var card = el('div', { class: 'order s-' + o.status });
+    var fileNode = null;
+    if (/^https:\/\//.test(o.design_file)) {
+      fileNode = el('a', { href: o.design_file, target: '_blank', rel: 'noopener', text: 'Download ' + (o.file_name || 'design file') });
+    } else if (o.design_file) {
+      fileNode = el('span', { class: 'warn', text: o.design_file });
+    }
+    var notes = el('textarea', { 'aria-label': 'Private notes', placeholder: 'Private notes (only you see these)…' });
+    notes.value = o.notes || '';
+    var saveNotes = el('button', { type: 'button', text: 'Save notes' });
+    saveNotes.addEventListener('click', function () {
+      saveNotes.disabled = true;
+      api('PATCH', { id: o.id, notes: notes.value }).then(function (j) {
+        Object.assign(o, j.order); saveNotes.textContent = 'Saved';
+        setTimeout(function () { saveNotes.textContent = 'Save notes'; }, 1500);
+      }).catch(function (err) {
+        if (err.message !== 'unauthorized') say('app-msg', 'Couldn\'t save notes: ' + err.message, true);
+      }).then(function () { saveNotes.disabled = false; });
+    });
+    var delBtn = el('button', { type: 'button', class: 'danger', text: 'Delete order' });
+    delBtn.addEventListener('click', function () {
+      if (!confirm('Delete this order from the log? This can\'t be undone.')) return;
+      var withFile = /^https:\/\//.test(o.design_file) && confirm('Also delete the uploaded design file?');
+      delBtn.disabled = true;
+      api('DELETE', { id: o.id, withFile: withFile }).then(function () {
+        state.orders = state.orders.filter(function (x) { return x.id !== o.id; });
+        render();
+      }).catch(function (err) {
+        delBtn.disabled = false;
+        if (err.message !== 'unauthorized') say('app-msg', 'Couldn\'t delete: ' + err.message, true);
+      });
+    });
+
+    var bodyId = 'order-' + o.id;
+    var toggle = el('button', { type: 'button', class: 'toggle', 'aria-expanded': 'false', 'aria-controls': bodyId }, [
+      el('span', { class: 'when', text: fmtDate(o.createdAt), style: 'white-space:pre-line' }),
+      el('span', { class: 'who' }, [el('b', { text: o.name }), el('span', { text: [o.team ? 'FTC ' + o.team : '', o.part_type].filter(Boolean).join(' · ') })]),
+      el('span', { class: 'price' + (o.escalated ? ' hand' : ''), text: o.price || '' }),
+      el('span', { class: 'badge', text: o.delivery === 'delivery' ? 'Delivery' : 'Pickup' })
+    ]);
+    toggle.addEventListener('click', function () {
+      var open = toggle.getAttribute('aria-expanded') !== 'true';
+      toggle.setAttribute('aria-expanded', String(open));
+      body.hidden = !open;
+      card.classList.toggle('open', open);
+    });
+    card.appendChild(el('div', { class: 'order-head' }, [toggle, statusSelect(o, card)]));
+    var body = el('div', { class: 'body', id: bodyId, hidden: '' }, [
+      el('dl', { class: 'facts' }, [].concat(
+        fact('Email', el('a', { href: 'mailto:' + o.email + '?subject=' + encodeURIComponent('Your Crackbotics quote'), text: o.email })),
+        fact('Team', o.team ? 'FTC ' + o.team : ''),
+        fact('Part', o.part),
+        fact('Price', o.price),
+        fact('Delivery', o.delivery === 'delivery' ? 'Local delivery' + (o.address ? ' — ' + o.address : ' (no address)') : 'Pickup'),
+        fact('Design file', fileNode),
+        fact('Customer notes', o.details),
+        fact('Received', new Date(o.createdAt).toLocaleString()),
+        fact('Last updated', o.updatedAt ? new Date(o.updatedAt).toLocaleString() : '')
+      )),
+      o.quote_summary ? el('pre', { class: 'summary', text: o.quote_summary }) : null,
+      notes,
+      el('div', { class: 'row' }, [saveNotes, delBtn])
+    ]);
+    card.appendChild(body);
+    return card;
+  }
+
+  function renderCounts() {
+    var counts = {};
+    state.orders.forEach(function (o) { counts[o.status] = (counts[o.status] || 0) + 1; });
+    var box = $('counts'); box.textContent = '';
+    var open = state.orders.filter(function (o) { return OPEN.indexOf(o.status) !== -1; }).length;
+    box.appendChild(el('span', { class: 'chip' }, [el('b', { text: String(open) }), ' open']));
+    state.statuses.forEach(function (s) {
+      if (counts[s]) box.appendChild(el('span', { class: 'chip' }, [el('b', { text: String(counts[s]) }), ' ' + (LABELS[s] || s).toLowerCase()]));
+    });
+    var filter = $('filter'), cur = filter.value || 'open';
+    filter.textContent = '';
+    [['open', 'Open orders'], ['all', 'All orders']].concat(state.statuses.map(function (s) { return [s, LABELS[s] || s]; }))
+      .forEach(function (p) { filter.appendChild(el('option', { value: p[0], text: p[1] })); });
+    filter.value = cur;
+  }
+
+  function render() {
+    renderCounts();
+    var term = $('q').value.trim().toLowerCase(), f = $('filter').value;
+    var list = state.orders.filter(function (o) {
+      if (f === 'open' && OPEN.indexOf(o.status) === -1) return false;
+      if (f !== 'open' && f !== 'all' && o.status !== f) return false;
+      if (!term) return true;
+      return [o.name, o.team, o.email, o.part_type, o.part, o.details, o.notes, o.address].join(' ').toLowerCase().indexOf(term) !== -1;
+    });
+    var box = $('orders'); box.textContent = '';
+    if (!list.length) box.appendChild(el('p', { class: 'empty', text: state.orders.length ? 'No orders match.' : 'No orders yet.' }));
+    list.forEach(function (o) { box.appendChild(orderCard(o)); });
+  }
+
+  $('login').addEventListener('submit', function (e) {
+    e.preventDefault();
+    state.pw = $('pw').value;
+    say('login-msg', 'Checking…');
+    load().then(function () { if (!$('app').hidden) { storeSet(state.pw); $('pw').value = ''; } });
+  });
+  $('signout').addEventListener('click', function () { signOut(''); });
+  $('refresh').addEventListener('click', load);
+  $('q').addEventListener('input', render);
+  $('filter').addEventListener('change', render);
+
+  state.pw = storeGet();
+  if (state.pw) load();
+})();
+</script>
+</body>
+</html>

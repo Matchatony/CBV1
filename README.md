@@ -85,6 +85,24 @@ How it behaves:
   can't carry it.
 - The page refuses files over 10 MB up front, matching the upload limit.
 
+## Order admin (admin.html)
+
+Every quote request is also saved to an order log you can manage at
+`/admin.html` (not linked anywhere on the site, and hidden from search engines).
+Sign in with the `ADMIN_PASSWORD` set in Vercel → Settings → Environment
+Variables. There you can see every order, download its design file, set a
+status (New → Quoted → Paid → In progress → Ready → Done / Cancelled), keep
+private notes, search, filter, and delete an order (optionally with its file).
+
+- `api/order.js` saves a request (called by the quote form next to the email).
+- `api/orders.js` lists / updates / deletes; every call needs the password.
+- Records live in the `crackbotics-uploads` Blob store under `orders/`,
+  encrypted with `ORDERS_KEY`. **Never change `ORDERS_KEY`**: every existing
+  order would become unreadable. `ADMIN_PASSWORD` can be changed any time
+  (then redeploy).
+- The email is still the primary record; if saving to the log ever fails,
+  the request still arrives by email.
+
 ## Adding your photos
 
 Each product card has a placeholder `<div class="photo">`. Drop your images in
