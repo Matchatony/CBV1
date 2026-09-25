@@ -41,6 +41,20 @@ export async function PATCH(request) {
     changes.delivery_stop = n;
   }
   if (body.address !== undefined) changes.address = String(body.address).trim().slice(0, 300);
+  // Map position for the delivery map: { q: the address it was looked up for, lat, lon },
+  // with lat/lon null when the lookup found nothing (so it isn't retried every load).
+  if (body.geo !== undefined) {
+    const g = body.geo;
+    if (!g || typeof g !== 'object') return Response.json({ error: 'Bad map position' }, { status: 400 });
+    const q = String(g.q || '').slice(0, 300);
+    if (g.lat === null && g.lon === null) {
+      changes.geo = { q, lat: null, lon: null };
+    } else {
+      const { lat, lon } = g;
+      if (!(typeof lat === 'number' && typeof lon === 'number' && Math.abs(lat) <= 90 && Math.abs(lon) <= 180)) return Response.json({ error: 'Bad map position' }, { status: 400 });
+      changes.geo = { q, lat, lon };
+    }
+  }
   if (body.delivered !== undefined) changes.delivered_at = body.delivered === true ? new Date().toISOString() : '';
   const order = await updateOrder(body.id, changes);
   return order ? Response.json({ order }, { headers: noStore }) : Response.json({ error: 'Not found' }, { status: 404 });

@@ -65,6 +65,23 @@
   .edit[hidden] { display: none; }
   .edit label { display: grid; gap: 4px; font-family: var(--mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--faint); }
   .edit .row { grid-column: 1 / -1; }
+  .map-wrap { margin: 0 0 22px; }
+  .map-wrap[hidden] { display: none; }
+  #deliv-map { height: 420px; border: 1px solid var(--line-firm); border-radius: 8px; background: var(--bg); z-index: 0; }
+  #deliv-map .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.95) contrast(.9); }
+  #deliv-map .leaflet-popup-content-wrapper, #deliv-map .leaflet-popup-tip { background: var(--bg-raised); color: var(--text); border: 1px solid var(--line-firm); }
+  #deliv-map .leaflet-popup-content { margin: 12px 14px; font: 14px/1.45 var(--sans); }
+  #deliv-map .leaflet-popup-content b { display: block; font-size: 15px; }
+  #deliv-map .leaflet-popup-content .meta { color: var(--muted); font-size: 13px; }
+  #deliv-map .leaflet-popup-content button { margin-top: 8px; }
+  #deliv-map .leaflet-control-attribution { background: rgba(20, 18, 26, .8); color: var(--muted); }
+  #deliv-map .leaflet-control-attribution a { color: var(--accent); }
+  .pin { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; border: 2px solid #14121a;
+    color: #14121a; font: 600 12px/1 var(--mono); box-shadow: 0 1px 4px rgba(0, 0, 0, .6); }
+  .map-legend { display: flex; gap: 6px 16px; flex-wrap: wrap; margin-top: 10px; font-size: 13px; color: var(--muted); }
+  .map-legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .map-legend i { width: 12px; height: 12px; border-radius: 50%; border: 1px solid #14121a; display: inline-block; }
+  .stop.flash { outline: 2px solid var(--accent); outline-offset: 2px; }
   .print-only { display: none; }
   @media print {
     body.printing { background: #fff !important; }
@@ -110,6 +127,7 @@
     background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 12px; }
   .empty { color: var(--muted); padding: 30px 0; text-align: center; }
   @media (max-width: 760px) {
+    #deliv-map { height: 320px; }
     .stop { grid-template-columns: 40px 1fr; }
     .admin .stop-num .move { flex-direction: column; gap: 6px; }
     .admin .stop-num .move button { padding: 6px 11px; font-size: 14px; }
@@ -164,6 +182,11 @@
     <div id="view-deliv" hidden>
       <div class="row deliv-bar">
         <label><input type="checkbox" id="with-pickups" checked> Include pickups</label>
+      </div>
+      <div class="map-wrap no-print" id="map-wrap" hidden>
+        <div id="deliv-map" role="region" aria-label="Map of deliveries still to do"></div>
+        <div class="map-legend" id="map-legend"></div>
+        <p class="msg" id="map-msg" role="status"></p>
       </div>
       <div id="deliv"></div>
     </div>
@@ -437,7 +460,7 @@
 
   function stopItem(o, ctx) {
     var del = o.delivery === 'delivery';
-    var li = el('li', { class: 'stop' });
+    var li = el('li', { class: 'stop', id: 'stop-' + o.id });
     var num = el('div', { class: 'stop-num' });
     if (ctx.list) {
       num.appendChild(el('span', { text: String(ctx.idx + 1) }));
@@ -547,10 +570,23 @@
         ul]));
     }
 
+    // Map pins: every drop-off still to do, colored by day and numbered in route order.
+    var pins = [], legend = [], future = 0;
+    var loose = unscheduled.filter(function (o) { return o.delivery === 'delivery' && o.address; });
+    loose.forEach(function (o) { pins.push({ o: o, label: '?', color: '#a9a3b3', when: 'Needs a date' }); });
+    if (loose.length) legend.push(['#a9a3b3', 'Needs a date (' + loose.length + ')']);
+
     var days = {};
     active.forEach(function (o) { if (o.delivery_date) (days[o.delivery_date] = days[o.delivery_date] || []).push(o); });
     Object.keys(days).sort().forEach(function (d) {
       var drops = days[d].filter(function (o) { return o.delivery === 'delivery'; }).sort(byStop);
+      var color = d < today ? '#f0a4b0' : d === today ? '#e9a8c9' : DAY_COLORS[future++ % DAY_COLORS.length];
+      var dayPins = drops.filter(function (o) { return o.address; });
+      dayPins.forEach(function (o) {
+        pins.push({ o: o, day: d, label: String(drops.indexOf(o) + 1), color: color,
+          when: dayLabel(d) + ', stop ' + (drops.indexOf(o) + 1) + (o.delivery_window ? ' · ' + o.delivery_window : '') });
+      });
+      if (dayPins.length) legend.push([color, (d < today ? 'Overdue · ' : d === today ? 'Today · ' : '') + dayLabel(d) + ' (' + dayPins.length + ')']);
       var pickups = days[d].filter(function (o) { return o.delivery !== 'delivery'; }).sort(byWindow);
       var section = el('section', { class: 'day' });
       var tools = el('div', { class: 'row no-print' });
@@ -580,6 +616,8 @@
     });
 
     if (!active.length) box.appendChild(el('p', { class: 'empty', text: 'Nothing to deliver right now.' }));
+    mapState.pins = pins; mapState.legend = legend;
+    updateMap();
     if (waiting) box.appendChild(el('p', { class: 'msg no-print', text: waiting + ' more ' + (withPickups ? 'order' : 'delivery request') + (waiting === 1 ? ' is' : 's are') +
       ' still New or Quoted. They show up here once you mark them Paid, In progress or Ready.' }));
 
@@ -602,11 +640,118 @@
     }
   }
 
+  // ---- Delivery map: Leaflet + OpenStreetMap tiles. Each address is looked up once
+  // with Nominatim (the same service the quote form uses) and saved on the order. ----
+  var LEAFLET = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/';
+  var DAY_COLORS = ['#9fb7ff', '#8fd6a8', '#f2c27b', '#7fd8d8', '#c9a3ff', '#ffb38a'];
+  var mapState = { map: null, layer: null, loading: null, sig: '', geocoding: false, pins: [], legend: [] };
+
+  function loadLeaflet() {
+    if (window.L) return Promise.resolve(window.L);
+    if (mapState.loading) return mapState.loading;
+    mapState.loading = new Promise(function (resolve, reject) {
+      document.head.appendChild(el('link', { rel: 'stylesheet', href: LEAFLET + 'leaflet.css', crossorigin: '',
+        integrity: 'sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H' }));
+      var js = el('script', { src: LEAFLET + 'leaflet.js', crossorigin: '',
+        integrity: 'sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH' });
+      js.onload = function () { window.L ? resolve(window.L) : reject(new Error('no L')); };
+      js.onerror = function () { mapState.loading = null; reject(new Error('load failed')); };
+      document.head.appendChild(js);
+    });
+    return mapState.loading;
+  }
+
+  function needsGeo(o) { return o.address && (!o.geo || o.geo.q !== o.address); }
+
+  function updateMap() {
+    var wrap = $('map-wrap');
+    wrap.hidden = !mapState.pins.length;
+    var legend = $('map-legend'); legend.textContent = '';
+    mapState.legend.forEach(function (x) { legend.appendChild(el('span', {}, [el('i', { style: 'background:' + x[0] }), x[1]])); });
+    if (wrap.hidden || $('view-deliv').hidden) return;
+    loadLeaflet().then(function (L) {
+      if (!mapState.map) {
+        mapState.map = L.map('deliv-map', { scrollWheelZoom: false }).setView([32.9, -117.1], 10); // San Diego
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19,
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors' }).addTo(mapState.map);
+        mapState.layer = L.layerGroup().addTo(mapState.map);
+      }
+      mapState.map.invalidateSize();
+      drawPins();
+      geocodeMissing();
+    }, function () {
+      $('map-msg').textContent = 'The map couldn\'t load right now — the list below still works.';
+    });
+  }
+
+  function drawPins() {
+    var L = window.L, map = mapState.map;
+    if (!L || !map) return;
+    mapState.layer.clearLayers();
+    var pts = [], routes = {}, lost = [], waiting = 0;
+    mapState.pins.forEach(function (p) {
+      var o = p.o, g = o.geo;
+      if (needsGeo(o)) { waiting++; return; }
+      if (g.lat === null) { lost.push(o); return; }
+      var ll = [g.lat, g.lon];
+      pts.push(ll);
+      var show = el('button', { type: 'button', class: 'sm', text: 'Show in list', onclick: function () {
+        var li = $('stop-' + o.id);
+        if (!li) return;
+        li.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        li.classList.add('flash'); setTimeout(function () { li.classList.remove('flash'); }, 1600);
+      } });
+      L.marker(ll, { title: o.name + ' — ' + p.when, alt: o.name, riseOnHover: true,
+        icon: L.divIcon({ className: '', html: el('div', { class: 'pin', style: 'background:' + p.color, text: p.label }), iconSize: [28, 28], iconAnchor: [14, 14], popupAnchor: [0, -14] }) })
+        .bindPopup(el('div', {}, [el('b', { text: o.name }), el('div', { text: o.address }), el('div', { class: 'meta', text: p.when }), show]))
+        .addTo(mapState.layer);
+      if (p.day) (routes[p.day] = routes[p.day] || { color: p.color, pts: [] }).pts.push(ll);
+    });
+    Object.keys(routes).forEach(function (d) {
+      if (routes[d].pts.length > 1) L.polyline(routes[d].pts, { color: routes[d].color, weight: 2, opacity: .75, dashArray: '5 7', interactive: false }).addTo(mapState.layer);
+    });
+    var sig = pts.join(';');
+    if (sig !== mapState.sig) {
+      mapState.sig = sig;
+      if (pts.length === 1) map.setView(pts[0], 13);
+      else if (pts.length) map.fitBounds(pts, { padding: [36, 36], maxZoom: 14 });
+    }
+    if (!mapState.geocoding) {
+      $('map-msg').textContent = lost.length ? 'Couldn\'t place ' + lost.length + ' address' + (lost.length === 1 ? '' : 'es') + ' on the map: ' +
+        lost.map(function (o) { return o.name + ' (' + o.address + ')'; }).join('; ') + '. Fix the address with Edit and it will be looked up again.' : '';
+    }
+  }
+
+  // Nominatim asks for at most one lookup a second, so these go one by one.
+  function geocodeMissing() {
+    if (mapState.geocoding) return;
+    var todo = mapState.pins.map(function (p) { return p.o; }).filter(needsGeo);
+    if (!todo.length) return;
+    mapState.geocoding = true;
+    var i = 0;
+    (function next() {
+      if (i >= todo.length) { mapState.geocoding = false; drawPins(); return; }
+      var o = todo[i++], q = o.address;
+      $('map-msg').textContent = 'Finding addresses on the map… ' + i + ' of ' + todo.length;
+      fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=us&accept-language=en' +
+        '&viewbox=-117.65,33.55,-116.75,32.5&q=' + encodeURIComponent(q))
+        .then(function (r) { if (!r.ok) throw new Error('lookup ' + r.status); return r.json(); })
+        .then(function (hits) {
+          var h = hits && hits[0], lat = h && parseFloat(h.lat), lon = h && parseFloat(h.lon);
+          var found = h && isFinite(lat) && isFinite(lon);
+          return patch(o, { geo: { q: q, lat: found ? lat : null, lon: found ? lon : null } });
+        })
+        .catch(function () {}) // lookup or save failed: it's retried next time the tab renders
+        .then(function () { drawPins(); setTimeout(next, i < todo.length ? 1100 : 0); });
+    })();
+  }
+
   function showTab(which) {
     var deliv = which === 'deliv';
     $('view-orders').hidden = deliv; $('view-deliv').hidden = !deliv;
     $('tab-orders').setAttribute('aria-pressed', String(!deliv)); $('tab-deliv').setAttribute('aria-pressed', String(deliv));
     try { sessionStorage.setItem('cb-admin-tab', which); } catch (e) {}
+    if (deliv) updateMap();
   }
 
   // ---- Bulk download: every design file for the orders currently shown ----

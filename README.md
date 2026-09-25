@@ -102,6 +102,9 @@ Each day lists drop-offs in route order (reorder with ↑/↓) plus pickups, wit
 an "Open route in Maps" link (Google Maps, starting from where you are), a
 printable run sheet, an "Email time" button that drafts the customer email,
 and "Delivered" / "Picked up" to mark it done (undo within 14 days).
+A map at the top pins every drop-off still to do, colored by day and numbered
+in route order. Each address is looked up once with OpenStreetMap's Nominatim
+and the position is saved on the order; editing the address looks it up again.
 
 - `api/order.js` saves a request (called by the quote form next to the email).
 - `api/orders.js` lists / updates / deletes; every call needs the password.
