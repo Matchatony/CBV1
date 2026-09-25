@@ -210,10 +210,14 @@
 
   // PATCHes go out one at a time: the server does read-modify-write per order,
   // so two overlapping edits to the same order could otherwise drop one.
-  var queue = Promise.resolve();
+  // Only the last queued reply for an order is copied back, so an older reply
+  // can't briefly undo a newer optimistic change (e.g. fast ↑/↓ clicks).
+  var queue = Promise.resolve(), pending = {};
   function patch(o, changes) {
+    pending[o.id] = (pending[o.id] || 0) + 1;
     var p = queue.then(function () { return api('PATCH', Object.assign({ id: o.id }, changes)); })
-      .then(function (j) { Object.assign(o, j.order); return o; });
+      .then(function (j) { if (!--pending[o.id]) Object.assign(o, j.order); return o; },
+            function (err) { --pending[o.id]; throw err; });
     queue = p.catch(function () {});
     return p;
   }
@@ -324,7 +328,7 @@
     card.appendChild(el('div', { class: 'order-head' }, [toggle, statusSelect(o, card)]));
     var body = el('div', { class: 'body', id: bodyId, hidden: '' }, [
       el('dl', { class: 'facts' }, [].concat(
-        fact('Email', el('a', { href: 'mailto:' + o.email + '?subject=' + encodeURIComponent('Your Crackbotics quote'), text: o.email })),
+        fact('Email', el('a', { href: mailto(o.email) + '?subject=' + encodeURIComponent('Your Crackbotics quote'), text: o.email })),
         fact('Team', o.team ? 'FTC ' + o.team : ''),
         fact('Part', o.part),
         fact('Price', o.price),
@@ -407,6 +411,9 @@
   function byStop(a, b) { return (a.delivery_stop || 999) - (b.delivery_stop || 999) || (a.createdAt < b.createdAt ? -1 : 1); }
   function byWindow(a, b) { return String(a.delivery_window || '~').localeCompare(String(b.delivery_window || '~')) || (a.createdAt < b.createdAt ? -1 : 1); }
 
+  // Percent-encodes the address so an email typed as "a@b.co?bcc=…" can't add recipients or fields.
+  function mailto(email) { return 'mailto:' + encodeURIComponent(email || '').replace(/%40/g, '@'); }
+
   function customerMail(o) {
     var del = o.delivery === 'delivery', when = dayLabel(o.delivery_date) + (o.delivery_window ? ', ' + o.delivery_window : '');
     var body = 'Hi ' + (o.name || '').split(' ')[0] + ',\n\n' +
@@ -414,7 +421,7 @@
       (del ? ' is scheduled for delivery on ' + when + ', to:\n' + (o.address || '') + '\n\n'
            : ' will be ready for pickup on ' + when + '.\n\n') +
       'Reply to this email if that time doesn\'t work and we\'ll find another.\n\n— Crackbotics';
-    return 'mailto:' + o.email + '?subject=' + encodeURIComponent('Your Crackbotics ' + (del ? 'delivery' : 'pickup') + ' — ' + when) +
+    return mailto(o.email) + '?subject=' + encodeURIComponent('Your Crackbotics ' + (del ? 'delivery' : 'pickup') + ' — ' + when) +
       '&body=' + encodeURIComponent(body);
   }
 
@@ -453,7 +460,7 @@
       ]),
       addr,
       el('div', { class: 'meta', text: [o.team ? 'FTC ' + o.team : '', o.part_type, o.price, o.delivery_window ? 'Window ' + o.delivery_window : ''].filter(Boolean).join(' · ') }),
-      el('div', { class: 'meta' }, [el('a', { href: 'mailto:' + o.email, text: o.email })]),
+      el('div', { class: 'meta' }, [el('a', { href: mailto(o.email), text: o.email })]),
       el('div', { class: 'print-only meta', text: '☐ ' + (del ? 'Delivered' : 'Picked up') + '    ☐ Paid' })
     ]));
 

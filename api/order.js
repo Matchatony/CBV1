@@ -13,6 +13,7 @@ export async function POST(request) {
   if (raw.length > 32_000) return Response.json({ error: 'Too large' }, { status: 413 });
   let body;
   try { body = JSON.parse(raw); } catch { return Response.json({ error: 'Invalid request' }, { status: 400 }); }
+  if (!body || typeof body !== 'object') return Response.json({ error: 'Invalid request' }, { status: 400 });
   if (body._honey) return Response.json({ ok: true });
 
   const order = { id: newId(), createdAt: new Date().toISOString(), status: 'new', notes: '' };

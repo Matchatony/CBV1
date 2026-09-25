@@ -19,7 +19,7 @@ export async function PATCH(request) {
   if (!(await isAdmin(request))) return denied();
   let body;
   try { body = await request.json(); } catch { return Response.json({ error: 'Invalid request' }, { status: 400 }); }
-  if (!isValidId(body.id)) return Response.json({ error: 'Bad id' }, { status: 400 });
+  if (!body || !isValidId(body.id)) return Response.json({ error: 'Bad id' }, { status: 400 });
   const changes = {};
   if (body.status !== undefined) {
     if (!STATUSES.includes(body.status)) return Response.json({ error: 'Bad status' }, { status: 400 });
@@ -29,7 +29,9 @@ export async function PATCH(request) {
   // Delivery planning (the Deliveries tab): day, time window, stop order, address fixes.
   if (body.delivery_date !== undefined) {
     const d = String(body.delivery_date);
-    if (d && !(/^\d{4}-\d{2}-\d{2}$/.test(d) && !isNaN(Date.parse(d)))) return Response.json({ error: 'Bad date' }, { status: 400 });
+    // Round-trip check so impossible days like 2026-02-30 are refused, not rolled over.
+    const real = /^\d{4}-\d{2}-\d{2}$/.test(d) && !isNaN(Date.parse(d)) && new Date(d + 'T00:00:00Z').toISOString().slice(0, 10) === d;
+    if (d && !real) return Response.json({ error: 'Bad date' }, { status: 400 });
     changes.delivery_date = d;
   }
   if (body.delivery_window !== undefined) changes.delivery_window = String(body.delivery_window).trim().slice(0, 40);
@@ -48,7 +50,7 @@ export async function DELETE(request) {
   if (!(await isAdmin(request))) return denied();
   let body;
   try { body = await request.json(); } catch { return Response.json({ error: 'Invalid request' }, { status: 400 }); }
-  if (!isValidId(body.id)) return Response.json({ error: 'Bad id' }, { status: 400 });
+  if (!body || !isValidId(body.id)) return Response.json({ error: 'Bad id' }, { status: 400 });
   const ok = await deleteOrder(body.id, { withFile: body.withFile === true });
   return ok ? Response.json({ ok: true }) : Response.json({ error: 'Not found' }, { status: 404 });
 }
