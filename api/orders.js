@@ -26,6 +26,20 @@ export async function PATCH(request) {
     changes.status = body.status;
   }
   if (body.notes !== undefined) changes.notes = String(body.notes).slice(0, 4000);
+  // Delivery planning (the Deliveries tab): day, time window, stop order, address fixes.
+  if (body.delivery_date !== undefined) {
+    const d = String(body.delivery_date);
+    if (d && !(/^\d{4}-\d{2}-\d{2}$/.test(d) && !isNaN(Date.parse(d)))) return Response.json({ error: 'Bad date' }, { status: 400 });
+    changes.delivery_date = d;
+  }
+  if (body.delivery_window !== undefined) changes.delivery_window = String(body.delivery_window).trim().slice(0, 40);
+  if (body.delivery_stop !== undefined) {
+    const n = Number(body.delivery_stop);
+    if (!Number.isInteger(n) || n < 0 || n > 999) return Response.json({ error: 'Bad stop number' }, { status: 400 });
+    changes.delivery_stop = n;
+  }
+  if (body.address !== undefined) changes.address = String(body.address).trim().slice(0, 300);
+  if (body.delivered !== undefined) changes.delivered_at = body.delivered === true ? new Date().toISOString() : '';
   const order = await updateOrder(body.id, changes);
   return order ? Response.json({ order }, { headers: noStore }) : Response.json({ error: 'Not found' }, { status: 404 });
 }

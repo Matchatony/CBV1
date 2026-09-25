@@ -93,6 +93,15 @@ Sign in with the `ADMIN_PASSWORD` set in Vercel → Settings → Environment
 Variables. There you can see every order, download its design file, set a
 status (New → Quoted → Paid → In progress → Ready → Done / Cancelled), keep
 private notes, search, filter, and delete an order (optionally with its file).
+**Download files** saves the design files for the orders on screen as one ZIP,
+with an `orders.csv` index.
+
+The **Deliveries** tab plans handoffs. Paid, in-progress and ready orders land
+in "Needs a date"; give each a day and time window, and it moves to that day.
+Each day lists drop-offs in route order (reorder with ↑/↓) plus pickups, with
+an "Open route in Maps" link (Google Maps, starting from where you are), a
+printable run sheet, an "Email time" button that drafts the customer email,
+and "Delivered" / "Picked up" to mark it done (undo within 14 days).
 
 - `api/order.js` saves a request (called by the quote form next to the email).
 - `api/orders.js` lists / updates / deletes; every call needs the password.

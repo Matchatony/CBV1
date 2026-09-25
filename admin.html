@@ -19,7 +19,7 @@
   .card { background: var(--bg-raised); border: 1px solid var(--line); border-radius: 8px; padding: 20px; }
   .login { max-width: 380px; }
   .login label { display: block; font-family: var(--mono); font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); margin-bottom: 8px; }
-  .admin input[type="password"], .admin input[type="search"], .admin select, .admin textarea {
+  .admin input[type="password"], .admin input[type="search"], .admin input[type="text"], .admin input[type="date"], .admin select, .admin textarea {
     font: inherit; font-size: 15px; color: var(--text); background: var(--bg); border: 1px solid var(--line-firm);
     border-radius: 6px; padding: 9px 11px; width: 100%; box-sizing: border-box; }
   .admin textarea { min-height: 80px; resize: vertical; }
@@ -29,7 +29,51 @@
   .admin button.danger { border-color: #c96b7a; color: #f0a4b0; }
   .admin button:disabled { opacity: .5; cursor: default; }
   .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-  .toolbar { display: grid; grid-template-columns: 1fr 190px auto auto; gap: 10px; margin-bottom: 14px; }
+  .toolbar { display: grid; grid-template-columns: 1fr 190px auto; gap: 10px; margin-bottom: 14px; }
+  .tabs { display: flex; align-items: flex-end; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 18px; }
+  .admin .tabs button.tab { border: 0; border-bottom: 2px solid transparent; border-radius: 0; padding: 10px 14px; color: var(--muted); }
+  .admin .tabs button.tab[aria-pressed="true"] { color: var(--text); border-bottom-color: var(--accent); }
+  .tabs #refresh { margin: 0 0 8px auto; }
+  .admin button.sm { font-size: 13px; padding: 5px 10px; }
+  .admin a.btn-link { font-size: 13px; font-weight: 500; padding: 5px 10px; border: 1px solid var(--line-firm); border-radius: 6px; color: var(--text); text-decoration: none; white-space: nowrap; }
+  .deliv-bar { margin-bottom: 18px; color: var(--muted); font-size: 14px; }
+  .deliv-bar label { display: flex; gap: 8px; align-items: center; cursor: pointer; }
+  .day { margin: 0 0 26px; }
+  .day-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 10px; }
+  .day-head h2 { font-size: 18px; margin: 0; }
+  .day-head .row { margin-left: auto; }
+  .tag { font-family: var(--mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+  .tag.today { color: var(--accent); }
+  .tag.late { color: #f0a4b0; }
+  .sub { font-family: var(--mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); margin: 14px 0 8px; }
+  .stops { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  .stop { background: var(--bg-raised); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px;
+    display: grid; grid-template-columns: 44px 1fr auto; gap: 6px 12px; align-items: start; }
+  .stop-num { font-family: var(--mono); font-size: 20px; line-height: 1.2; color: var(--accent); display: grid; gap: 4px; justify-items: start; }
+  .stop-num .move { display: flex; gap: 2px; }
+  .admin .stop-num .move button { padding: 1px 6px; font-size: 12px; line-height: 1.4; }
+  .stop-main { display: grid; gap: 3px; font-size: 14px; min-width: 0; }
+  .stop-main .who-line { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+  .stop-main .who-line b { font-size: 15px; }
+  .stop-main .meta { color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+  .stop-main a { color: var(--accent); overflow-wrap: anywhere; }
+  .stop-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+  .st { font-family: var(--mono); font-size: 11px; letter-spacing: .05em; text-transform: uppercase; padding: 1px 6px; border-radius: 4px; border: 1px solid var(--line-firm); color: var(--muted); }
+  .st.ready { color: #7fd8d8; border-color: #7fd8d8; }
+  .st.early { color: #f2c27b; border-color: #f2c27b; }
+  .edit { grid-column: 1 / -1; display: grid; grid-template-columns: 170px 170px 1fr; gap: 8px; align-items: end; margin-top: 6px; }
+  .edit[hidden] { display: none; }
+  .edit label { display: grid; gap: 4px; font-family: var(--mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--faint); }
+  .edit .row { grid-column: 1 / -1; }
+  .print-only { display: none; }
+  @media print {
+    body.printing { background: #fff !important; }
+    body.printing * { color: #000 !important; background: transparent !important; box-shadow: none !important; }
+    body.printing .admin-head, body.printing .tabs, body.printing #app-msg, body.printing #view-orders, body.printing .deliv-bar,
+    body.printing .day:not(.print-me), body.printing .no-print, body.printing .stop-actions, body.printing .move, body.printing .edit { display: none !important; }
+    body.printing .stop { border: 1px solid #888 !important; break-inside: avoid; grid-template-columns: 44px 1fr; }
+    body.printing .print-only { display: block; }
+  }
   .counts { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
   .chip { font-family: var(--mono); font-size: 12px; padding: 4px 10px; border-radius: 99px; border: 1px solid var(--line-firm); color: var(--muted); background: none; }
   .chip b { color: var(--text); font-weight: 500; }
@@ -66,6 +110,13 @@
     background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 12px; }
   .empty { color: var(--muted); padding: 30px 0; text-align: center; }
   @media (max-width: 760px) {
+    .stop { grid-template-columns: 40px 1fr; }
+    .admin .stop-num .move { flex-direction: column; gap: 6px; }
+    .admin .stop-num .move button { padding: 6px 11px; font-size: 14px; }
+    .stop-actions { grid-column: 1 / -1; justify-content: flex-start; }
+    .edit { grid-template-columns: 1fr 1fr; }
+    .edit .addr-field { grid-column: 1 / -1; }
+    .day-head .row { margin-left: 0; }
     .toolbar { grid-template-columns: 1fr 1fr; }
     .toolbar #q, .toolbar #filter { grid-column: 1 / -1; }
     .order-head { grid-template-columns: 1fr; padding: 0 16px 14px 0; }
@@ -95,15 +146,27 @@
   </form>
 
   <section id="app" hidden>
-    <div class="toolbar">
-      <input type="search" id="q" placeholder="Search name, team, email, part, notes…" aria-label="Search orders">
-      <select id="filter" aria-label="Filter by status"></select>
+    <div class="tabs">
+      <button type="button" class="tab" id="tab-orders" aria-pressed="true">Orders</button>
+      <button type="button" class="tab" id="tab-deliv" aria-pressed="false">Deliveries</button>
       <button type="button" id="refresh">Refresh</button>
-      <button type="button" id="dl-all" disabled>Download files</button>
     </div>
-    <div class="counts" id="counts"></div>
     <p class="msg" id="app-msg" role="status"></p>
-    <div class="orders" id="orders"></div>
+    <div id="view-orders">
+      <div class="toolbar">
+        <input type="search" id="q" placeholder="Search name, team, email, part, notes…" aria-label="Search orders">
+        <select id="filter" aria-label="Filter by status"></select>
+        <button type="button" id="dl-all" disabled>Download files</button>
+      </div>
+      <div class="counts" id="counts"></div>
+      <div class="orders" id="orders"></div>
+    </div>
+    <div id="view-deliv" hidden>
+      <div class="row deliv-bar">
+        <label><input type="checkbox" id="with-pickups" checked> Include pickups</label>
+      </div>
+      <div id="deliv"></div>
+    </div>
   </section>
 </main>
 
@@ -145,6 +208,19 @@
     });
   }
 
+  // PATCHes go out one at a time: the server does read-modify-write per order,
+  // so two overlapping edits to the same order could otherwise drop one.
+  var queue = Promise.resolve();
+  function patch(o, changes) {
+    var p = queue.then(function () { return api('PATCH', Object.assign({ id: o.id }, changes)); })
+      .then(function (j) { Object.assign(o, j.order); return o; });
+    queue = p.catch(function () {});
+    return p;
+  }
+  function failed(what) {
+    return function (err) { if (err.message !== 'unauthorized') say('app-msg', 'Couldn\'t ' + what + ': ' + err.message, true); };
+  }
+
   function say(id, text, bad) { $(id).textContent = text; $(id).className = 'msg' + (bad ? ' bad' : ''); }
 
   function signOut(message) {
@@ -181,8 +257,8 @@
     sel.addEventListener('change', function () {
       var prev = order.status;
       sel.disabled = true;
-      api('PATCH', { id: order.id, status: sel.value }).then(function (j) {
-        Object.assign(order, j.order);
+      patch(order, { status: sel.value }).then(function () {
+        renderDeliveries();
         card.className = 'order s-' + order.status + (card.classList.contains('open') ? ' open' : '');
         renderCounts();
       }).catch(function (err) {
@@ -211,8 +287,8 @@
     var saveNotes = el('button', { type: 'button', text: 'Save notes' });
     saveNotes.addEventListener('click', function () {
       saveNotes.disabled = true;
-      api('PATCH', { id: o.id, notes: notes.value }).then(function (j) {
-        Object.assign(o, j.order); saveNotes.textContent = 'Saved';
+      patch(o, { notes: notes.value }).then(function () {
+        saveNotes.textContent = 'Saved';
         setTimeout(function () { saveNotes.textContent = 'Save notes'; }, 1500);
       }).catch(function (err) {
         if (err.message !== 'unauthorized') say('app-msg', 'Couldn\'t save notes: ' + err.message, true);
@@ -254,6 +330,8 @@
         fact('Price', o.price),
         fact('Delivery', o.delivery === 'delivery' ? 'Local delivery' + (o.address ? ' — ' + o.address : ' (no address)') : 'Pickup'),
         fact('Design file', fileNode),
+        fact(o.delivery === 'delivery' ? 'Delivery date' : 'Pickup date', o.delivered_at ? 'Handed over ' + new Date(o.delivered_at).toLocaleString()
+          : o.delivery_date ? dayLabel(o.delivery_date) + (o.delivery_window ? ', ' + o.delivery_window : '') : ''),
         fact('Customer notes', o.details),
         fact('Received', new Date(o.createdAt).toLocaleString()),
         fact('Last updated', o.updatedAt ? new Date(o.updatedAt).toLocaleString() : '')
@@ -284,6 +362,7 @@
 
   function render() {
     renderCounts();
+    renderDeliveries();
     var term = $('q').value.trim().toLowerCase(), f = $('filter').value;
     var list = state.orders.filter(function (o) {
       if (f === 'open' && OPEN.indexOf(o.status) === -1) return false;
@@ -301,6 +380,226 @@
     var box = $('orders'); box.textContent = '';
     if (!list.length) box.appendChild(el('p', { class: 'empty', text: state.orders.length ? 'No orders match.' : 'No orders yet.' }));
     list.forEach(function (o) { box.appendChild(orderCard(o)); });
+  }
+
+  // ---- Deliveries: schedule handoffs by day, order the stops, route them ----
+  var COMMITTED = ['paid', 'in-progress', 'ready'];
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function ymd(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+  function dayLabel(s) {
+    var p = String(s).split('-'), d = new Date(+p[0], +p[1] - 1, +p[2]);
+    return isNaN(d) ? s : d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+  }
+  function mapsSearch(addr) { return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(addr); }
+  // Google Maps takes a destination plus up to 9 waypoints per link, starting from
+  // wherever you are; longer runs are split into legs that chain end-to-start.
+  function routeLinks(addrs) {
+    var links = [];
+    for (var k = 0; k < addrs.length; k += 10) {
+      var leg = addrs.slice(k, k + 10).map(function (a) { return a.replace(/\|/g, ' '); });
+      var u = 'https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=' + encodeURIComponent(leg[leg.length - 1]);
+      if (k) u += '&origin=' + encodeURIComponent(addrs[k - 1].replace(/\|/g, ' '));
+      if (leg.length > 1) u += '&waypoints=' + encodeURIComponent(leg.slice(0, -1).join('|'));
+      links.push(u);
+    }
+    return links;
+  }
+  function byStop(a, b) { return (a.delivery_stop || 999) - (b.delivery_stop || 999) || (a.createdAt < b.createdAt ? -1 : 1); }
+  function byWindow(a, b) { return String(a.delivery_window || '~').localeCompare(String(b.delivery_window || '~')) || (a.createdAt < b.createdAt ? -1 : 1); }
+
+  function customerMail(o) {
+    var del = o.delivery === 'delivery', when = dayLabel(o.delivery_date) + (o.delivery_window ? ', ' + o.delivery_window : '');
+    var body = 'Hi ' + (o.name || '').split(' ')[0] + ',\n\n' +
+      'Your Crackbotics order' + (o.part_type ? ' (' + o.part_type + ')' : '') +
+      (del ? ' is scheduled for delivery on ' + when + ', to:\n' + (o.address || '') + '\n\n'
+           : ' will be ready for pickup on ' + when + '.\n\n') +
+      'Reply to this email if that time doesn\'t work and we\'ll find another.\n\n— Crackbotics';
+    return 'mailto:' + o.email + '?subject=' + encodeURIComponent('Your Crackbotics ' + (del ? 'delivery' : 'pickup') + ' — ' + when) +
+      '&body=' + encodeURIComponent(body);
+  }
+
+  function reorder(list, idx, dir) {
+    var j = idx + dir;
+    if (j < 0 || j >= list.length) return;
+    var arr = list.slice(), t = arr[idx]; arr[idx] = arr[j]; arr[j] = t;
+    var jobs = [];
+    arr.forEach(function (o, i) { if (o.delivery_stop !== i + 1) { o.delivery_stop = i + 1; jobs.push(o); } });
+    renderDeliveries();
+    jobs.forEach(function (o) { patch(o, { delivery_stop: o.delivery_stop }).catch(function (err) { failed('save the stop order')(err); load(); }); });
+  }
+
+  function stopItem(o, ctx) {
+    var del = o.delivery === 'delivery';
+    var li = el('li', { class: 'stop' });
+    var num = el('div', { class: 'stop-num' });
+    if (ctx.list) {
+      num.appendChild(el('span', { text: String(ctx.idx + 1) }));
+      var up = el('button', { type: 'button', class: 'sm', text: '↑', 'aria-label': 'Move ' + o.name + ' earlier', onclick: function () { reorder(ctx.list, ctx.idx, -1); } });
+      var down = el('button', { type: 'button', class: 'sm', text: '↓', 'aria-label': 'Move ' + o.name + ' later', onclick: function () { reorder(ctx.list, ctx.idx, 1); } });
+      up.disabled = ctx.idx === 0; down.disabled = ctx.idx === ctx.list.length - 1;
+      num.appendChild(el('div', { class: 'move' }, [up, down]));
+    }
+    li.appendChild(num);
+
+    var ready = o.status === 'ready';
+    var addr = del
+      ? (o.address ? el('a', { href: mapsSearch(o.address), target: '_blank', rel: 'noopener', text: o.address })
+                   : el('span', { class: 'warn', text: 'No address — use Edit to add one' }))
+      : el('span', { class: 'meta', text: 'Pickup' });
+    li.appendChild(el('div', { class: 'stop-main' }, [
+      el('div', { class: 'who-line' }, [
+        el('b', { text: o.name }),
+        el('span', { class: 'st' + (ready ? ' ready' : ctx.scheduled && !ready ? ' early' : ''), text: LABELS[o.status] || o.status })
+      ]),
+      addr,
+      el('div', { class: 'meta', text: [o.team ? 'FTC ' + o.team : '', o.part_type, o.price, o.delivery_window ? 'Window ' + o.delivery_window : ''].filter(Boolean).join(' · ') }),
+      el('div', { class: 'meta' }, [el('a', { href: 'mailto:' + o.email, text: o.email })]),
+      el('div', { class: 'print-only meta', text: '☐ ' + (del ? 'Delivered' : 'Picked up') + '    ☐ Paid' })
+    ]));
+
+    // Inline editor: day, time window, address.
+    var date = el('input', { type: 'date', 'aria-label': 'Date for ' + o.name }); date.value = o.delivery_date || '';
+    var win = el('input', { type: 'text', maxlength: '40', placeholder: 'e.g. 4–6 pm', 'aria-label': 'Time window for ' + o.name }); win.value = o.delivery_window || '';
+    var addrIn = el('input', { type: 'text', maxlength: '300', 'aria-label': 'Address for ' + o.name }); addrIn.value = o.address || '';
+    var save = el('button', { type: 'button', class: 'primary sm', text: 'Save' });
+    var edit = el('div', { class: 'edit', hidden: '' }, [
+      el('label', {}, ['Date', date]),
+      el('label', {}, ['Time window', win]),
+      del ? el('label', { class: 'addr-field' }, ['Address', addrIn]) : null,
+      el('div', { class: 'row' }, [save,
+        o.delivery_date ? el('button', { type: 'button', class: 'sm', text: 'Unschedule', onclick: function () {
+          patch(o, { delivery_date: '', delivery_stop: 0 }).then(render, failed('unschedule'));
+        } }) : null])
+    ]);
+    save.addEventListener('click', function () {
+      if (!date.value) { date.focus(); say('app-msg', 'Pick a date first.', true); return; }
+      var changes = { delivery_date: date.value, delivery_window: win.value };
+      if (del) changes.address = addrIn.value;
+      if (date.value !== o.delivery_date) {
+        // New day: go to the end of that day's route.
+        changes.delivery_stop = state.orders.filter(function (x) { return x !== o && x.delivery_date === date.value; })
+          .reduce(function (m, x) { return Math.max(m, x.delivery_stop || 0); }, 0) + 1;
+      }
+      save.disabled = true;
+      patch(o, changes).then(function () { say('app-msg', ''); render(); }, function (err) { save.disabled = false; failed('save')(err); });
+    });
+
+    var toggle = el('button', { type: 'button', class: 'sm', 'aria-expanded': 'false', text: o.delivery_date ? 'Edit' : 'Schedule' });
+    toggle.addEventListener('click', function () {
+      var open = edit.hidden; edit.hidden = !open; toggle.setAttribute('aria-expanded', String(open));
+      if (open) (o.delivery_date ? win : date).focus();
+    });
+    var actions = el('div', { class: 'stop-actions' }, [toggle]);
+    if (o.delivery_date) actions.appendChild(el('a', { class: 'btn-link', href: customerMail(o), text: 'Email time' }));
+    if (o.delivery_date) {
+      var done = el('button', { type: 'button', class: 'sm', text: del ? 'Delivered' : 'Picked up' });
+      done.addEventListener('click', function () {
+        done.disabled = true;
+        patch(o, { status: 'done', delivered: true }).then(render, function (err) { done.disabled = false; failed('mark it done')(err); });
+      });
+      actions.appendChild(done);
+    }
+    li.appendChild(actions);
+    li.appendChild(edit);
+    return li;
+  }
+
+  function printDay(dayEl) {
+    function clean() {
+      document.body.classList.remove('printing');
+      [].forEach.call(document.querySelectorAll('.print-me'), function (n) { n.classList.remove('print-me'); });
+    }
+    clean();
+    document.body.classList.add('printing'); dayEl.classList.add('print-me');
+    window.addEventListener('afterprint', clean, { once: true });
+    window.print();
+  }
+
+  function renderDeliveries() {
+    var box = $('deliv');
+    if (!box) return;
+    var withPickups = $('with-pickups').checked, today = ymd(new Date());
+    var mine = state.orders.filter(function (o) { return withPickups || o.delivery === 'delivery'; });
+    var active = mine.filter(function (o) {
+      return o.status !== 'done' && o.status !== 'cancelled' && (o.delivery_date || COMMITTED.indexOf(o.status) !== -1);
+    });
+    var waiting = mine.filter(function (o) { return !o.delivery_date && (o.status === 'new' || o.status === 'quoted'); }).length;
+    var twoWeeks = Date.now() - 14 * 864e5;
+    var recent = mine.filter(function (o) { return o.status === 'done' && o.delivered_at && Date.parse(o.delivered_at) > twoWeeks; })
+      .sort(function (a, b) { return a.delivered_at < b.delivered_at ? 1 : -1; });
+    $('tab-deliv').textContent = 'Deliveries' + (active.length ? ' (' + active.length + ')' : '');
+    box.textContent = '';
+
+    var unscheduled = active.filter(function (o) { return !o.delivery_date; })
+      .sort(function (a, b) { return a.createdAt < b.createdAt ? -1 : 1; });
+    if (unscheduled.length) {
+      var ul = el('ul', { class: 'stops' });
+      unscheduled.forEach(function (o) { ul.appendChild(stopItem(o, {})); });
+      box.appendChild(el('section', { class: 'day' }, [
+        el('div', { class: 'day-head' }, [el('h2', { text: 'Needs a date' }), el('span', { class: 'tag', text: unscheduled.length + ' to schedule' })]),
+        ul]));
+    }
+
+    var days = {};
+    active.forEach(function (o) { if (o.delivery_date) (days[o.delivery_date] = days[o.delivery_date] || []).push(o); });
+    Object.keys(days).sort().forEach(function (d) {
+      var drops = days[d].filter(function (o) { return o.delivery === 'delivery'; }).sort(byStop);
+      var pickups = days[d].filter(function (o) { return o.delivery !== 'delivery'; }).sort(byWindow);
+      var section = el('section', { class: 'day' });
+      var tools = el('div', { class: 'row no-print' });
+      var addrs = drops.map(function (o) { return o.address; }).filter(Boolean);
+      routeLinks(addrs).forEach(function (u, i, all) {
+        tools.appendChild(el('a', { class: 'btn-link', href: u, target: '_blank', rel: 'noopener',
+          text: all.length > 1 ? 'Route part ' + (i + 1) + ' of ' + all.length : 'Open route in Maps' }));
+      });
+      tools.appendChild(el('button', { type: 'button', class: 'sm', text: 'Print run sheet', onclick: function () { printDay(section); } }));
+      var tag = d < today ? el('span', { class: 'tag late', text: 'Overdue' }) : d === today ? el('span', { class: 'tag today', text: 'Today' }) : null;
+      section.appendChild(el('div', { class: 'day-head' }, [el('h2', { text: dayLabel(d) }), tag,
+        el('span', { class: 'tag', text: [drops.length ? drops.length + ' drop-off' + (drops.length === 1 ? '' : 's') : '', pickups.length ? pickups.length + ' pickup' + (pickups.length === 1 ? '' : 's') : ''].filter(Boolean).join(' · ') }),
+        tools]));
+      if (drops.length) {
+        var ol = el('ol', { class: 'stops' });
+        drops.forEach(function (o, i) { ol.appendChild(stopItem(o, { list: drops, idx: i, scheduled: true })); });
+        if (pickups.length) section.appendChild(el('p', { class: 'sub', text: 'Drop-offs, in route order' }));
+        section.appendChild(ol);
+      }
+      if (pickups.length) {
+        var pl = el('ul', { class: 'stops' });
+        pickups.forEach(function (o) { pl.appendChild(stopItem(o, { scheduled: true })); });
+        section.appendChild(el('p', { class: 'sub', text: 'Pickups' }));
+        section.appendChild(pl);
+      }
+      box.appendChild(section);
+    });
+
+    if (!active.length) box.appendChild(el('p', { class: 'empty', text: 'Nothing to deliver right now.' }));
+    if (waiting) box.appendChild(el('p', { class: 'msg no-print', text: waiting + ' more ' + (withPickups ? 'order' : 'delivery request') + (waiting === 1 ? ' is' : 's are') +
+      ' still New or Quoted. They show up here once you mark them Paid, In progress or Ready.' }));
+
+    if (recent.length) {
+      var rl = el('ul', { class: 'stops' });
+      recent.forEach(function (o) {
+        var undo = el('button', { type: 'button', class: 'sm', text: 'Undo' });
+        undo.addEventListener('click', function () {
+          undo.disabled = true;
+          patch(o, { status: 'ready', delivered: false }).then(render, function (err) { undo.disabled = false; failed('undo')(err); });
+        });
+        rl.appendChild(el('li', { class: 'stop' }, [
+          el('div', { class: 'stop-num', text: '✓' }),
+          el('div', { class: 'stop-main' }, [el('b', { text: o.name }),
+            el('span', { class: 'meta', text: (o.delivery === 'delivery' ? 'Delivered ' : 'Picked up ') + new Date(o.delivered_at).toLocaleString() + (o.address && o.delivery === 'delivery' ? ' · ' + o.address : '') })]),
+          el('div', { class: 'stop-actions' }, [undo])
+        ]));
+      });
+      box.appendChild(el('section', { class: 'day no-print' }, [el('div', { class: 'day-head' }, [el('h2', { text: 'Handed over, last 14 days' })]), rl]));
+    }
+  }
+
+  function showTab(which) {
+    var deliv = which === 'deliv';
+    $('view-orders').hidden = deliv; $('view-deliv').hidden = !deliv;
+    $('tab-orders').setAttribute('aria-pressed', String(!deliv)); $('tab-deliv').setAttribute('aria-pressed', String(deliv));
+    try { sessionStorage.setItem('cb-admin-tab', which); } catch (e) {}
   }
 
   // ---- Bulk download: every design file for the orders currently shown ----
@@ -421,6 +720,10 @@
   $('signout').addEventListener('click', function () { signOut(''); });
   $('refresh').addEventListener('click', load);
   $('dl-all').addEventListener('click', downloadAll);
+  $('tab-orders').addEventListener('click', function () { showTab('orders'); });
+  $('tab-deliv').addEventListener('click', function () { showTab('deliv'); });
+  $('with-pickups').addEventListener('change', renderDeliveries);
+  try { if (sessionStorage.getItem('cb-admin-tab') === 'deliv') showTab('deliv'); } catch (e) {}
   $('q').addEventListener('input', render);
   $('filter').addEventListener('change', render);
 
