@@ -29,7 +29,7 @@
   .admin button.danger { border-color: #c96b7a; color: #f0a4b0; }
   .admin button:disabled { opacity: .5; cursor: default; }
   .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-  .toolbar { display: grid; grid-template-columns: 1fr 190px auto; gap: 10px; margin-bottom: 14px; }
+  .toolbar { display: grid; grid-template-columns: 1fr 190px auto auto; gap: 10px; margin-bottom: 14px; }
   .counts { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
   .chip { font-family: var(--mono); font-size: 12px; padding: 4px 10px; border-radius: 99px; border: 1px solid var(--line-firm); color: var(--muted); background: none; }
   .chip b { color: var(--text); font-weight: 500; }
@@ -66,7 +66,8 @@
     background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 12px; }
   .empty { color: var(--muted); padding: 30px 0; text-align: center; }
   @media (max-width: 760px) {
-    .toolbar { grid-template-columns: 1fr; }
+    .toolbar { grid-template-columns: 1fr 1fr; }
+    .toolbar #q, .toolbar #filter { grid-column: 1 / -1; }
     .order-head { grid-template-columns: 1fr; padding: 0 16px 14px 0; }
     .order-head .status-select { margin-left: 16px; width: calc(100% - 16px); }
     .admin button.toggle { grid-template-columns: 1fr auto; }
@@ -98,6 +99,7 @@
       <input type="search" id="q" placeholder="Search name, team, email, part, notes…" aria-label="Search orders">
       <select id="filter" aria-label="Filter by status"></select>
       <button type="button" id="refresh">Refresh</button>
+      <button type="button" id="dl-all" disabled>Download files</button>
     </div>
     <div class="counts" id="counts"></div>
     <p class="msg" id="app-msg" role="status"></p>
@@ -289,9 +291,125 @@
       if (!term) return true;
       return [o.name, o.team, o.email, o.part_type, o.part, o.details, o.notes, o.address].join(' ').toLowerCase().indexOf(term) !== -1;
     });
+    state.shown = list;
+    var n = filesIn(list).length, dl = $('dl-all');
+    if (!state.downloading) {
+      dl.textContent = 'Download files (' + n + ')';
+      dl.disabled = !n;
+    }
+    dl.title = 'Download the design files for the ' + list.length + ' order' + (list.length === 1 ? '' : 's') + ' shown, as one ZIP';
     var box = $('orders'); box.textContent = '';
     if (!list.length) box.appendChild(el('p', { class: 'empty', text: state.orders.length ? 'No orders match.' : 'No orders yet.' }));
     list.forEach(function (o) { box.appendChild(orderCard(o)); });
+  }
+
+  // ---- Bulk download: every design file for the orders currently shown ----
+  function filesIn(list) { return list.filter(function (o) { return /^https:\/\//.test(o.design_file); }); }
+
+  function loadZipLib() {
+    if (window.fflate) return Promise.resolve(window.fflate);
+    return new Promise(function (resolve, reject) {
+      var s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js';
+      s.onload = function () { window.fflate ? resolve(window.fflate) : reject(new Error('ZIP library didn\'t load')); };
+      s.onerror = function () { reject(new Error('ZIP library didn\'t load')); };
+      document.head.appendChild(s);
+    });
+  }
+
+  function safeName(s) {
+    return String(s || '').replace(/[\\/:*?"<>|\x00-\x1f]+/g, '_').replace(/\s+/g, ' ').trim().slice(0, 80);
+  }
+  function fileNameOf(o) {
+    if (o.file_name) return safeName(o.file_name);
+    try { return safeName(decodeURIComponent(new URL(o.design_file).pathname.split('/').pop())); } catch (e) { return 'design-file'; }
+  }
+  function isoDay(iso) { var d = new Date(iso); return isNaN(d) ? 'undated' : d.toISOString().slice(0, 10); }
+
+  // Quotes every cell, and defuses anything a spreadsheet would run as a formula.
+  function csvCell(v) {
+    v = String(v == null ? '' : v);
+    if (/^[=+\-@\t\r]/.test(v)) v = "'" + v;
+    return '"' + v.replace(/"/g, '""') + '"';
+  }
+
+  function saveBlob(blob, name) {
+    var a = el('a', { href: URL.createObjectURL(blob), download: name });
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 60000);
+  }
+
+  // If the files can't be fetched into a ZIP, hand each one to the browser to download.
+  function downloadOneByOne(list) {
+    var seen = {};
+    list = list.filter(function (o) { return !seen[o.design_file] && (seen[o.design_file] = 1); });
+    var i = 0;
+    (function next() {
+      if (i >= list.length) { say('app-msg', 'Started ' + list.length + ' downloads. If only one arrived, allow multiple downloads for this site and try again.'); return; }
+      // A hidden frame per file: the blob host sends ?download=1 as an attachment, and a
+      // missing file just fails inside the frame instead of navigating this page away.
+      var u = list[i++].design_file;
+      var f = el('iframe', { src: u + (u.indexOf('?') === -1 ? '?' : '&') + 'download=1', hidden: '', title: 'download' });
+      document.body.appendChild(f);
+      setTimeout(function () { f.remove(); }, 60000);
+      setTimeout(next, 700);
+    })();
+  }
+
+  function downloadAll() {
+    var list = filesIn(state.shown || []);
+    if (!list.length) return;
+    var btn = $('dl-all');
+    state.downloading = true; btn.disabled = true; btn.textContent = 'Preparing…';
+    var entries = {}, used = {}, rows = [], missing = [];
+    function finish() { state.downloading = false; render(); }
+
+    loadZipLib().then(function (fflate) {
+      var done = 0, i = 0;
+      function fetchNext() {
+        if (i >= list.length) return Promise.resolve();
+        var o = list[i++];
+        say('app-msg', 'Downloading ' + (done + 1) + ' of ' + list.length + '…');
+        return fetch(o.design_file, { cache: 'no-store' }).then(function (r) {
+          if (!r.ok) { missing.push(o); return null; }
+          return r.arrayBuffer();
+        }, function (err) {
+          // A network/CORS failure on the very first file means none will work — fall back.
+          if (!done && !Object.keys(entries).length) { err.fallback = true; throw err; }
+          missing.push(o); return null;
+        }).then(function (buf) {
+          done++;
+          var fname = fileNameOf(o);
+          var base = isoDay(o.createdAt) + '_' + (safeName(o.name) || 'order') + '_' + fname, name = base, k = 2;
+          while (used[name.toLowerCase()]) { name = base.replace(/(\.[^.]*)?$/, '-' + (k++) + '$1'); }
+          if (buf) { used[name.toLowerCase()] = 1; entries['files/' + name] = new Uint8Array(buf); }
+          rows.push([o.name, o.email, o.team, o.part_type, o.part, o.price, LABELS[o.status] || o.status,
+            o.delivery === 'delivery' ? 'Delivery' : 'Pickup', o.address, buf ? 'files/' + name : 'MISSING (' + fname + ')',
+            new Date(o.createdAt).toLocaleString()]);
+          return fetchNext();
+        });
+      }
+      return fetchNext().then(function () {
+        if (!Object.keys(entries).length) throw new Error('none of the files could be downloaded — they may have been deleted');
+        say('app-msg', 'Zipping…');
+        var head = ['Name', 'Email', 'Team', 'Part type', 'Part', 'Price', 'Status', 'Delivery', 'Address', 'File in ZIP', 'Received'];
+        var csv = [head].concat(rows).map(function (r) { return r.map(csvCell).join(','); }).join('\r\n');
+        entries['orders.csv'] = fflate.strToU8('﻿' + csv);
+        var zip = fflate.zipSync(entries, { level: 6 });
+        var stamp = new Date().toISOString().slice(0, 10);
+        saveBlob(new Blob([zip], { type: 'application/zip' }), 'crackbotics-files-' + stamp + '.zip');
+        var got = list.length - missing.length;
+        say('app-msg', 'Downloaded ' + got + ' file' + (got === 1 ? '' : 's') + ' as a ZIP' +
+          (missing.length ? '. Couldn\'t get ' + missing.length + ' (marked MISSING in orders.csv): ' + missing.map(function (o) { return o.name; }).join(', ') : '.'), !!missing.length);
+      });
+    }).catch(function (err) {
+      if (err && err.fallback || /ZIP library/.test(err && err.message)) {
+        say('app-msg', 'Couldn\'t build a ZIP here — downloading the files one by one instead…');
+        downloadOneByOne(list);
+      } else {
+        say('app-msg', 'Couldn\'t download files: ' + (err && err.message), true);
+      }
+    }).then(finish);
   }
 
   $('login').addEventListener('submit', function (e) {
@@ -302,6 +420,7 @@
   });
   $('signout').addEventListener('click', function () { signOut(''); });
   $('refresh').addEventListener('click', load);
+  $('dl-all').addEventListener('click', downloadAll);
   $('q').addEventListener('input', render);
   $('filter').addEventListener('change', render);
 
