@@ -27,7 +27,7 @@
       <li><a href="index.html#work">Photos</a></li>
       <li><a href="index.html#team">About us</a></li>
     </ul>
-    <a class="btn btn-sm" href="index.html#order">Get a quote</a>
+    <a class="btn btn-sm" href="index.html#quote">Get a quote</a>
   </div>
 </nav>
 
@@ -48,7 +48,7 @@
         <p>
           Crackbotics is an independent, unincorporated student-run business based in
           San Diego, California — not a registered company. This policy covers
-          <strong>crackbotics.com</strong> and the quote form on it. Questions about it
+          this website and the quote form on it. Questions about it
           go to <a href="mailto:crackboticssandiego@gmail.com">crackboticssandiego@gmail.com</a>.
         </p>
       </section>
@@ -61,9 +61,10 @@
           <li><strong>Team number</strong> — optional, helps us route parts for events.</li>
           <li><strong>Part details</strong> — type, material, size, quantity, and the
             options you pick, so we can price and make it.</li>
-          <li><strong>A design file</strong> — required. A DXF, STEP, STL or 3MF you
-            upload so we can quote and cut or print the part. DXF files are measured in
-            your own browser to price the job; the file itself only leaves your computer
+          <li><strong>A design file</strong> — required. A DXF, STEP, STL or 3MF (or a
+            PDF or ZIP for anything else) you upload so we can quote and cut or print the
+            part. DXF, STL and 3MF files are measured in your own browser to price the
+            job; the file itself only leaves your computer
             when you submit the form. It's then stored in our file storage on
             <a href="https://vercel.com" target="_blank" rel="noopener">Vercel</a> (the
             company that hosts this site) under a long, unguessable link, and that link
@@ -120,8 +121,7 @@
         </p>
         <p>
           It only happens if you choose local delivery and type in the address field.
-          Pickup orders never trigger a lookup, and you can leave the address blank and
-          sort delivery out with us by email instead.
+          Pickup orders never trigger a lookup and don't ask for an address at all.
         </p>
       </section>
 
@@ -139,6 +139,17 @@
           privacy policy</a>, not ours.
         </p>
         <p>
+          The page also loads two code libraries from Cloudflare's public library host
+          (<code>cdnjs.cloudflare.com</code>): one draws the 3D file preview and one makes
+          the downloadable quote PDF. If you pick a STEP or 3MF file, the viewer for that
+          format is loaded from <code>cdn.jsdelivr.net</code> at that moment. These are
+          ordinary file downloads, the same way any website loads code; your design file
+          is never sent to them. The site itself is hosted by
+          <a href="https://vercel.com" target="_blank" rel="noopener">Vercel</a>, which, like
+          any web host, handles the basic request details (such as your IP address)
+          needed to deliver the pages to you.
+        </p>
+        <p>
           We don't run Google Analytics, Meta Pixel, or any other analytics or
           advertising script on this site.
         </p>
@@ -152,10 +163,10 @@
           browser's local storage either.
         </p>
         <p>
-          The two third-party services above may behave differently under their own
-          policies: FormSubmit may set a cookie on their own domain when you submit the
+          The third-party services above may behave differently under their own
+          policies: FormSubmit may set a cookie on its own domain when you submit the
           form (only after you choose to submit it), and Google's font delivery is
-          documented as not using cookies for the font request itself. Neither is
+          documented as not using cookies for the font request itself. None of that is
           something we control or read.
         </p>
         <p>
@@ -168,9 +179,10 @@
       <section>
         <h2>How long we keep it</h2>
         <p>
-          We keep quote-request information for as long as it takes to complete your
-          order, plus a limited time after (up to about a year) in case you follow up
-          or need a repeat part. If you'd like it deleted sooner, email us and we will.
+          We keep quote-request information, including your design file, for as long
+          as it takes to complete your order, plus a limited time after (up to about a
+          year) in case you follow up or need a repeat part. If you'd like it deleted
+          sooner, email us and we will.
         </p>
       </section>
 

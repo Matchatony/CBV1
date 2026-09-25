@@ -269,7 +269,7 @@
       <li><span>Payment</span> Venmo, Cash App, or PayPal, arranged by email once a quote is confirmed. We don't take payment on this site.</li>
       <li><span>Pickup or local delivery</span> Free pickup in San Diego, or local delivery for a flat $15.99. We don't ship outside the local area.</li>
       <li><span>Turnaround</span> 1&ndash;3 days is typical, not guaranteed; material availability or order volume can push it out, and we'll say so.</li>
-      <li><span>Cancellations</span> Full refund any time before we start cutting. Once material is cut it isn't refundable, except when we made the mistake.</li>
+      <li><span>Cancellations</span> Full refund any time before we start cutting or printing. Once your part is cut or printed it isn't refundable, except when we made the mistake.</li>
       <li><span>Deburring</span> Included standard, no added charge.</li>
     </ul>
     <p class="hint"><a href="terms.html">Read the full terms &amp; conditions →</a></p>
@@ -621,6 +621,12 @@
       els.address.required = delivering;
     });
   });
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
 
   function money(n) {
     return '$' + n.toFixed(2).replace(/\.00$/, '');
@@ -1373,7 +1379,7 @@
       '</dl>';
     var notesHtml = q.notes.length ? '<ul class="calc-reasons">' + q.notes.map(function (n) { return '<li>' + n + '</li>'; }).join('') + '</ul>' : '';
     return '<p class="calc-headline">' + money(q.total) + '</p>' +
-      '<p class="calc-sub">' + q.qty + ' × ' + q.sizeNote + (q.detailLine ? ', ' + q.detailLine : '') + '</p>' +
+      '<p class="calc-sub">' + q.qty + ' × ' + escapeHtml(q.sizeNote) + (q.detailLine ? ', ' + escapeHtml(q.detailLine) : '') + '</p>' +
       breakdown + notesHtml +
       '<p class="calc-batch">' + q.batch + '</p>' +
       '<p class="calc-fineprint">Estimate from what you entered — confirmed once we see the actual file.</p>';
@@ -1629,7 +1635,7 @@
       'Payment via Venmo, Cash App, or PayPal, arranged by email once confirmed.',
       'Free pickup in San Diego, or local delivery for a flat $15.99. We don\'t ship outside the local area.',
       'Turnaround is typically 1–3 days, not guaranteed. Deburring is included, standard.',
-      'Full refund any time before we start cutting; not refundable once material is cut, except when the mistake is ours. Full terms: see the site\'s Terms & conditions.'
+      'Full refund any time before we start cutting or printing; not refundable once your part is made, except when the mistake is ours. Full terms: see the site\'s Terms & conditions.'
     ].forEach(function (line) { block(line, 13.5); y += 2; });
 
     y += 12;
