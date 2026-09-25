@@ -105,6 +105,10 @@ and "Delivered" / "Picked up" to mark it done (undo within 14 days).
 A map at the top pins every drop-off still to do, colored by day and numbered
 in route order. Each address is looked up once with OpenStreetMap's Nominatim
 and the position is saved on the order; editing the address looks it up again.
+The fab shop shows as a FAB marker. Its address lives in the `FAB_ADDRESS`
+environment variable (not in the page source, which is public) and is only sent
+to a signed-in admin; set `FAB_LATLON` to `lat,lon` to pin it exactly instead of
+looking it up. Scroll or pinch to zoom; "Show all" zooms back out to everything.
 
 - `api/order.js` saves a request (called by the quote form next to the email).
 - `api/orders.js` lists / updates / deletes; every call needs the password.

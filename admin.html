@@ -78,8 +78,12 @@
   #deliv-map .leaflet-control-attribution a { color: var(--accent); }
   .pin { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; border: 2px solid #14121a;
     color: #14121a; font: 600 12px/1 var(--mono); box-shadow: 0 1px 4px rgba(0, 0, 0, .6); }
+  .pin.fab { width: auto; height: 26px; padding: 0 9px; border-radius: 6px; background: #f3c2da; font-size: 11px; letter-spacing: .08em; }
+  #deliv-map .fit-all { font: 500 13px/1 var(--sans); padding: 7px 10px; background: #fff; color: #14121a; border: 0; border-radius: 4px; cursor: pointer; }
+  #deliv-map .fit-all:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .map-legend { display: flex; gap: 6px 16px; flex-wrap: wrap; margin-top: 10px; font-size: 13px; color: var(--muted); }
   .map-legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .map-legend i.fab { border-radius: 3px; }
   .map-legend i { width: 12px; height: 12px; border-radius: 50%; border: 1px solid #14121a; display: inline-block; }
   .stop.flash { outline: 2px solid var(--accent); outline-offset: 2px; }
   .print-only { display: none; }
@@ -262,6 +266,7 @@
     $('refresh').disabled = true;
     return api('GET').then(function (j) {
       state.orders = j.orders || [];
+      state.fab = j.fab || null;
       if (j.statuses) state.statuses = j.statuses;
       $('login').hidden = true; $('app').hidden = false; $('signout').hidden = false;
       say('app-msg', '');
@@ -668,10 +673,19 @@
     wrap.hidden = !mapState.pins.length;
     var legend = $('map-legend'); legend.textContent = '';
     mapState.legend.forEach(function (x) { legend.appendChild(el('span', {}, [el('i', { style: 'background:' + x[0] }), x[1]])); });
+    if (state.fab) legend.appendChild(el('span', {}, [el('i', { class: 'fab', style: 'background:#f3c2da' }), 'Fab shop']));
     if (wrap.hidden || $('view-deliv').hidden) return;
     loadLeaflet().then(function (L) {
       if (!mapState.map) {
-        mapState.map = L.map('deliv-map', { scrollWheelZoom: false }).setView([32.9, -117.1], 10); // San Diego
+        // Scroll-wheel, trackpad pinch and touch pinch all zoom; the button zooms back out to everything.
+        mapState.map = L.map('deliv-map', { minZoom: 3 }).setView([32.9, -117.1], 10); // San Diego
+        var Fit = L.Control.extend({ options: { position: 'topleft' }, onAdd: function () {
+          var b = el('button', { type: 'button', class: 'fit-all', text: 'Show all', title: 'Zoom out to show every stop and the fab shop' });
+          L.DomEvent.disableClickPropagation(b);
+          b.addEventListener('click', function () { fitAll(true); });
+          return b;
+        } });
+        mapState.map.addControl(new Fit());
         L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19,
           attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors' }).addTo(mapState.map);
         mapState.layer = L.layerGroup().addTo(mapState.map);
@@ -682,6 +696,21 @@
     }, function () {
       $('map-msg').textContent = 'The map couldn\'t load right now — the list below still works.';
     });
+  }
+
+  // The fab's position: from FAB_LATLON if set, else looked up once per sign-in session.
+  function fabPoint() {
+    var f = state.fab;
+    if (!f) return null;
+    if (typeof f.lat === 'number') return { lat: f.lat, lon: f.lon };
+    if (mapState.fabGeo && mapState.fabGeo.q === f.address) return mapState.fabGeo;
+    try { var c = JSON.parse(sessionStorage.getItem('cb-fab-geo') || 'null'); if (c && c.q === f.address) return c; } catch (e) {}
+    return undefined; // not looked up yet
+  }
+  function fitAll(animate) {
+    var pts = mapState.points || [];
+    if (pts.length === 1) mapState.map.setView(pts[0], 13, { animate: animate });
+    else if (pts.length) mapState.map.fitBounds(pts, { padding: [40, 40], maxZoom: 14, animate: animate });
   }
 
   function drawPins() {
@@ -707,18 +736,25 @@
         .addTo(mapState.layer);
       if (p.day) (routes[p.day] = routes[p.day] || { color: p.color, pts: [] }).pts.push(ll);
     });
+    var fp = fabPoint();
+    if (fp && fp.lat !== null) {
+      var fll = [fp.lat, fp.lon];
+      pts.push(fll);
+      L.marker(fll, { title: 'Fab shop — ' + state.fab.address, alt: 'Fab shop', zIndexOffset: 1000,
+        icon: L.divIcon({ className: '', html: el('div', { class: 'pin fab', text: 'FAB' }), iconSize: [44, 26], iconAnchor: [22, 13], popupAnchor: [0, -13] }) })
+        .bindPopup(el('div', {}, [el('b', { text: 'Crackbotics fab shop' }), el('div', { text: state.fab.address }), el('div', { class: 'meta', text: 'Where the parts are made' })]))
+        .addTo(mapState.layer);
+    }
     Object.keys(routes).forEach(function (d) {
       if (routes[d].pts.length > 1) L.polyline(routes[d].pts, { color: routes[d].color, weight: 2, opacity: .75, dashArray: '5 7', interactive: false }).addTo(mapState.layer);
     });
+    mapState.points = pts;
     var sig = pts.join(';');
-    if (sig !== mapState.sig) {
-      mapState.sig = sig;
-      if (pts.length === 1) map.setView(pts[0], 13);
-      else if (pts.length) map.fitBounds(pts, { padding: [36, 36], maxZoom: 14 });
-    }
+    if (sig !== mapState.sig) { mapState.sig = sig; fitAll(false); }
     if (!mapState.geocoding) {
-      $('map-msg').textContent = lost.length ? 'Couldn\'t place ' + lost.length + ' address' + (lost.length === 1 ? '' : 'es') + ' on the map: ' +
-        lost.map(function (o) { return o.name + ' (' + o.address + ')'; }).join('; ') + '. Fix the address with Edit and it will be looked up again.' : '';
+      var fabLost = fp && fp.lat === null ? 'Couldn\'t find the fab shop address (' + state.fab.address + ') — check FAB_ADDRESS in Vercel. ' : '';
+      $('map-msg').textContent = fabLost + (lost.length ? 'Couldn\'t place ' + lost.length + ' address' + (lost.length === 1 ? '' : 'es') + ' on the map: ' +
+        lost.map(function (o) { return o.name + ' (' + o.address + ')'; }).join('; ') + '. Fix the address with Edit and it will be looked up again.' : '');
     }
   }
 
@@ -726,6 +762,7 @@
   function geocodeMissing() {
     if (mapState.geocoding) return;
     var todo = mapState.pins.map(function (p) { return p.o; }).filter(needsGeo);
+    if (fabPoint() === undefined) todo.unshift({ fab: true, address: state.fab.address });
     if (!todo.length) return;
     mapState.geocoding = true;
     var i = 0;
@@ -739,6 +776,7 @@
         .then(function (hits) {
           var h = hits && hits[0], lat = h && parseFloat(h.lat), lon = h && parseFloat(h.lon);
           var found = h && isFinite(lat) && isFinite(lon);
+          if (o.fab) { mapState.fabGeo = { q: q, lat: found ? lat : null, lon: found ? lon : null }; try { sessionStorage.setItem('cb-fab-geo', JSON.stringify({ q: q, lat: found ? lat : null, lon: found ? lon : null })); } catch (e) {} return; }
           return patch(o, { geo: { q: q, lat: found ? lat : null, lon: found ? lon : null } });
         })
         .catch(function () {}) // lookup or save failed: it's retried next time the tab renders
