@@ -37,6 +37,8 @@
   .admin button.sm { font-size: 13px; padding: 5px 10px; }
   .admin a.btn-link { font-size: 13px; font-weight: 500; padding: 5px 10px; border: 1px solid var(--line-firm); border-radius: 6px; color: var(--text); text-decoration: none; white-space: nowrap; }
   .deliv-bar { margin-bottom: 18px; color: var(--muted); font-size: 14px; }
+  .deliv-bar { gap: 8px 22px; }
+  .auto-note { font-size: 13px; color: var(--faint); flex: 1 1 320px; }
   .deliv-bar label { display: flex; gap: 8px; align-items: center; cursor: pointer; }
   .day { margin: 0 0 26px; }
   .day-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 10px; }
@@ -186,6 +188,8 @@
     <div id="view-deliv" hidden>
       <div class="row deliv-bar">
         <label><input type="checkbox" id="with-pickups" checked> Include pickups</label>
+        <span class="auto-note">Drop-offs are scheduled automatically once an order is Paid, In progress or Ready:
+          orders close Mon/Wed/Fri at 6&nbsp;pm and go out the next day. Use Edit to move one.</span>
       </div>
       <div class="map-wrap no-print" id="map-wrap" hidden>
         <div id="deliv-map" role="region" aria-label="Map of deliveries still to do"></div>
@@ -502,7 +506,7 @@
       el('label', {}, ['Time window', win]),
       del ? el('label', { class: 'addr-field' }, ['Address', addrIn]) : null,
       el('div', { class: 'row' }, [save,
-        o.delivery_date ? el('button', { type: 'button', class: 'sm', text: 'Unschedule', onclick: function () {
+        o.delivery_date && !del ? el('button', { type: 'button', class: 'sm', text: 'Unschedule', onclick: function () {
           patch(o, { delivery_date: '', delivery_stop: 0 }).then(render, failed('unschedule'));
         } }) : null])
     ]);
@@ -550,9 +554,142 @@
     window.print();
   }
 
+  // ---- Automatic scheduling ----
+  // The same rule the quote form promises customers: orders close Mon/Wed/Fri at
+  // 6 pm and go out the next day. Keep in step with CUTOFF_DAYS/CUTOFF_HOUR in index.html.
+  var CUTOFF_DAYS = [1, 3, 5], CUTOFF_HOUR = 18;
+  function nextCutoff(now) {
+    var d = new Date(now);
+    for (var i = 0; i < 8; i++) {
+      if (CUTOFF_DAYS.indexOf(d.getDay()) !== -1) {
+        var cutoff = new Date(d.getFullYear(), d.getMonth(), d.getDate(), CUTOFF_HOUR, 0, 0);
+        if (cutoff > now) return cutoff;
+      }
+      d.setDate(d.getDate() + 1);
+      d.setHours(0, 0, 0, 0);
+    }
+    return null;
+  }
+  // Delivery day for an order placed at time t.
+  function batchDay(t) {
+    var when = new Date(t);
+    if (isNaN(when)) when = new Date();
+    var c = nextCutoff(when);
+    c.setDate(c.getDate() + 1);
+    return ymd(c);
+  }
+  // The day the customer was promised when they ordered, or the next delivery day if that has passed.
+  function autoDate(o) {
+    var promised = batchDay(o.createdAt);
+    return promised >= ymd(new Date()) ? promised : batchDay(new Date());
+  }
+  function lastStop(day, except) {
+    return state.orders.reduce(function (m, x) { return x !== except && x.delivery_date === day ? Math.max(m, x.delivery_stop || 0) : m; }, 0);
+  }
+  function moveTo(o, day) {
+    o.delivery_date = day; o.delivery_stop = lastStop(day, o) + 1; // set now, so the next one stacks after it
+    return patch(o, { delivery_date: day, delivery_stop: o.delivery_stop });
+  }
+
+  // Gives every paid / in-progress / ready drop-off without a date its delivery day.
+  var autoBusy = {};
+  function autoSchedule() {
+    state.orders.filter(function (o) {
+      return o.delivery === 'delivery' && !o.delivery_date && COMMITTED.indexOf(o.status) !== -1 && !autoBusy[o.id];
+    }).sort(function (a, b) { return a.createdAt < b.createdAt ? -1 : 1; }).forEach(function (o) {
+      autoBusy[o.id] = true;
+      moveTo(o, autoDate(o)).catch(function (err) {
+        o.delivery_date = ''; o.delivery_stop = 0;
+        failed('schedule ' + o.name)(err); renderDeliveries();
+      }).then(function () { delete autoBusy[o.id]; });
+    });
+  }
+
+  function moveDay(list, day, btn) {
+    btn.disabled = true;
+    Promise.all(list.map(function (o) { return moveTo(o, day); }))
+      .then(render, function (err) { failed('move them')(err); load(); });
+    render();
+  }
+
+  // Order points (each {lat, lon}) into a short open route starting at origin (or at
+  // whichever point suits, if origin is null). Returns indexes into pts.
+  function shortestOrder(origin, pts) {
+    function dist(a, b) {
+      var k = Math.cos((a.lat + b.lat) / 2 * Math.PI / 180);
+      return Math.hypot(a.lat - b.lat, (a.lon - b.lon) * k);
+    }
+    function len(p) {
+      var t = origin ? dist(origin, pts[p[0]]) : 0;
+      for (var j = 1; j < p.length; j++) t += dist(pts[p[j - 1]], pts[p[j]]);
+      return t;
+    }
+    // Up to 12 stops: the exact shortest order (Held–Karp dynamic programming).
+    var n = pts.length;
+    if (n <= 12) {
+      var FULL = (1 << n) - 1, cost = new Float64Array((FULL + 1) * n).fill(Infinity), prev = new Int8Array((FULL + 1) * n).fill(-1);
+      for (var s0 = 0; s0 < n; s0++) cost[(1 << s0) * n + s0] = origin ? dist(origin, pts[s0]) : 0;
+      for (var mask = 1; mask <= FULL; mask++) for (var j = 0; j < n; j++) {
+        var c = cost[mask * n + j];
+        if (c === Infinity) continue;
+        for (var k = 0; k < n; k++) {
+          if (mask & (1 << k)) continue;
+          var m2 = mask | (1 << k), nc = c + dist(pts[j], pts[k]);
+          if (nc < cost[m2 * n + k]) { cost[m2 * n + k] = nc; prev[m2 * n + k] = j; }
+        }
+      }
+      var end = 0;
+      for (var e = 1; e < n; e++) if (cost[FULL * n + e] < cost[FULL * n + end]) end = e;
+      var order = [], m = FULL;
+      while (end !== -1) { order.unshift(end); var pj = prev[m * n + end]; m &= ~(1 << end); end = pj; }
+      return order;
+    }
+    // Bigger days: nearest neighbour first...
+    var todo = pts.map(function (_, i) { return i; }), path = [], cur = origin || pts[0];
+    while (todo.length) {
+      var best = 0;
+      for (var i = 1; i < todo.length; i++) if (dist(cur, pts[todo[i]]) < dist(cur, pts[todo[best]])) best = i;
+      cur = pts[todo[best]]; path.push(todo.splice(best, 1)[0]);
+    }
+    // ...then improve until nothing helps: reverse a stretch (2-opt) or move one stop (or-opt).
+    function tryPath(cand) { if (len(cand) < len(path) - 1e-9) { path = cand; return true; } return false; }
+    for (var improved = true, guard = 0; improved && guard < 100; guard++) {
+      improved = false;
+      for (var a = 0; a < path.length - 1; a++) for (var b = a + 1; b < path.length; b++) {
+        if (tryPath(path.slice(0, a).concat(path.slice(a, b + 1).reverse(), path.slice(b + 1)))) improved = true;
+      }
+      for (var from = 0; from < path.length; from++) for (var to = 0; to < path.length; to++) {
+        if (from === to) continue;
+        var moved = path.slice(), stop = moved.splice(from, 1)[0];
+        moved.splice(to, 0, stop);
+        if (tryPath(moved)) improved = true;
+      }
+    }
+    return path;
+  }
+
+  // Straight-line shortest-ish route from the fab shop: nearest neighbour, then local improvements.
+  // Stops that aren't on the map yet keep their order at the end.
+  function optimizeDay(drops, btn) {
+    var start = fabPoint();
+    var placed = drops.filter(function (o) { return o.geo && o.geo.q === o.address && o.geo.lat !== null; });
+    var rest = drops.filter(function (o) { return placed.indexOf(o) === -1; });
+    if (placed.length < 2) { say('app-msg', 'Need at least two stops on the map to optimize.', true); return; }
+    var origin = start && start.lat !== null ? start : null;
+    var path = shortestOrder(origin, placed.map(function (o) { return o.geo; })).map(function (i) { return placed[i]; });
+    var jobs = [];
+    path.concat(rest).forEach(function (o, i) { if (o.delivery_stop !== i + 1) { o.delivery_stop = i + 1; jobs.push(o); } });
+    if (!jobs.length) { say('app-msg', 'That day is already in the shortest order.'); return; }
+    btn.disabled = true;
+    renderDeliveries();
+    Promise.all(jobs.map(function (o) { return patch(o, { delivery_stop: o.delivery_stop }); }))
+      .then(function () { say('app-msg', 'Route reordered.'); }, function (err) { failed('save the new order')(err); load(); });
+  }
+
   function renderDeliveries() {
     var box = $('deliv');
     if (!box) return;
+    autoSchedule();
     var withPickups = $('with-pickups').checked, today = ymd(new Date());
     var mine = state.orders.filter(function (o) { return withPickups || o.delivery === 'delivery'; });
     var active = mine.filter(function (o) {
@@ -571,7 +708,8 @@
       var ul = el('ul', { class: 'stops' });
       unscheduled.forEach(function (o) { ul.appendChild(stopItem(o, {})); });
       box.appendChild(el('section', { class: 'day' }, [
-        el('div', { class: 'day-head' }, [el('h2', { text: 'Needs a date' }), el('span', { class: 'tag', text: unscheduled.length + ' to schedule' })]),
+        el('div', { class: 'day-head' }, [el('h2', { text: unscheduled.some(function (o) { return o.delivery === 'delivery'; }) ? 'Needs a date' : 'Pickups without a day' }),
+          el('span', { class: 'tag', text: unscheduled.length + ' — set a day with Schedule if one is arranged' })]),
         ul]));
     }
 
@@ -600,6 +738,14 @@
         tools.appendChild(el('a', { class: 'btn-link', href: u, target: '_blank', rel: 'noopener',
           text: all.length > 1 ? 'Route part ' + (i + 1) + ' of ' + all.length : 'Open route in Maps' }));
       });
+      if (d < today) {
+        var next = batchDay(new Date());
+        tools.appendChild(el('button', { type: 'button', class: 'sm primary', text: 'Move to ' + dayLabel(next),
+          title: 'Move everything on this overdue day to the next delivery day', onclick: function (e) { moveDay(days[d], next, e.currentTarget); } }));
+      }
+      if (dayPins.length >= 2) tools.appendChild(el('button', { type: 'button', class: 'sm', text: 'Optimize order',
+        title: 'Reorder the drop-offs into a short route starting from the fab shop (straight-line distance)',
+        onclick: function (e) { optimizeDay(drops, e.currentTarget); } }));
       tools.appendChild(el('button', { type: 'button', class: 'sm', text: 'Print run sheet', onclick: function () { printDay(section); } }));
       var tag = d < today ? el('span', { class: 'tag late', text: 'Overdue' }) : d === today ? el('span', { class: 'tag today', text: 'Today' }) : null;
       section.appendChild(el('div', { class: 'day-head' }, [el('h2', { text: dayLabel(d) }), tag,

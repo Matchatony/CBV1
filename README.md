@@ -96,9 +96,15 @@ private notes, search, filter, and delete an order (optionally with its file).
 **Download files** saves the design files for the orders on screen as one ZIP,
 with an `orders.csv` index.
 
-The **Deliveries** tab plans handoffs. Paid, in-progress and ready orders land
-in "Needs a date"; give each a day and time window, and it moves to that day.
-Each day lists drop-offs in route order (reorder with ↑/↓) plus pickups, with
+The **Deliveries** tab plans handoffs. Drop-offs are scheduled automatically:
+once an order is Paid, In progress or Ready it goes on the delivery day the
+customer was promised (orders close Mon/Wed/Fri at 6 pm and go out the next
+day, the same rule as the quote form's `CUTOFF_DAYS` / `CUTOFF_HOUR` — keep the
+two in step), or the next delivery day if that has passed, as the last stop.
+Use Edit to move one; overdue days get a "Move to <next day>" button, and
+"Optimize order" sorts a day's stops into the shortest straight-line route from
+the fab shop (exact up to 12 stops). Pickups have no batch, so they only get a
+day if you set one. Each day lists drop-offs in route order (reorder with ↑/↓) plus pickups, with
 an "Open route in Maps" link (Google Maps, starting from where you are), a
 printable run sheet, an "Email time" button that drafts the customer email,
 and "Delivered" / "Picked up" to mark it done (undo within 14 days).
