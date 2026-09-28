@@ -93,6 +93,12 @@ Sign in with the `ADMIN_PASSWORD` set in Vercel → Settings → Environment
 Variables. There you can see every order, download its design file, set a
 status (New → Quoted → Paid → In progress → Ready → Done / Cancelled), keep
 private notes, search, filter, and delete an order (optionally with its file).
+Each order carries the full spec the customer chose (`specs`: CNC / 3D print /
+other, material, quantity, color, infill and walls, CNC options, rush, measured
+size, file type, price breakdown or hand-quote reason), shown as tags on the list
+and in Job / Price / Customer / Delivery sections when opened; filter by type from
+the toolbar. Orders from before specs were saved show their original quote text.
+
 **Download files** saves the design files for the orders on screen as one ZIP,
 with an `orders.csv` index.
 

@@ -1392,11 +1392,71 @@
       '<p class="calc-fineprint">Estimate from what you entered — confirmed once we see the actual file.</p>';
   }
 
+  // Everything the customer chose, whether or not it could be priced automatically —
+  // saved with the order (admin panel) and spelled out in the email.
+  var OPTION_LABELS = { tapped: 'Tapped holes', tight_tolerances: 'Tight tolerances (±0.005″ or tighter)',
+    complex_geometry: 'Multiple setups / unusual geometry' };
+  function orderSpecs(q) {
+    var type = els.type.value, file = els.files.files[0];
+    var s = {
+      kind: type === 'plate' ? 'cnc' : type === 'print' ? 'print' : 'other',
+      qty: Math.max(1, parseInt(els.qty.value, 10) || 1),
+      rush: els.rush.checked, options: [],
+      file_type: file ? (file.name.split('.').pop() || '').toUpperCase() : ''
+    };
+    if (type === 'plate') {
+      s.material = els.material.selectedOptions[0].text;
+      if (els.tapped.checked) s.options.push('tapped');
+      if (els.tol.checked) s.options.push('tight_tolerances');
+      if (els.complex.checked) s.options.push('complex_geometry');
+      if (fileGeom) {
+        s.size = fileGeom.width.toFixed(2) + '″ × ' + fileGeom.height.toFixed(2) + '″ (' + (fileGeom.width * fileGeom.height).toFixed(1) +
+          ' sq in), ' + fileGeom.cutLength.toFixed(1) + '″ cut path, ' + fileGeom.holes.length + (fileGeom.holes.length === 1 ? ' hole' : ' holes');
+      }
+    } else if (type === 'print') {
+      s.material = els.printMaterial.selectedOptions[0].text;
+      s.color = els.color.value.trim();
+      var infill = parseFloat(els.infill.value);
+      s.infill = isNaN(infill) ? RATE.infillDefault : infill;
+      s.walls = parseFloat(els.walls.value) || RATE.wallsDefault;
+      if (printGeom) {
+        s.size = printGeom.dims.map(function (d) { return d.toFixed(0); }).join(' × ') + ' mm, about ' +
+          Math.round(printedGrams(printGeom, s.infill, s.walls)) + ' g each';
+      }
+    }
+    if (q.escalated) {
+      s.reason = q.reason;
+    } else {
+      s.price = {
+        material: q.materialAfterDiscount * q.qty, machine: q.perUnitMachine * q.qty, labor: q.perUnitLabor * q.qty,
+        flags: q.surcharge * q.qty,
+        minimum: q.perUnitSubtotal < RATE.minPartPrice ? (RATE.minPartPrice - q.perUnitSubtotal) * q.qty : 0,
+        delivery: q.deliveryCost || 0, per_part: Math.max(RATE.minPartPrice, q.perUnitSubtotal),
+        total: q.total, discount: q.discounted
+      };
+    }
+    return s;
+  }
+
+  function specLines(s) {
+    var l = ['Quantity: ' + s.qty];
+    if (s.material) l.push('Material: ' + s.material);
+    if (s.kind === 'print') {
+      l.push('Color: ' + (s.color || 'not specified'));
+      l.push('Infill: ' + s.infill + '%   Walls: ' + s.walls);
+    }
+    if (s.options.length) l.push('Options: ' + s.options.map(function (o) { return OPTION_LABELS[o]; }).join(', '));
+    if (s.rush) l.push('RUSH: skip the normal batch');
+    if (s.size) l.push('Measured: ' + s.size);
+    if (s.file_type) l.push('File type: ' + s.file_type);
+    return l;
+  }
+
   function quoteToSummaryText(q, data) {
     var lines = [
       'Name: ' + data.name, 'Team: ' + (data.team || '—'), 'Email: ' + data.email,
-      'Part type: ' + data.part_type, ''
-    ];
+      'Part type: ' + data.part_type
+    ].concat(specLines(orderSpecs(q)), ['']);
     if (q.escalated) {
       lines.push('PRICE: needs a manual quote — ' + q.reason);
     } else {
@@ -1799,6 +1859,7 @@
             price: q.escalated ? 'Hand quote' : money(q.total),
             part: q.escalated ? q.reason : q.qty + ' × ' + q.sizeNote + (q.detailLine ? ', ' + q.detailLine : ''),
             quote_summary: summary, design_file: els.fileUrl.value, file_name: file ? file.name : '',
+            specs: orderSpecs(q),
             _honey: value('_honey')
           })
         }).catch(function (err) { console.error('Order log failed:', err); });
