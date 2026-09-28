@@ -186,6 +186,17 @@ most of the attention-grabbing, so a black-and-white print loses a lot.
 
 ## Deploying
 
+The live site is on Vercel at **crackbotics.com** (crackbotics.vercel.app
+redirects there). The order form, uploads and admin need Vercel's functions, so
+the Cloudflare and GitHub Pages options below only suit a static copy.
+
+**Analytics:** the public pages load Vercel Web Analytics
+(`/_vercel/insights/script.js`) — cookieless, anonymous page-view counts, described
+in `privacy.html#analytics`. It only records once Analytics is enabled on the
+Vercel project (dashboard → the project → Analytics → Enable). `sent.html` loads it
+too, so its page views count successful quote requests. `admin.html` deliberately
+doesn't load it.
+
 ### Cloudflare Pages (recommended — it's the faster CDN and the free tier is generous)
 
 1. Push this repo to GitHub.
