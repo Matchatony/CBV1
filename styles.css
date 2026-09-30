@@ -296,11 +296,15 @@ a { color: inherit; }
   gap: 24px;
 }
 .work-grid figure { margin: 0; }
-/* Swap .frame for an <img class="frame"> and the sizing carries over. */
+/* Swap .frame for an <img class="frame"> and the sizing carries over.
+   height: auto on every photo: the width/height attributes in the HTML only
+   reserve space while loading; left alone, height="..." would pin the pixel
+   height and override aspect-ratio. */
 .frame,
 .work-grid img {
   display: block;
   width: 100%;
+  height: auto;
   aspect-ratio: 4 / 3;
   object-fit: cover;
   background: var(--bg-raised);
@@ -593,6 +597,7 @@ footer { padding-block: 48px 56px; border-top: 1px solid var(--line); }
 .hero-shot img {
   display: block;
   width: 100%;
+  height: auto;
   aspect-ratio: 16 / 9;
   object-fit: cover;
   border: 1px solid var(--line);
@@ -657,6 +662,7 @@ footer { padding-block: 48px 56px; border-top: 1px solid var(--line); }
 .media-cad img {
   display: block;
   width: 100%;
+  height: auto;
   aspect-ratio: 746 / 1120;
   object-fit: cover;
   border: 1px solid var(--line);
@@ -684,6 +690,7 @@ footer { padding-block: 48px 56px; border-top: 1px solid var(--line); }
 .band-shot img {
   display: block;
   width: 100%;
+  height: auto;
   aspect-ratio: 13 / 5;
   object-fit: cover;
   object-position: 50% 86%;
