@@ -196,6 +196,15 @@ The live site is on Vercel at **crackbotics.com** (crackbotics.vercel.app
 redirects there). The order form, uploads and admin need Vercel's functions, so
 the Cloudflare and GitHub Pages options below only suit a static copy.
 
+**SEO:** `robots.txt` and `sitemap.xml` sit at the root (update `<lastmod>` and add
+new public pages to the sitemap). `index.html` carries the title/description,
+Open Graph tags with `images/og-image.jpg` (1200×630, used for link previews in
+Discord, iMessage, etc.), canonical links to crackbotics.com, and JSON-LD
+structured data (LocalBusiness: name, logo, email, San Diego service area, the
+two services). `404.html` is the not-found page. www.crackbotics.com and
+crackbotics.vercel.app redirect to crackbotics.com. Three.js and jsPDF load only
+when a visitor nears the quote form, to keep the first page load light.
+
 **Analytics:** the public pages load Vercel Web Analytics
 (`/_vercel/insights/script.js`) — cookieless, anonymous page-view counts, described
 in `privacy.html#analytics`. It only records once Analytics is enabled on the
