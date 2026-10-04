@@ -204,6 +204,9 @@ structured data (LocalBusiness: name, logo, email, San Diego service area, the
 two services). `404.html` is the not-found page. www.crackbotics.com and
 crackbotics.vercel.app redirect to crackbotics.com. Three.js and jsPDF load only
 when a visitor nears the quote form, to keep the first page load light.
+The icon Google shows next to search results comes from the `rel="icon"` links
+(`favicon.ico` at 48×48, `favicon-192.png`, `favicon.svg`); Google needs a square
+icon at a multiple of 48 px and refreshes it on its own schedule.
 
 **Analytics:** the public pages load Vercel Web Analytics
 (`/_vercel/insights/script.js`) — cookieless, anonymous page-view counts, described
