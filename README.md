@@ -124,12 +124,59 @@ looking it up. Scroll or pinch to zoom; "Show all" zooms back out to everything.
 
 - `api/order.js` saves a request (called by the quote form next to the email).
 - `api/orders.js` lists / updates / deletes; every call needs the password.
+  Its update rules live in `api/_lib/changes.js`, shared with the Claude connector.
+- `api/mcp/[key].js` is the Claude connector (see below).
 - Records live in the `crackbotics-uploads` Blob store under `orders/`,
   encrypted with `ORDERS_KEY`. **Never change `ORDERS_KEY`**: every existing
   order would become unreadable. `ADMIN_PASSWORD` can be changed any time
   (then redeploy).
 - The email is still the primary record; if saving to the log ever fails,
   the request still arrives by email.
+
+## Claude connector
+
+Claude (in Cowork and the Claude apps) can work with the order log through a
+custom connector: a remote MCP server at `/api/mcp/<key>` (`api/mcp/[key].js`,
+built on `@modelcontextprotocol/server`, stateless Streamable HTTP). It has its
+own key, `CLAUDE_CONNECTOR_KEY`, separate from `ADMIN_PASSWORD`, so it can be
+revoked on its own.
+
+Its tools: `list_orders` (filter by status, type, text, limit), `get_order`,
+`update_order` (status, notes), `schedule_delivery` (day, time window, stop) and
+`mark_delivered`. That's all: it can't delete orders, change passwords or keys,
+or see environment variables or settings. Edits go through the same checks as the
+admin panel (`api/_lib/changes.js`), and every change it makes is saved on the
+order and shown under **History** when you open the order in `admin.html`.
+
+**Set it up**
+
+1. Generate a key: `openssl rand -hex 32`
+2. In Vercel → the project → Settings → Environment Variables, add
+   `CLAUDE_CONNECTOR_KEY` with that value, for **Production** only. Then redeploy
+   (Deployments → the latest one → ⋯ → Redeploy); env var changes only apply to
+   new deployments.
+3. In Claude: Settings → Connectors → Add custom connector. Give it a name
+   (e.g. "Crackbotics orders") and the URL
+   `https://crackbotics.com/api/mcp/<key>`. Leave the advanced OAuth settings empty.
+
+Treat that URL like a password: anyone who has it can read and change orders
+(but not delete them). Only add it to Claude accounts that admins use. On a
+Claude Team or Enterprise plan, a connector an owner adds for the whole
+organization is available to everyone in it.
+
+**Revoke it:** delete `CLAUDE_CONNECTOR_KEY` in Vercel (or replace it with a new
+key), then redeploy. The old URL stops working as soon as the new deployment is
+live. With a new key, update the URL in Claude's connector settings.
+
+- With `CLAUDE_CONNECTOR_KEY` unset (or under 32 characters) the connector is
+  off. A missing key, a wrong key and a switched-off connector all get the same
+  plain 404.
+- The key is part of the URL, so it appears in this project's Vercel request
+  logs; anyone with access to the logs can see it.
+- Try it locally with MCP Inspector (`npx @modelcontextprotocol/inspector`,
+  transport Streamable HTTP, URL `http://localhost:3000/api/mcp/<key>`).
+- `robots.txt` already keeps crawlers out of `/api/`; the connector isn't listed
+  anywhere on the site.
 
 ## Adding your photos
 

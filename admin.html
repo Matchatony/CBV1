@@ -52,6 +52,13 @@
   .price-table tr.total td { border-top: 1px solid var(--line-firm); padding-top: 7px; font-weight: 600; }
   details.orig summary { cursor: pointer; color: var(--muted); font-size: 13px; }
   details.orig pre { margin-top: 8px; }
+  .history h2 { margin: 0 0 8px; font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); }
+  .history ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
+  .history li { display: grid; grid-template-columns: 130px 1fr; gap: 2px 12px; }
+  .history time { font-family: var(--mono); font-size: 12px; color: var(--faint); padding-top: 1px; }
+  .history b { color: var(--text); font-weight: 500; }
+  .history details summary { cursor: pointer; }
+  .history details pre { margin-top: 6px; }
   .tabs { display: flex; align-items: flex-end; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 18px; }
   .admin .tabs button.tab { border: 0; border-bottom: 2px solid transparent; border-radius: 0; padding: 10px 14px; color: var(--muted); }
   .admin .tabs button.tab[aria-pressed="true"] { color: var(--text); border-bottom-color: var(--accent); }
@@ -172,6 +179,7 @@
     .admin button.toggle .when { grid-column: 1 / -1; }
     .facts { grid-template-columns: 1fr; }
     .facts dt { padding-top: 6px; }
+    .history li { grid-template-columns: 1fr; }
   }
 </style>
 </head>
@@ -360,6 +368,37 @@
     return [el('dt', { text: label }), el('dd', {}, [value])];
   }
 
+  // Changes made through the Claude connector (api/mcp), newest first. Each entry is
+  // { at, by, change: { field: { from, to } } }; earlier notes are kept in full here.
+  var HISTORY_FIELDS = { status: 'Status', delivery_date: 'Delivery date', delivery_window: 'Time window', delivery_stop: 'Stop' };
+  function historyValue(k, v) {
+    if (v === null || v === undefined || v === '' || (k === 'delivery_stop' && !v)) return 'none';
+    if (k === 'status') return LABELS[v] || v;
+    if (k === 'delivery_date') return dayLabel(v);
+    return String(v);
+  }
+  function historyList(o) {
+    if (!o.activity || !o.activity.length) return null;
+    return el('div', { class: 'history' }, [
+      el('h2', { text: 'History' }),
+      el('ul', {}, o.activity.slice().reverse().map(function (a) {
+        var c = a.change || {}, lines = [], notes = null;
+        Object.keys(c).forEach(function (k) {
+          var ch = c[k] || {};
+          if (k === 'delivered_at') lines.push((ch.to ? 'Marked ' : 'Unmarked ') + (o.delivery === 'delivery' ? 'delivered' : 'picked up'));
+          else if (k === 'notes') notes = el('details', {}, [el('summary', { text: 'Changed the notes' }),
+            el('pre', { class: 'summary', text: 'Before:\n' + (ch.from || '(empty)') + '\n\nAfter:\n' + (ch.to || '(empty)') })]);
+          else lines.push((HISTORY_FIELDS[k] || k) + ': ' + historyValue(k, ch.from) + ' → ' + historyValue(k, ch.to));
+        });
+        var when = new Date(a.at);
+        return el('li', {}, [
+          el('time', { datetime: a.at, text: isNaN(when) ? '' : when.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) }),
+          el('div', {}, [el('b', { text: a.by === 'claude' ? 'Claude' : String(a.by || '') }), lines.length ? ' · ' + lines.join(' · ') : '', notes])
+        ]);
+      }))
+    ]);
+  }
+
   function orderCard(o) {
     var card = el('div', { class: 'order s-' + o.status });
     var fileNode = null;
@@ -457,6 +496,7 @@
         ])
       ]),
       o.quote_summary ? el('details', { class: 'orig' }, [el('summary', { text: 'Original quote text (as emailed)' }), el('pre', { class: 'summary', text: o.quote_summary })]) : null,
+      historyList(o),
       notes,
       el('div', { class: 'row' }, [saveNotes, delBtn])
     ]);

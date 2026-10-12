@@ -89,10 +89,19 @@ export async function getOrder(id) {
   return { order: await readBlob(entry.latest.url), versions: entry.all.map((b) => b.url) };
 }
 
-export async function updateOrder(id, changes) {
+// With `by` set (the Claude connector passes 'claude'), the edit is also added to
+// the order's `activity` history as { at, by, change: { field: { from, to } } },
+// so the admin panel can show what changed and what it was before.
+const MAX_ACTIVITY = 100;
+export async function updateOrder(id, changes, { by } = {}) {
   const found = await getOrder(id);
   if (!found) return null;
   const order = { ...found.order, ...changes, updatedAt: new Date().toISOString() };
+  if (by) {
+    const change = {};
+    for (const [k, to] of Object.entries(changes)) change[k] = { from: found.order[k] ?? null, to };
+    order.activity = [...(found.order.activity || []), { at: order.updatedAt, by, change }].slice(-MAX_ACTIVITY);
+  }
   await saveOrder(order);
   await del(found.versions);
   return order;
