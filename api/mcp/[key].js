@@ -2,14 +2,16 @@ import crypto from 'node:crypto';
 import { createMcpHandler, fromJsonSchema, McpServer } from '@modelcontextprotocol/server';
 import { STATUSES, getOrder, isValidId, listOrders, updateOrder } from '../_lib/orders.js';
 import { orderChanges } from '../_lib/changes.js';
+import { UserError, analyzeStep, downloadDesignFile, isStepUrl, isStoreUrl } from '../_lib/step.js';
 
 // The Claude connector: a remote MCP server (Streamable HTTP, stateless) at
 // /api/mcp/<CLAUDE_CONNECTOR_KEY>. The key in the path is its only credential,
 // separate from ADMIN_PASSWORD so it can be revoked on its own (change or delete
-// the env var, then redeploy). It can read orders and change status, notes and
-// delivery details, through the same rules as the admin API. It can't delete
-// orders or touch passwords, keys or settings. Every change it makes is added
-// to the order's activity history, which the admin panel shows.
+// the env var, then redeploy). It can read orders, measure their STEP files
+// (api/_lib/step.js), and change status, notes and delivery details, through the
+// same rules as the admin API. It can't delete orders or touch passwords, keys or
+// settings. Every change it makes is added to the order's activity history, which
+// the admin panel shows.
 
 // Every refusal is this same response, so it tells nothing about the key.
 const notFound = () => new Response('Not found', {
@@ -91,10 +93,11 @@ const READ = { readOnlyHint: true, openWorldHint: false };
 const EDIT = { readOnlyHint: false, destructiveHint: false, openWorldHint: false };
 
 function buildServer() {
-  const server = new McpServer({ name: 'crackbotics-orders', version: '1.0.0' }, {
+  const server = new McpServer({ name: 'crackbotics-orders', version: '1.1.0' }, {
     instructions: 'Crackbotics is a student-run CNC and 3D-print shop for FTC robotics teams. These tools read and update its order log. ' +
       'An order moves new → quoted → paid → in-progress → ready → done (or cancelled). Paid, in-progress and ready delivery orders go on a delivery day. ' +
-      'Every change you make is saved in the order\'s history, which the shop\'s admins can see. Orders can\'t be deleted from here.'
+      'Every change you make is saved in the order\'s history, which the shop\'s admins can see. Orders can\'t be deleted from here. ' +
+      'STEP files are quoted by hand: analyze_part_file measures them (plate size, thickness, cut length, holes, pockets) and estimates machine time and electricity.'
   });
 
   server.registerTool('list_orders', {
@@ -192,6 +195,49 @@ function buildServer() {
     }),
     annotations: EDIT
   }, ({ id, delivered }) => write(id, { delivered }));
+
+  server.registerTool('analyze_part_file', {
+    title: 'Measure an order\'s STEP file',
+    description: 'Download the order\'s STEP (.step/.stp) design file and measure every part in it as a CNC plate: thickness and the matching ' +
+      'stock size, plate size and stock area, total cut length, round holes by diameter, other cutouts, pockets (area and depth), parts with sloped ' +
+      'or bottom-side features that need a hand quote, holes smaller than the shop\'s 1/8 in. tool, and identical copies grouped. Also estimates ' +
+      'machine minutes, kWh and electricity cost per part and for all copies, from the shop\'s cutting constants (an estimate, not a CAM toolpath), ' +
+      'and returns a top-view picture of each distinct part. The material isn\'t in the file: take it from get_order. Only works on the order\'s own ' +
+      'uploaded file; DXF files are already priced by the quote page. Takes a few seconds, up to about 30 for big files.',
+    inputSchema: fromJsonSchema({ type: 'object', properties: { id: ID }, required: ['id'], additionalProperties: false }),
+    annotations: READ
+  }, async ({ id }) => {
+    if (!isValidId(id)) return fail('Bad id');
+    let found;
+    try {
+      found = await getOrder(id);
+    } catch (err) {
+      console.error('Claude connector: load the order failed:', err);
+      return fail('Could not load the order. Try again in a moment.');
+    }
+    if (!found) return fail('Not found');
+    const o = found.order, url = o.design_file || '';
+    const name = o.file_name || url.split('/').pop() || '';
+    if (!url || url.startsWith('UPLOAD FAILED')) return fail('This order has no design file.');
+    if (!isStoreUrl(url)) return fail('The design file isn\'t in the shop\'s file store, so it won\'t be downloaded.');
+    if (!isStepUrl(url)) return fail(`The design file (${name}) isn't a STEP file. This tool measures .step and .stp files only.`);
+    try {
+      const { report, pictures } = await analyzeStep(await downloadDesignFile(url));
+      return {
+        content: [
+          { type: 'text', text: JSON.stringify({ order: summary(o), file: name, ...report }, null, 2) },
+          ...pictures.flatMap((p) => [
+            { type: 'text', text: `Part ${p.part}, top view:` },
+            { type: 'image', data: p.image, mimeType: 'image/png' }
+          ])
+        ]
+      };
+    } catch (err) {
+      if (err instanceof UserError) return fail(err.message);
+      console.error('Claude connector: analyze the design file failed:', err);
+      return fail('Could not analyze the design file. It may be damaged, or too complex to measure in time: quote it by hand.');
+    }
+  });
 
   return server;
 }

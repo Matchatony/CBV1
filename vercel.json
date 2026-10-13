@@ -1,0 +1,8 @@
+{
+  "functions": {
+    "api/mcp/*.js": {
+      "includeFiles": "node_modules/occt-import-js/dist/occt-import-js.wasm",
+      "maxDuration": 60
+    }
+  }
+}

@@ -143,10 +143,36 @@ revoked on its own.
 
 Its tools: `list_orders` (filter by status, type, text, limit), `get_order`,
 `update_order` (status, notes), `schedule_delivery` (day, time window, stop) and
-`mark_delivered`. That's all: it can't delete orders, change passwords or keys,
-or see environment variables or settings. Edits go through the same checks as the
+`mark_delivered`, plus `analyze_part_file` (below). That's all: it can't delete
+orders, change passwords or keys, or see environment variables or settings. Edits go through the same checks as the
 admin panel (`api/_lib/changes.js`), and every change it makes is saved on the
 order and shown under **History** when you open the order in `admin.html`.
+
+**STEP file analysis.** `analyze_part_file` downloads an order's STEP file (only
+the order's own file, from this project's Blob store) and measures each part with
+OpenCascade (`occt-import-js`, the same WebAssembly build the quote page uses for
+its 3D preview), in `api/_lib/step.js`. Per part it reports:
+
+- thickness and the matching stock size (1/8 to 1/2 in.)
+- plate size and stock area
+- total cut length
+- round holes by diameter, other cutouts, and pockets (area and depth)
+- identical copies, grouped
+- flags for anything that needs a hand quote: sloped or curved faces
+  (chamfers, fillets, 3D shapes), features on the bottom face, holes smaller
+  than the 1/8 in. tool
+- estimated machine minutes, kWh and electricity cost
+- a top-view picture (gray plate, blue pocket floors, grid every 10 mm)
+
+The time estimate uses the shop constants at the top of `api/_lib/step.js`
+(copied from `RATE` in `index.html`: setup, feed, depth per pass, per-hole time,
+plus a pocket stepover); it's an estimate, not a CAM toolpath. Electricity is
+machine minutes × `SHOP_MACHINE_KW` × `SHOP_USD_PER_KWH`. Set those two env vars
+in Vercel to the router's real draw (router, spindle and dust collection
+together) and the SDG&E rate; until then the placeholders are 1.5 kW and
+$0.45/kWh. Files over 1,000 CAD faces are turned away (meshing them takes too
+long for the function's 60 s limit, set in `vercel.json`), as are DXF and other
+file types: DXFs are already priced by the quote page.
 
 **Set it up**
 

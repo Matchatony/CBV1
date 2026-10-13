@@ -4,6 +4,7 @@
   "type": "module",
   "dependencies": {
     "@modelcontextprotocol/server": "2.3.1",
-    "@vercel/blob": "2.8.0"
+    "@vercel/blob": "2.8.0",
+    "occt-import-js": "0.0.23"
   }
 }
