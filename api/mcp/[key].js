@@ -44,7 +44,7 @@ function kindOf(o) {
 
 function total(o) {
   const sp = o.specs;
-  if (sp && sp.price && sp.price.total > 0) return sp.price.total;
+  if (sp && sp.price && sp.price.total > 0) return Math.round(sp.price.total * 100) / 100; // dollars, to the cent
   if (o.escalated || (sp && sp.reason) || !o.price) return 'hand quote';
   return o.price; // older orders: the price text as emailed
 }
@@ -84,6 +84,32 @@ function write(id, fields) {
     const order = await updateOrder(id, changes, { by: 'claude' });
     return order ? json({ saved: summary(order), changed: changes }) : fail('Not found');
   });
+}
+
+// Lines the measured file up with what was ordered: flags parts whose thickness
+// doesn't match the stock on the order (e.g. "6061 aluminum, 1/8 in."), and
+// scales the time and electricity totals by the order's quantity.
+function checkAgainstOrder(report, o) {
+  const sp = o.specs || {};
+  const frac = String(sp.material || '').match(/(\d+)\s*\/\s*(\d+)\s*in/);
+  if (frac) {
+    const mm = (Number(frac[1]) / Number(frac[2])) * 25.4;
+    for (const p of report.parts) {
+      if (p.thickness_mm && Math.abs(p.thickness_mm - mm) > 0.1) {
+        p.flags.push(`The file is ${p.thickness_mm} mm thick, but the order is for ${frac[1]}/${frac[2]} in. (${Math.round(mm * 100) / 100} mm) stock: check with the customer which they want.`);
+      }
+    }
+  }
+  const qty = Number(sp.qty) || 1;
+  if (qty > 1 && report.totals_all_copies) {
+    const t = report.totals_all_copies;
+    report.totals_for_order = {
+      order_qty: qty, note: 'The file\'s parts times the quantity ordered.',
+      machine_minutes: Math.round(t.machine_minutes * qty * 10) / 10,
+      kwh: Math.round(t.kwh * qty * 1000) / 1000,
+      electricity_usd: Math.round(t.electricity_usd * qty * 100) / 100
+    };
+  }
 }
 
 // ---- Tools ----
@@ -223,6 +249,7 @@ function buildServer() {
     if (!isStepUrl(url)) return fail(`The design file (${name}) isn't a STEP file. This tool measures .step and .stp files only.`);
     try {
       const { report, pictures } = await analyzeStep(await downloadDesignFile(url));
+      checkAgainstOrder(report, o);
       return {
         content: [
           { type: 'text', text: JSON.stringify({ order: summary(o), file: name, ...report }, null, 2) },

@@ -262,14 +262,21 @@
   function storeSet(v) { try { v ? sessionStorage.setItem('cb-admin', v) : sessionStorage.removeItem('cb-admin'); } catch (e) {} }
 
   function api(method, body) {
+    var pw = state.pw;
     return fetch('/api/orders', {
       method: method,
-      headers: Object.assign({ authorization: 'Bearer ' + state.pw }, body ? { 'content-type': 'application/json' } : {}),
+      headers: Object.assign({ authorization: 'Bearer ' + pw }, body ? { 'content-type': 'application/json' } : {}),
       body: body ? JSON.stringify(body) : undefined,
       cache: 'no-store'
     }).then(function (r) {
       return r.json().catch(function () { return {}; }).then(function (j) {
-        if (r.status === 401) { signOut('Wrong password.'); throw new Error('unauthorized'); }
+        if (r.status === 401) {
+          // Only a refusal of the password still in use signs you out. The server
+          // answers a wrong password slowly, so a mistyped attempt can come back
+          // after a retyped one has already signed in.
+          if (pw === state.pw) signOut('Wrong password.');
+          throw new Error('unauthorized');
+        }
         if (!r.ok) throw new Error(j.error || ('Server error ' + r.status));
         return j;
       });

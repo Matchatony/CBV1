@@ -160,8 +160,10 @@ its 3D preview), in `api/_lib/step.js`. Per part it reports:
 - identical copies, grouped
 - flags for anything that needs a hand quote: sloped or curved faces
   (chamfers, fillets, 3D shapes), features on the bottom face, holes smaller
-  than the 1/8 in. tool
-- estimated machine minutes, kWh and electricity cost
+  than the 1/8 in. tool, and a thickness that doesn't match the stock on the
+  order
+- estimated machine minutes, kWh and electricity cost, per part and for the
+  quantity ordered
 - a top-view picture (gray plate, blue pocket floors, grid every 10 mm)
 
 The time estimate uses the shop constants at the top of `api/_lib/step.js`
