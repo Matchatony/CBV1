@@ -416,7 +416,6 @@
             <option value="other-mat">Other material</option>
           </select>
         </div>
-        <p class="hint measured" id="q-geom-note" hidden></p>
       </div>
 
       <div class="calc-group" id="q-group-print" hidden>
@@ -443,26 +442,22 @@
             <input id="q-walls" name="wall_count" type="number" min="1" step="1" placeholder="3 (default)" inputmode="numeric">
           </div>
         </div>
-        <p class="hint measured" id="q-print-note" hidden></p>
         <p class="hint" id="q-premium-note" hidden>
           Materials beyond PLA/PETG/ABS are special-order — expect additional lead
           time while it arrives before we can start printing.
         </p>
       </div>
 
-      <div class="field">
-        <label for="q-qty">Quantity <span class="opt">identical parts</span></label>
-        <input id="q-qty" name="qty" type="number" min="1" step="1" value="1" inputmode="numeric">
-      </div>
-
       <div class="field field-wide">
-        <label for="q-files">Design file <span class="opt">required</span></label>
-        <input id="q-files" name="upload" type="file" required accept=".dxf,.step,.stp">
-        <p class="hint" id="q-file-hint">DXF or STEP for a CNC plate. A DXF gets measured and priced automatically; a STEP file is quoted by hand. 10&nbsp;MB max.</p>
+        <label for="q-files">Design files <span class="opt">one file per part, up to 10</span></label>
+        <input id="q-files" type="file" multiple accept=".dxf,.step,.stp" aria-describedby="q-file-hint">
+        <p class="hint" id="q-file-hint">DXF or STEP for a CNC plate. A DXF gets measured and priced automatically; a STEP file is quoted by hand. 10&nbsp;MB max each.</p>
+        <p class="hint file-problem" id="q-file-problem" role="alert" hidden></p>
+        <ul class="file-list" id="q-file-list" aria-label="Your files" hidden></ul>
       </div>
 
       <div class="field field-wide" id="q-preview-wrap" hidden>
-        <span class="opt preview-label">File preview</span>
+        <span class="opt preview-label" id="q-preview-label">File preview</span>
         <canvas id="q-preview" width="600" height="360"></canvas>
         <p class="hint" id="q-preview-note"></p>
       </div>
@@ -571,7 +566,9 @@
   var PAGE_LOADED_AT = Date.now();
   var MIN_HUMAN_MS = 3000; /* anti-spam: nobody fills this form in under 3s */
   var EMAIL = 'crackboticssandiego@gmail.com';
-  var MAX_UPLOAD = 10 * 1024 * 1024;
+  var MAX_UPLOAD = 10 * 1024 * 1024; // per file (api/upload.js allows the same)
+  var MAX_FILES = 10;
+  var MAX_TOTAL = 50 * 1024 * 1024;
 
   /* ----------------------------- QUOTE CONSTANTS ----------------------------- */
   var RATE = {
@@ -632,12 +629,13 @@
     printMaterial: document.getElementById('q-print-material'),
     premiumNote: document.getElementById('q-premium-note'),
     color: document.getElementById('q-color'),
-    printNote: document.getElementById('q-print-note'),
     infill: document.getElementById('q-infill'),
     walls: document.getElementById('q-walls'),
-    qty: document.getElementById('q-qty'),
     files: document.getElementById('q-files'),
     fileHint: document.getElementById('q-file-hint'),
+    fileProblem: document.getElementById('q-file-problem'),
+    fileList: document.getElementById('q-file-list'),
+    previewLabel: document.getElementById('q-preview-label'),
     previewWrap: document.getElementById('q-preview-wrap'),
     previewCanvas: document.getElementById('q-preview'),
     previewNote: document.getElementById('q-preview-note'),
@@ -649,7 +647,6 @@
     address: document.getElementById('q-address'),
     addressList: document.getElementById('q-address-suggestions'),
     geoStatus: document.getElementById('q-geo-status'),
-    geomNote: document.getElementById('q-geom-note'),
     summaryField: document.getElementById('q-summary-field'),
     fileUrl: document.getElementById('q-file-url'),
     result: document.getElementById('q-result'),
@@ -659,10 +656,13 @@
   };
 
   var ACCEPT = {
-    plate: { ext: '.dxf,.step,.stp', hint: 'DXF or STEP for a CNC plate. A DXF gets measured and priced automatically; a STEP file is quoted by hand. 10 MB max.' },
-    print: { ext: '.stl,.3mf', hint: 'STL or 3MF for a 3D printed part. 10 MB max.' },
-    other: { ext: '.dxf,.step,.stp,.stl,.3mf,.pdf,.zip', hint: 'Whatever helps us understand the part. 10 MB max.' }
+    plate: { ext: '.dxf,.step,.stp', hint: 'A DXF or STEP per plate. DXFs get measured and priced automatically; STEP files are quoted by hand. Pick several at once or add more later. 10 MB max each.' },
+    print: { ext: '.stl,.3mf', hint: 'An STL or 3MF per printed part, read as millimeters (if yours are in inches, say so in the details). Pick several at once or add more later. 10 MB max each.' },
+    other: { ext: '.dxf,.step,.stp,.stl,.3mf,.pdf,.zip', hint: 'Whatever helps us understand the parts. 10 MB max each.' }
   };
+
+  // The files in this request, one per part (see FILES below).
+  var items = [];
 
   function syncType() {
     var type = els.type.value;
@@ -677,12 +677,18 @@
     var a = ACCEPT[type] || ACCEPT.other;
     els.files.setAttribute('accept', a.ext);
     els.fileHint.textContent = a.hint;
+    // Whether a file prices automatically depends on the part type.
+    items.forEach(updateRow);
   }
   els.type.addEventListener('change', syncType);
   syncType();
 
   els.printMaterial.addEventListener('change', function () {
     els.premiumNote.hidden = els.printMaterial.value !== 'premium';
+  });
+  // A print's weight (shown per file) depends on infill and walls.
+  [els.infill, els.walls].forEach(function (input) {
+    input.addEventListener('input', function () { items.forEach(updateRow); });
   });
 
   document.querySelectorAll('input[name="delivery"]').forEach(function (r) {
@@ -1277,16 +1283,13 @@
     els.previewCanvas = fresh;
   }
 
-  /* What the uploaded DXF measured, in inches, or null when there's nothing
-     to go on (a STEP file, a drawing with no geometry we understand). */
-  var fileGeom = null;
-
-  function applyDxfMeasurement(dxf) {
+  /* What a DXF measured, in inches, or null when there's nothing to go on (a
+     drawing with no geometry we understand). */
+  function dxfGeom(dxf) {
     var measured = measureDxf(dxf.entities);
-    if (!measured || measured.width <= 0 || measured.height <= 0) return;
-
+    if (!measured || measured.width <= 0 || measured.height <= 0) return null;
     var unit = resolveUnits(measured, dxf.units);
-    fileGeom = {
+    return {
       width: measured.width * unit.toInches,
       height: measured.height * unit.toInches,
       cutLength: measured.cutLength * unit.toInches,
@@ -1294,15 +1297,6 @@
       units: unit.units,
       guessed: unit.guessed
     };
-
-    els.geomNote.innerHTML = 'Measured from your file: <b>' +
-      fileGeom.width.toFixed(1) + '″ × ' + fileGeom.height.toFixed(1) + '″</b>, ' +
-      fileGeom.cutLength.toFixed(1) + '″ of cut path, ' +
-      fileGeom.holes.length + (fileGeom.holes.length === 1 ? ' hole' : ' holes') + '.' +
-      (unit.guessed
-        ? ' Your file doesn\'t state its units, so we read it as ' + unit.units + ' — if that\'s wrong, say so in the details and we\'ll re-price it.'
-        : '');
-    els.geomNote.hidden = false;
   }
 
   /* Volume, surface area and size of a triangle mesh (flat xyz list, mm).
@@ -1335,221 +1329,380 @@
     var printedMm3 = shell + (geom.volumeMm3 - shell) * (infillPct / 100);
     return (printedMm3 / 1000) * RATE.filamentDensity;
   }
-
-  /* What the uploaded STL/3MF/STEP measured, or null when there's nothing
-     measurable yet. Prints are priced from this instead of a typed weight. */
-  var printGeom = null;
-
-  function showPrintMeasurement(geom) {
-    if (!geom) { els.printNote.hidden = true; return; }
-    els.printNote.innerHTML = 'Measured from your file: <b>' +
-      geom.dims.map(function (d) { return d.toFixed(0); }).join(' × ') + ' mm</b>, about <b>' +
-      Math.round(printedGrams(geom, RATE.infillDefault, RATE.wallsDefault)) + ' g</b> at ' +
-      RATE.infillDefault + '% infill and ' + RATE.wallsDefault + ' walls. Units are read as millimeters — if your file is in inches, say so in the details.';
-    els.printNote.hidden = false;
+  function infillPct() {
+    var v = parseFloat(els.infill.value);
+    return isNaN(v) ? RATE.infillDefault : v;
   }
+  function wallCount() { return parseFloat(els.walls.value) || RATE.wallsDefault; }
 
-  // Bumped on every new upload, so a slow STEP/3MF load for an older file
-  // can't draw over the preview of the one picked after it.
+  /* -------------------------- FILES -------------------------- */
+  /* One file per part. Each is read and measured as soon as it's added (a
+     DXF's size, cut path and holes; an STL, 3MF or STEP file's mesh), gets its
+     own quantity, and is priced on its own line. Clicking a file's name shows
+     it in the preview. */
+
+  var activeItem = null;
+  // Bumped every time the preview changes, so a slow render for one file can't
+  // draw over the preview of the file picked after it.
   var previewToken = 0;
 
-  function previewMesh(label, token, toPositions) {
-    // The drawing library may still be on its way; wait for it (a failed load just
-    // means renderMeshPreview falls back to the "couldn't render" note).
-    Promise.all([toPositions(), loadThree().catch(function () {})]).then(function (r) {
-      var positions = r[0];
-      if (token !== previewToken) return;
-      printGeom = measureMesh(positions);
-      showPrintMeasurement(printGeom);
-      if (renderMeshPreview(positions)) {
-        els.previewNote.textContent = 'Rough isometric preview from your ' + label + ' — not to exact scale.';
-      } else {
-        showPreviewFallback('Couldn\'t render a preview for this ' + label + ' — we\'ll open it on our end.');
-      }
-    }).catch(function (err) {
-      if (token !== previewToken) return;
-      console.error('Preview failed:', err);
-      showPreviewFallback('Couldn\'t preview this ' + label + ' — we\'ll open it on our end.');
+  function extOf(name) { return (String(name).split('.').pop() || '').toLowerCase(); }
+  function isStep(ext) { return ext === 'step' || ext === 'stp'; }
+
+  function measureItem(item) {
+    var ext = item.ext, file = item.file, job;
+    if (ext === 'dxf') {
+      job = file.text().then(function (text) {
+        item.dxf = parseDxf(text);
+        item.geom = dxfGeom(item.dxf);
+      });
+    } else if (ext === 'stl') {
+      job = file.arrayBuffer().then(function (buf) { item.positions = new Float32Array(parseStl(buf)); });
+    } else if (ext === '3mf') {
+      job = Promise.all([file.arrayBuffer(), load3mf()]).then(function (r) { item.positions = new Float32Array(threeMfToPositions(r[0])); });
+    } else if (isStep(ext)) {
+      job = Promise.all([file.arrayBuffer(), loadOcct()]).then(function (r) { item.positions = new Float32Array(stepToPositions(r[0], r[1])); });
+    } else {
+      job = Promise.resolve();
+    }
+    item.ready = job.then(function () {
+      if (item.positions) item.mesh = measureMesh(item.positions);
+      item.status = 'ready';
+    }, function (err) {
+      console.error('Couldn\'t read ' + item.name + ':', err);
+      item.status = 'failed';
+    }).then(function () {
+      updateRow(item);
+      if (item === activeItem) showPreview(item);
     });
   }
 
-  els.files.addEventListener('change', function () {
-    var file = els.files.files[0];
-    var token = ++previewToken;
-    els.previewWrap.hidden = true;
-    els.previewNote.textContent = '';
-    fileGeom = null;
-    els.geomNote.hidden = true;
-    printGeom = null;
-    els.printNote.hidden = true;
-    if (!file) return;
-    resetPreviewCanvas();
-
-    var ext = (file.name.split('.').pop() || '').toLowerCase();
-    if (ext === 'stl' || ext === 'step' || ext === 'stp' || ext === '3mf') {
-      els.previewWrap.hidden = false;
-      els.previewNote.textContent = ext === 'stl' ? 'Rendering preview…'
-        : ext === '3mf' ? 'Loading the 3MF viewer…'
-        : 'Loading the STEP viewer — the first STEP file takes a few seconds…';
-      if (ext === 'stl') {
-        previewMesh('STL', token, function () { return file.arrayBuffer().then(parseStl); });
-      } else if (ext === '3mf') {
-        previewMesh('3MF', token, function () {
-          return Promise.all([file.arrayBuffer(), load3mf()]).then(function (r) { return threeMfToPositions(r[0]); });
-        });
-      } else {
-        previewMesh('STEP file', token, function () {
-          return Promise.all([file.arrayBuffer(), loadOcct()]).then(function (r) { return stepToPositions(r[0], r[1]); });
-        });
-      }
-    } else if (ext === 'dxf') {
-      els.previewWrap.hidden = false;
-      els.previewNote.textContent = 'Rendering preview…';
-      file.text().then(function (text) {
-        if (token !== previewToken) return;
-        var dxf = parseDxf(text);
-        if (renderDxfPreview(dxf.entities)) {
-          els.previewNote.textContent = '2D preview from your DXF geometry.';
-        } else {
-          showPreviewFallback('Couldn\'t find drawable geometry in this DXF — we\'ll open it on our end.');
-        }
-        applyDxfMeasurement(dxf);
-      }).catch(function () {
-        if (token !== previewToken) return;
-        showPreviewFallback('Couldn\'t read this file for a preview — we\'ll open it on our end.');
-      });
+  // Why a file can't be priced automatically, for the current part type and
+  // material, or '' when it can be.
+  function handReason(item) {
+    var type = els.type.value, ext = item.ext;
+    if (item.status === 'failed') return 'We couldn\'t read this file, so it\'s priced by hand.';
+    if (type === 'other') return '"Something else" is priced by hand.';
+    if (type === 'plate') {
+      if (isStep(ext)) return 'STEP files are priced by hand from your model.';
+      if (ext !== 'dxf') return 'Not a plate file (DXF or STEP), so it\'s priced by hand.';
+      if (item.status === 'ready' && !item.geom) return 'We couldn\'t find measurable geometry in this DXF, so it\'s priced by hand.';
+      if (els.material.value === 'other-mat') return 'Materials outside 6061 aluminum and polycarbonate are priced by hand.';
+      return '';
     }
+    if (ext === 'dxf' || ext === 'pdf' || ext === 'zip') return 'Not a 3D model (STL, 3MF or STEP), so it\'s priced by hand.';
+    if (item.status === 'ready' && !item.mesh) return 'We couldn\'t measure this model, so it\'s priced by hand.';
+    return '';
+  }
+
+  // The line under a file's name: what it measured, or why it's priced by hand.
+  function itemNote(item) {
+    if (item.status === 'measuring') return { text: isStep(item.ext) ? 'Reading the STEP file — the first one takes a few seconds…' : 'Measuring…' };
+    var reason = handReason(item);
+    if (reason) return { text: reason, hand: true };
+    if (els.type.value === 'plate') {
+      var g = item.geom;
+      return { html: '<b>' + g.width.toFixed(1) + '″ × ' + g.height.toFixed(1) + '″</b>, ' + g.cutLength.toFixed(1) + '″ of cut path, ' +
+        g.holes.length + (g.holes.length === 1 ? ' hole' : ' holes') +
+        (g.guessed ? '. The file doesn\'t state its units, so we read it as ' + g.units + ' — if that\'s wrong, say so in the details.' : '') };
+    }
+    return { html: '<b>' + item.mesh.dims.map(function (d) { return d.toFixed(0); }).join(' × ') + ' mm</b>, about <b>' +
+      Math.round(printedGrams(item.mesh, infillPct(), wallCount())) + ' g</b> each' };
+  }
+
+  function addRow(item) {
+    var li = document.createElement('li');
+    li.className = 'file-item';
+    var name = document.createElement('button');
+    name.type = 'button';
+    name.className = 'file-name';
+    name.textContent = item.name;
+    name.title = 'Show this file in the preview';
+    name.addEventListener('click', function () { setActive(item); });
+    var note = document.createElement('span');
+    note.className = 'file-note';
+    var qtyWrap = document.createElement('label');
+    qtyWrap.className = 'file-qty';
+    var qty = document.createElement('input');
+    qty.type = 'number'; qty.min = '1'; qty.step = '1'; qty.value = '1';
+    qty.setAttribute('inputmode', 'numeric');
+    qty.setAttribute('aria-label', 'How many of ' + item.name);
+    qty.addEventListener('input', function () { item.qty = Math.max(1, parseInt(qty.value, 10) || 1); });
+    qty.addEventListener('change', function () { qty.value = item.qty; });
+    qtyWrap.appendChild(document.createTextNode('Qty '));
+    qtyWrap.appendChild(qty);
+    var remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'file-remove';
+    remove.textContent = 'Remove';
+    remove.setAttribute('aria-label', 'Remove ' + item.name);
+    remove.addEventListener('click', function () { removeItem(item); });
+    li.appendChild(name); li.appendChild(qtyWrap); li.appendChild(remove); li.appendChild(note);
+    item.row = { li: li, name: name, note: note };
+    els.fileList.appendChild(li);
+    updateRow(item);
+  }
+
+  function updateRow(item) {
+    if (!item.row) return;
+    var n = itemNote(item);
+    if (n.html) item.row.note.innerHTML = n.html; else item.row.note.textContent = n.text;
+    item.row.li.classList.toggle('is-hand', !!n.hand);
+    item.row.li.classList.toggle('is-active', item === activeItem);
+    item.row.name.setAttribute('aria-pressed', String(item === activeItem));
+  }
+
+  function setActive(item) {
+    activeItem = item;
+    items.forEach(updateRow);
+    showPreview(item);
+  }
+
+  function fileProblem(text) {
+    els.fileProblem.textContent = text || '';
+    els.fileProblem.hidden = !text;
+  }
+
+  function addFiles(list) {
+    var skipped = [], added = null;
+    var total = items.reduce(function (sum, it) { return sum + it.file.size; }, 0);
+    Array.prototype.forEach.call(list, function (file) {
+      if (items.some(function (it) { return it.name === file.name && it.file.size === file.size && it.file.lastModified === file.lastModified; })) {
+        skipped.push(file.name + ' is already in the list');
+      } else if (items.length >= MAX_FILES) {
+        skipped.push(file.name + ' (' + MAX_FILES + ' files per request)');
+      } else if (file.size > MAX_UPLOAD) {
+        skipped.push(file.name + ' is over 10 MB');
+      } else if (total + file.size > MAX_TOTAL) {
+        skipped.push(file.name + ' (over 50 MB all together)');
+      } else {
+        total += file.size;
+        var item = { file: file, name: file.name, ext: extOf(file.name), qty: 1, status: 'measuring' };
+        items.push(item);
+        addRow(item);
+        measureItem(item);
+        added = item;
+      }
+    });
+    els.fileList.hidden = !items.length;
+    fileProblem(skipped.length ? 'Not added: ' + skipped.join('; ') + '. Bigger files can be emailed to ' + EMAIL + '.' : '');
+    if (added) setActive(added);
+  }
+
+  function removeItem(item) {
+    items = items.filter(function (it) { return it !== item; });
+    if (item.row) item.row.li.remove();
+    els.fileList.hidden = !items.length;
+    fileProblem('');
+    if (item === activeItem) setActive(items[items.length - 1] || null);
+  }
+
+  function clearItems() {
+    items.slice().forEach(removeItem);
+  }
+
+  // Waits for every file to finish reading (or give up), so the quote prices
+  // all of them. A file still going after 30 seconds is priced by hand.
+  function whenMeasured() {
+    var all = Promise.all(items.map(function (it) { return it.ready; }));
+    return Promise.race([all, new Promise(function (resolve) { setTimeout(resolve, 30000); })]);
+  }
+
+  els.files.addEventListener('change', function () {
+    addFiles(els.files.files);
+    els.files.value = ''; // so the same file can be picked again after removing it
+    els.files.setCustomValidity('');
   });
+
+  function showPreview(item) {
+    var token = ++previewToken;
+    if (!item) { els.previewWrap.hidden = true; return; }
+    els.previewLabel.textContent = 'Preview: ' + item.name;
+    els.previewWrap.hidden = false;
+    resetPreviewCanvas();
+    if (item.status === 'measuring') {
+      els.previewNote.textContent = isStep(item.ext) ? 'Loading the STEP viewer — the first STEP file takes a few seconds…' : 'Rendering preview…';
+      return;
+    }
+    if (item.dxf) {
+      if (renderDxfPreview(item.dxf.entities)) els.previewNote.textContent = '2D preview from your DXF geometry.';
+      else showPreviewFallback('Couldn\'t find drawable geometry in this DXF — we\'ll open it on our end.');
+      return;
+    }
+    if (item.positions && item.positions.length) {
+      var label = item.ext === 'stl' ? 'STL' : item.ext === '3mf' ? '3MF' : 'STEP file';
+      els.previewNote.textContent = 'Rendering preview…';
+      // The drawing library may still be on its way; a failed load just means
+      // the "couldn't render" note.
+      loadThree().catch(function () {}).then(function () {
+        if (token !== previewToken) return;
+        if (renderMeshPreview(item.positions)) {
+          els.previewNote.textContent = 'Rough isometric preview from your ' + label + ' — not to exact scale.';
+        } else {
+          showPreviewFallback('Couldn\'t render a preview for this ' + label + ' — we\'ll open it on our end.');
+        }
+      });
+      return;
+    }
+    showPreviewFallback(item.status === 'failed'
+      ? 'Couldn\'t read this file for a preview — we\'ll open it on our end.'
+      : 'No preview for this kind of file — we\'ll open it on our end.');
+  }
 
   /* -------------------------- PRICING -------------------------- */
 
-  function buildQuote() {
-    var type = els.type.value;
-    var qty = Math.max(1, parseInt(els.qty.value, 10) || 1);
-    var delivery = document.querySelector('input[name="delivery"]:checked').value;
-    var notes = [];
+  /* One file, priced on its own: per-part material, machine time, labor and
+     flagged options, the 5+ discount and the minimum, times its quantity. A
+     file that can't be priced automatically comes back with the reason. */
+  function priceLine(item) {
+    var type = els.type.value, qty = item.qty;
+    var line = { name: item.name, ext: item.ext, qty: qty, priced: false, reason: handReason(item), size: '', notes: [] };
+    if (!line.reason && item.status !== 'ready') line.reason = 'We couldn\'t finish reading this file in time, so it\'s priced by hand.';
+    if (line.reason) return line;
 
-    if (type === 'other') {
-      return { escalated: true, reason: '"Something else" doesn\'t fit the plate/print pricing below — tell us what you need and we\'ll price it by hand.' };
-    }
-    if (type === 'plate' && els.material.value === 'other-mat') {
-      return { escalated: true, reason: 'Materials outside 6061 aluminum and polycarbonate are priced by hand once we know what you need.' };
-    }
-
-    var perUnitMaterial = 0, perUnitMachine = 0, perUnitLabor = 0;
-    var sizeNote = '', detailLine = '', measuredNote = '';
-
+    var material, machine, labor, surcharge = 0;
     if (type === 'plate') {
-      // Plates are priced only from a measured DXF. A STEP file (or a DXF with
-      // no geometry we can read) can't be measured in the browser, so it
-      // goes to a hand quote instead of a guess.
-      if (!fileGeom) {
-        return { escalated: true, reason: 'We price plates automatically from a DXF. For a STEP file (or a DXF we couldn\'t measure), we\'ll quote it by hand from your file and email you.' };
-      }
-      var w = fileGeom.width, h = fileGeom.height;
-      var area = w * h;
-      var matRate = RATE.materialPerSqIn[els.material.value] || RATE.materialPerSqIn.aluminum;
-      perUnitMaterial = area * matRate;
-
-      var cncMin = RATE.cncSetupMin +
-        (fileGeom.cutLength * RATE.cncPasses) / RATE.cncFeedIpm +
-        fileGeom.holes.length * RATE.cncPerHoleMin;
-      measuredNote = fileGeom.cutLength.toFixed(1) + '″ cut path, ' + fileGeom.holes.length +
-        (fileGeom.holes.length === 1 ? ' hole' : ' holes');
-      notes.push('Priced from your DXF: ' + measuredNote + '.');
-
-      var tooSmall = fileGeom.holes.filter(function (d) {
-        return d < RATE.minToolDiaIn - 1e-6;
-      }).length;
+      var g = item.geom, area = g.width * g.height;
+      material = area * (RATE.materialPerSqIn[els.material.value] || RATE.materialPerSqIn.aluminum);
+      var cncMin = RATE.cncSetupMin + (g.cutLength * RATE.cncPasses) / RATE.cncFeedIpm + g.holes.length * RATE.cncPerHoleMin;
+      machine = cncMin * RATE.cncPerMin;
+      labor = (Math.min(RATE.laborMaxPlateMin, RATE.laborMinPlate + area * RATE.laborMinPlateAreaFactor) / 60) * RATE.laborPerHour;
+      if (els.tapped.checked) surcharge += RATE.surchargeTapped;
+      if (els.tol.checked) surcharge += RATE.surchargeTolerance;
+      if (els.complex.checked) surcharge += RATE.surchargeComplex;
+      line.size = g.width.toFixed(1) + '″ × ' + g.height.toFixed(1) + '″ (' + area.toFixed(1) + ' sq in), ' +
+        g.cutLength.toFixed(1) + '″ cut path, ' + g.holes.length + (g.holes.length === 1 ? ' hole' : ' holes');
+      var tooSmall = g.holes.filter(function (d) { return d < RATE.minToolDiaIn - 1e-6; }).length;
       if (tooSmall) {
-        notes.push(tooSmall + (tooSmall === 1 ? ' hole is' : ' holes are') +
-          ' under our ' + RATE.minToolDiaIn + '″ minimum tool diameter — we\'ll confirm those with you before cutting.');
+        line.notes.push(tooSmall + (tooSmall === 1 ? ' hole is' : ' holes are') + ' under our ' + RATE.minToolDiaIn +
+          '″ minimum tool diameter — we\'ll confirm those with you before cutting.');
       }
-
-      perUnitMachine = cncMin * RATE.cncPerMin;
-      var laborMin = Math.min(RATE.laborMaxPlateMin, RATE.laborMinPlate + area * RATE.laborMinPlateAreaFactor);
-      perUnitLabor = (laborMin / 60) * RATE.laborPerHour;
-      sizeNote = w.toFixed(1) + '″ × ' + h.toFixed(1) + '″ (' + area.toFixed(1) + ' sq in), ' + measuredNote;
-      detailLine = els.material.selectedOptions[0].text;
-    } else if (type === 'print') {
-      if (!printGeom) {
-        return { escalated: true, reason: 'We price prints automatically from an STL or 3MF. We couldn\'t measure this file, so we\'ll quote it by hand and email you.' };
+    } else {
+      var grams = printedGrams(item.mesh, infillPct(), wallCount());
+      var hours = grams / RATE.gramsPerHour;
+      if (hours > RATE.printMaxHours || Math.max.apply(null, item.mesh.dims) > RATE.printMaxSideMm) {
+        line.reason = 'A big print (about ' + Math.round(grams) + ' g, roughly ' + Math.round(hours) + ' hours) is priced by hand.';
+        return line;
       }
-      var infill = parseFloat(els.infill.value);
-      if (isNaN(infill)) infill = RATE.infillDefault;
-      var walls = parseFloat(els.walls.value) || RATE.wallsDefault;
-      var adjustedWeight = printedGrams(printGeom, infill, walls);
-      var premium = els.printMaterial.value === 'premium';
-      var filRate = premium ? RATE.premiumFilamentPerGram : RATE.filamentPerGram;
-      perUnitMaterial = adjustedWeight * filRate;
-      var printHr = adjustedWeight / RATE.gramsPerHour;
-      if (printHr > RATE.printMaxHours || Math.max.apply(null, printGeom.dims) > RATE.printMaxSideMm) {
-        return { escalated: true, reason: 'This is a big print (about ' + Math.round(adjustedWeight) + ' g, roughly ' + Math.round(printHr) + ' hours), so a Crackbotics member will quote it by hand and email you.' };
-      }
-      perUnitMachine = RATE.printMachineFlat;
-      perUnitLabor = RATE.printLaborFlat;
-      sizeNote = printGeom.dims.map(function (d) { return d.toFixed(0); }).join(' × ') + ' mm, ~' +
-        Math.round(adjustedWeight) + ' g at ' + infill + '% infill, ' + walls + (walls === 1 ? ' wall' : ' walls');
-      detailLine = els.printMaterial.selectedOptions[0].text + (els.color.value ? ', ' + els.color.value : '');
-      if (premium) {
-        notes.push('Special-order material — expect extra lead time while it arrives before we can start printing.');
-      }
+      material = grams * (els.printMaterial.value === 'premium' ? RATE.premiumFilamentPerGram : RATE.filamentPerGram);
+      machine = RATE.printMachineFlat;
+      labor = RATE.printLaborFlat;
+      line.size = item.mesh.dims.map(function (d) { return d.toFixed(0); }).join(' × ') + ' mm, ~' + Math.round(grams) + ' g at ' +
+        infillPct() + '% infill, ' + wallCount() + (wallCount() === 1 ? ' wall' : ' walls');
     }
-
-    var surcharge = 0;
-    if (type === 'plate') {
-      if (els.tapped.checked) { surcharge += RATE.surchargeTapped; notes.push('Tapped holes: +' + money(RATE.surchargeTapped) + '/part for the extra setup.'); }
-      if (els.tol.checked) { surcharge += RATE.surchargeTolerance; notes.push('Tight tolerances (±0.005″ or tighter): +' + money(RATE.surchargeTolerance) + '/part.'); }
-      if (els.complex.checked) { surcharge += RATE.surchargeComplex; notes.push('Multiple setups / unusual geometry: +' + money(RATE.surchargeComplex) + '/part.'); }
+    if (qty > RATE.escalateQty) {
+      line.notes.push('Over ' + RATE.escalateQty + ' of one part gets a final check on batch capacity before we confirm.');
     }
-    if (els.rush.checked) { notes.push('Skipping the normal batch: no rush fee, but we confirm capacity before promising a date.'); }
-    if (qty > RATE.escalateQty) { notes.push('Orders over ' + RATE.escalateQty + ' identical parts get a final check on batch capacity before we confirm — this price is our best estimate.'); }
 
     var discounted = qty >= RATE.qtyDiscountThreshold;
-    var materialAfterDiscount = discounted ? perUnitMaterial * (1 - RATE.qtyDiscountRate) : perUnitMaterial;
-    var perUnitSubtotal = materialAfterDiscount + perUnitMachine + perUnitLabor + surcharge;
-    var perUnitPrice = Math.max(RATE.minPartPrice, perUnitSubtotal);
-    var partsTotal = perUnitPrice * qty;
+    var materialEach = discounted ? material * (1 - RATE.qtyDiscountRate) : material;
+    var subtotal = materialEach + machine + labor + surcharge;
+    line.priced = true;
+    line.discounted = discounted;
+    line.each = { material: materialEach, machine: machine, labor: labor, flags: surcharge, minimum: Math.max(0, RATE.minPartPrice - subtotal) };
+    // Rounded to the cent first, so "6 × $10.45" always adds up to the line total shown.
+    line.perPart = Math.round(Math.max(RATE.minPartPrice, subtotal) * 100) / 100;
+    line.total = line.perPart * qty;
+    return line;
+  }
 
-    var deliveryCost = null, deliveryLine = 'Pickup in San Diego — free';
-    if (delivery === 'delivery') {
-      deliveryCost = RATE.flatDeliveryRate;
-      deliveryLine = 'Local delivery (flat rate): ' + money(deliveryCost);
+  // The material/color line that applies to every file in the request.
+  function detailLine() {
+    var type = els.type.value;
+    if (type === 'plate') return els.material.selectedOptions[0].text;
+    if (type === 'print') return els.printMaterial.selectedOptions[0].text + (els.color.value.trim() ? ', ' + els.color.value.trim() : '');
+    return '';
+  }
+
+  function buildQuote() {
+    var type = els.type.value;
+    var delivery = document.querySelector('input[name="delivery"]:checked').value;
+    var lines = items.map(priceLine);
+    var priced = lines.filter(function (l) { return l.priced; });
+    var hand = lines.filter(function (l) { return !l.priced; });
+    var qty = lines.reduce(function (n, l) { return n + l.qty; }, 0);
+    var notes = [];
+
+    if (type === 'plate' && priced.length) {
+      if (els.tapped.checked) notes.push('Tapped holes: +' + money(RATE.surchargeTapped) + '/part for the extra setup.');
+      if (els.tol.checked) notes.push('Tight tolerances (±0.005″ or tighter): +' + money(RATE.surchargeTolerance) + '/part.');
+      if (els.complex.checked) notes.push('Multiple setups / unusual geometry: +' + money(RATE.surchargeComplex) + '/part.');
     }
+    if (type === 'print' && els.printMaterial.value === 'premium') {
+      notes.push('Special-order material — expect extra lead time while it arrives before we can start printing.');
+    }
+    if (els.rush.checked) notes.push('Skipping the normal batch: no rush fee, but we confirm capacity before promising a date.');
 
-    var total = partsTotal + (deliveryCost || 0);
-
-    return {
-      escalated: false,
-      type: type, qty: qty, sizeNote: sizeNote, detailLine: detailLine, delivery: delivery,
-      materialAfterDiscount: materialAfterDiscount, discounted: discounted,
-      perUnitMachine: perUnitMachine, perUnitLabor: perUnitLabor, surcharge: surcharge,
-      perUnitSubtotal: perUnitSubtotal, partsTotal: partsTotal,
-      deliveryCost: deliveryCost, deliveryLine: deliveryLine,
-      total: total, notes: notes,
+    var q = {
+      type: type, delivery: delivery, lines: lines, priced: priced, hand: hand, qty: qty,
+      detailLine: detailLine(), notes: notes,
       batch: batchMessage(delivery === 'delivery' ? 'delivery' : 'pickup')
     };
+    if (!priced.length) {
+      q.escalated = true;
+      q.reason = lines.length === 1
+        ? lines[0].reason + ' We\'ll quote it by hand and email you.'
+        : 'We\'ll price ' + (lines.length === 2 ? 'both files' : 'all ' + lines.length + ' files') + ' by hand and email you.';
+      return q;
+    }
+
+    var sum = { material: 0, machine: 0, labor: 0, flags: 0, minimum: 0 };
+    priced.forEach(function (l) { Object.keys(sum).forEach(function (k) { sum[k] += l.each[k] * l.qty; }); });
+    q.escalated = false;
+    q.partial = hand.length > 0;
+    q.sum = sum;
+    q.pricedQty = priced.reduce(function (n, l) { return n + l.qty; }, 0);
+    q.discounted = priced.some(function (l) { return l.discounted; });
+    q.partsTotal = priced.reduce(function (t, l) { return t + l.total; }, 0);
+    q.deliveryCost = delivery === 'delivery' ? RATE.flatDeliveryRate : null;
+    q.deliveryLine = delivery === 'delivery' ? 'Local delivery (flat rate): ' + money(RATE.flatDeliveryRate) : 'Pickup in San Diego — free';
+    q.total = q.partsTotal + (q.deliveryCost || 0);
+    return q;
+  }
+
+  // One row per file: quantity, what it measured (or why it's by hand), price.
+  function linesHtml(q) {
+    return '<ul class="calc-lines">' + q.lines.map(function (l) {
+      return '<li' + (l.priced ? '' : ' class="is-hand"') + '>' +
+        '<span class="cl-name">' + escapeHtml(l.name) + '</span>' +
+        '<span class="cl-price">' + (l.priced ? money(l.total) : 'by hand') + '</span>' +
+        '<span class="cl-detail">' + (l.priced ? l.qty + ' × ' + escapeHtml(l.size) : 'Qty ' + l.qty + ' · ' + escapeHtml(l.reason)) +
+        (l.priced && l.qty > 1 ? ' · ' + money(l.perPart) + ' each' : '') +
+        (l.notes.length ? ' ' + escapeHtml(l.notes.join(' ')) : '') + '</span>' +
+        '</li>';
+    }).join('') + '</ul>';
   }
 
   function quoteToHtml(q) {
     if (q.escalated) {
       return '<p class="calc-headline">Let\'s work this one out by email.</p>' +
-        '<p class="calc-sub">' + q.reason + '</p>';
+        '<p class="calc-sub">' + escapeHtml(q.reason) + '</p>' + (q.lines.length > 1 ? linesHtml(q) : '');
     }
+    var s = q.sum;
     var breakdown = '<dl class="calc-breakdown">' +
-      '<div><dt>' + (q.qty > 1 ? q.qty + ' × material' : 'Material') + (q.discounted ? ' (5+, 8% off)' : '') + '</dt><dd>' + money(q.materialAfterDiscount * q.qty) + '</dd></div>' +
-      '<div><dt>Machine time</dt><dd>' + money(q.perUnitMachine * q.qty) + '</dd></div>' +
-      '<div><dt>Labor</dt><dd>' + money(q.perUnitLabor * q.qty) + '</dd></div>' +
-      (q.surcharge ? '<div><dt>Flagged items</dt><dd>' + money(q.surcharge * q.qty) + '</dd></div>' : '') +
-      (q.perUnitSubtotal < RATE.minPartPrice ? '<div><dt>Minimum applied</dt><dd>' + money(RATE.minPartPrice - q.perUnitSubtotal) + ' × ' + q.qty + '</dd></div>' : '') +
+      '<div><dt>Material' + (q.pricedQty > 1 ? ' (' + q.pricedQty + ' parts)' : '') + (q.discounted ? ', 8% off 5+ of a part' : '') + '</dt><dd>' + money(s.material) + '</dd></div>' +
+      '<div><dt>Machine time</dt><dd>' + money(s.machine) + '</dd></div>' +
+      '<div><dt>Labor</dt><dd>' + money(s.labor) + '</dd></div>' +
+      (s.flags ? '<div><dt>Flagged items</dt><dd>' + money(s.flags) + '</dd></div>' : '') +
+      (s.minimum ? '<div><dt>Minimum applied</dt><dd>' + money(s.minimum) + '</dd></div>' : '') +
       '<div><dt>' + (q.delivery === 'delivery' ? 'Delivery' : 'Pickup') + '</dt><dd>' + (q.delivery === 'delivery' ? money(q.deliveryCost) : 'Free') + '</dd></div>' +
       '</dl>';
-    var notesHtml = q.notes.length ? '<ul class="calc-reasons">' + q.notes.map(function (n) { return '<li>' + n + '</li>'; }).join('') + '</ul>' : '';
-    return '<p class="calc-headline">' + money(q.total) + '</p>' +
-      '<p class="calc-sub">' + q.qty + ' × ' + escapeHtml(q.sizeNote) + (q.detailLine ? ', ' + escapeHtml(q.detailLine) : '') + '</p>' +
+    var detail = q.detailLine ? escapeHtml(q.detailLine) : '', sub;
+    if (q.partial) {
+      sub = (detail ? detail + (/\.$/.test(detail) ? ' ' : '. ') : '') + 'For ' + q.priced.length + ' of your ' + q.lines.length +
+        ' files: the ones marked “by hand” aren’t in this total, and we’ll email you the full price.';
+    } else if (q.lines.length === 1) {
+      sub = q.lines[0].qty + ' × ' + escapeHtml(q.lines[0].size) + (detail ? ', ' + detail : '');
+    } else {
+      sub = q.qty + ' parts from ' + q.lines.length + ' files' + (detail ? ', ' + detail : '');
+    }
+    var notesHtml = q.notes.length ? '<ul class="calc-reasons">' + q.notes.map(function (n) { return '<li>' + escapeHtml(n) + '</li>'; }).join('') + '</ul>' : '';
+    return '<p class="calc-headline">' + money(q.total) + (q.partial ? '<span class="calc-plus"> + hand quote</span>' : '') + '</p>' +
+      '<p class="calc-sub">' + sub + '</p>' +
+      (q.lines.length > 1 || q.lines[0].notes.length ? linesHtml(q) : '') +
       breakdown + notesHtml +
       '<p class="calc-batch">' + q.batch + '</p>' +
-      '<p class="calc-fineprint">Estimate from what you entered — confirmed once we see the actual file.</p>';
+      '<p class="calc-fineprint">Estimate from what you entered — confirmed once we see the actual files.</p>';
   }
 
   // Everything the customer chose, whether or not it could be priced automatically —
@@ -1557,49 +1710,51 @@
   var OPTION_LABELS = { tapped: 'Tapped holes', tight_tolerances: 'Tight tolerances (±0.005″ or tighter)',
     complex_geometry: 'Multiple setups / unusual geometry' };
   function orderSpecs(q) {
-    var type = els.type.value, file = els.files.files[0];
+    var type = els.type.value;
+    var exts = [];
+    q.lines.forEach(function (l) { var e = l.ext.toUpperCase(); if (e && exts.indexOf(e) === -1) exts.push(e); });
     var s = {
       kind: type === 'plate' ? 'cnc' : type === 'print' ? 'print' : 'other',
-      qty: Math.max(1, parseInt(els.qty.value, 10) || 1),
-      rush: els.rush.checked, options: [],
-      file_type: file ? (file.name.split('.').pop() || '').toUpperCase() : ''
+      qty: q.qty, rush: els.rush.checked, options: [], file_type: exts.join(', ')
     };
     if (type === 'plate') {
       s.material = els.material.selectedOptions[0].text;
       if (els.tapped.checked) s.options.push('tapped');
       if (els.tol.checked) s.options.push('tight_tolerances');
       if (els.complex.checked) s.options.push('complex_geometry');
-      if (fileGeom) {
-        s.size = fileGeom.width.toFixed(2) + '″ × ' + fileGeom.height.toFixed(2) + '″ (' + (fileGeom.width * fileGeom.height).toFixed(1) +
-          ' sq in), ' + fileGeom.cutLength.toFixed(1) + '″ cut path, ' + fileGeom.holes.length + (fileGeom.holes.length === 1 ? ' hole' : ' holes');
-      }
     } else if (type === 'print') {
       s.material = els.printMaterial.selectedOptions[0].text;
       s.color = els.color.value.trim();
-      var infill = parseFloat(els.infill.value);
-      s.infill = isNaN(infill) ? RATE.infillDefault : infill;
-      s.walls = parseFloat(els.walls.value) || RATE.wallsDefault;
-      if (printGeom) {
-        s.size = printGeom.dims.map(function (d) { return d.toFixed(0); }).join(' × ') + ' mm, about ' +
-          Math.round(printedGrams(printGeom, s.infill, s.walls)) + ' g each';
-      }
+      s.infill = infillPct();
+      s.walls = wallCount();
     }
+    // One entry per file, in the order they were added (same order as the files).
+    s.items = q.lines.map(function (l) {
+      var it = { file: l.name, file_type: l.ext.toUpperCase(), qty: l.qty, size: l.size };
+      if (l.priced) {
+        it.price = { material: l.each.material * l.qty, machine: l.each.machine * l.qty, labor: l.each.labor * l.qty,
+          flags: l.each.flags * l.qty, minimum: l.each.minimum * l.qty, per_part: l.perPart, total: l.total, discount: l.discounted };
+      } else {
+        it.reason = l.reason;
+      }
+      return it;
+    });
+    if (q.lines.length === 1 && q.lines[0].size) s.size = q.lines[0].size;
     if (q.escalated) {
       s.reason = q.reason;
     } else {
       s.price = {
-        material: q.materialAfterDiscount * q.qty, machine: q.perUnitMachine * q.qty, labor: q.perUnitLabor * q.qty,
-        flags: q.surcharge * q.qty,
-        minimum: q.perUnitSubtotal < RATE.minPartPrice ? (RATE.minPartPrice - q.perUnitSubtotal) * q.qty : 0,
-        delivery: q.deliveryCost || 0, per_part: Math.max(RATE.minPartPrice, q.perUnitSubtotal),
-        total: q.total, discount: q.discounted
+        material: q.sum.material, machine: q.sum.machine, labor: q.sum.labor, flags: q.sum.flags, minimum: q.sum.minimum,
+        delivery: q.deliveryCost || 0, per_part: q.lines.length === 1 ? q.lines[0].perPart : 0,
+        total: q.total, discount: q.discounted, partial: q.partial
       };
+      if (q.partial) s.reason = q.hand.length + ' of ' + q.lines.length + ' files priced by hand: ' + q.hand.map(function (l) { return l.name; }).join(', ');
     }
     return s;
   }
 
   function specLines(s) {
-    var l = ['Quantity: ' + s.qty];
+    var l = ['Quantity: ' + s.qty + (s.items && s.items.length > 1 ? ' parts from ' + s.items.length + ' files' : '')];
     if (s.material) l.push('Material: ' + s.material);
     if (s.kind === 'print') {
       l.push('Color: ' + (s.color || 'not specified'));
@@ -1607,8 +1762,13 @@
     }
     if (s.options.length) l.push('Options: ' + s.options.map(function (o) { return OPTION_LABELS[o]; }).join(', '));
     if (s.rush) l.push('RUSH: skip the normal batch');
-    if (s.size) l.push('Measured: ' + s.size);
-    if (s.file_type) l.push('File type: ' + s.file_type);
+    if (s.items && s.items.length) {
+      l.push('Files:');
+      s.items.forEach(function (it, i) {
+        l.push('  ' + (i + 1) + ') ' + it.file + ' — ' +
+          (it.price ? it.qty + ' × ' + it.size + ' — ' + money(it.price.total) : 'qty ' + it.qty + ' — ' + it.reason));
+      });
+    }
     return l;
   }
 
@@ -1620,10 +1780,12 @@
     if (q.escalated) {
       lines.push('PRICE: needs a manual quote — ' + q.reason);
     } else {
-      lines.push('Details: ' + q.qty + ' × ' + q.sizeNote + (q.detailLine ? ', ' + q.detailLine : ''));
       lines.push('Delivery: ' + q.deliveryLine);
-      if (q.notes.length) lines.push('Flags: ' + q.notes.join(' | '));
-      lines.push('ESTIMATED TOTAL: ' + money(q.total));
+      var flags = q.notes.slice();
+      q.lines.forEach(function (l) { flags.push.apply(flags, l.notes); });
+      if (flags.length) lines.push('Flags: ' + flags.join(' | '));
+      lines.push('ESTIMATED TOTAL: ' + money(q.total) +
+        (q.partial ? ' for the priced files — plus ' + q.hand.length + (q.hand.length === 1 ? ' file' : ' files') + ' to price by hand' : ''));
     }
     if (data.details) lines.push('', 'Customer notes: ' + data.details);
     return lines.join('\n');
@@ -1677,14 +1839,21 @@
     if (!window.jspdf) return null;
     var doc = new window.jspdf.jsPDF({ unit: 'pt', format: 'letter' });
     var pageW = doc.internal.pageSize.getWidth();
+    var pageH = doc.internal.pageSize.getHeight();
     var x = 48, y = 56;
     var textW = pageW - x * 2;
+
+    // Starts a new page when the next h points wouldn't fit (a long file list).
+    function room(h) {
+      if (y + h > pageH - 48) { doc.addPage(); y = 56; }
+    }
 
     // Sanitizes, wraps to the page width, draws, and advances y — the one
     // path every block of text below goes through, so nothing can run off
     // the page edge or land on an unmapped character again.
     function block(str, lineHeight, width) {
       var lines = doc.splitTextToSize(pdfSafe(str), width || textW);
+      room(lines.length * lineHeight);
       doc.text(lines, x, y);
       y += lines.length * lineHeight;
     }
@@ -1692,14 +1861,19 @@
     // One line of the cost breakdown: label on the left, amount right-
     // aligned to the same edge every row lands on, so the column of numbers
     // reads down the page instead of trailing off wherever the label ends.
+    // A label too long for its side (a long file name) wraps.
     function priceRow(label, amount, bold) {
       doc.setFont('helvetica', bold ? 'bold' : 'normal');
       doc.setFontSize(bold ? 12.5 : 11);
       doc.setTextColor(bold ? 20 : 60, bold ? 18 : 55, bold ? 26 : 64);
-      doc.text(pdfSafe(label), x, y);
       var amtStr = pdfSafe(amount);
-      doc.text(amtStr, x + textW - doc.getTextWidth(amtStr), y);
-      y += bold ? 20 : 16;
+      var amtW = doc.getTextWidth(amtStr);
+      var labelLines = doc.splitTextToSize(pdfSafe(label), textW - amtW - 16);
+      var step = bold ? 20 : 16;
+      room(step + (labelLines.length - 1) * 14);
+      doc.text(labelLines, x, y);
+      doc.text(amtStr, x + textW - amtW, y);
+      y += step + (labelLines.length - 1) * 14;
     }
 
     // The real lockup: wordmark (crack + a boxed "botics", same as the site's
@@ -1786,48 +1960,64 @@
 
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(233, 168, 201);
-    doc.text('PART', x, y); y += 16;
+    doc.text(q.lines.length > 1 ? 'PARTS' : 'PART', x, y); y += 16;
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(20, 18, 26);
-    block('Type: ' + data.part_type, 15);
+    block('Type: ' + data.part_type + (q.detailLine ? ' — ' + q.detailLine : ''), 15);
+    y += 4;
+
+    // Each file on its own row: name and quantity, its price (or "by hand"),
+    // and underneath, what it measured or why it's priced by hand.
+    q.lines.forEach(function (l, i) {
+      priceRow((q.lines.length > 1 ? (i + 1) + '. ' : '') + l.name + '  x ' + l.qty, l.priced ? money(l.total) : 'by hand');
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.setTextColor(120, 113, 128);
+      block((l.priced ? l.size + (l.qty > 1 ? ' · ' + money(l.perPart) + ' each' : '') : l.reason) +
+        (l.notes.length ? ' ' + l.notes.join(' ') : ''), 13);
+      y += 4;
+    });
 
     if (q.escalated) {
+      doc.setFontSize(11);
+      doc.setTextColor(20, 18, 26);
       block(q.reason, 15); y += 10;
     } else {
-      block(q.qty + ' × ' + q.sizeNote + (q.detailLine ? ', ' + q.detailLine : ''), 15);
-      y += 6;
+      y += 2;
 
       // Itemized, not just a total — same line items the on-screen quote
       // breaks out (material, machine time, labor, any flagged surcharges,
       // delivery), each right-aligned so the numbers read as a column.
+      room(20);
       doc.setDrawColor(220, 217, 224);
       doc.setLineWidth(0.5);
       doc.line(x, y, pageW - x, y); y += 16;
 
-      priceRow((q.qty > 1 ? q.qty + ' × material' : 'Material') + (q.discounted ? ' (5+, 8% off)' : ''),
-        money(q.materialAfterDiscount * q.qty));
-      priceRow('Machine time', money(q.perUnitMachine * q.qty));
-      priceRow('Labor', money(q.perUnitLabor * q.qty));
-      if (q.surcharge) priceRow('Flagged items', money(q.surcharge * q.qty));
-      if (q.perUnitSubtotal < RATE.minPartPrice) {
-        priceRow('Minimum applied', money(RATE.minPartPrice - q.perUnitSubtotal) + ' × ' + q.qty);
-      }
+      var s = q.sum;
+      priceRow('Material' + (q.pricedQty > 1 ? ' (' + q.pricedQty + ' parts)' : '') + (q.discounted ? ', 8% off 5+ of a part' : ''), money(s.material));
+      priceRow('Machine time', money(s.machine));
+      priceRow('Labor', money(s.labor));
+      if (s.flags) priceRow('Flagged items', money(s.flags));
+      if (s.minimum) priceRow('Minimum applied', money(s.minimum));
       priceRow(q.delivery === 'delivery' ? 'Delivery' : 'Pickup',
         q.delivery === 'delivery' ? money(q.deliveryCost) : 'Free');
 
       y += 2;
+      room(30);
       doc.setDrawColor(233, 168, 201);
       doc.setLineWidth(1);
       doc.line(x, y, pageW - x, y); y += 20;
 
-      priceRow('Estimated total', money(q.total), true);
+      priceRow(q.partial ? 'Estimated total (priced files)' : 'Estimated total', money(q.total), true);
       y += 6;
 
-      if (q.notes.length) {
+      var notes = q.notes.slice();
+      if (q.partial) notes.unshift(q.hand.length + (q.hand.length === 1 ? ' file is' : ' files are') + ' priced by hand and not in this total; we\'ll email you the full price.');
+      if (notes.length) {
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(10);
         doc.setTextColor(120, 113, 128);
-        q.notes.forEach(function (n) { block('• ' + n, 13); });
+        notes.forEach(function (n) { block('• ' + n, 13); });
         y += 6;
       }
 
@@ -1838,6 +2028,7 @@
     }
 
     if (data.details) {
+      room(40);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(233, 168, 201);
       doc.setFontSize(11);
@@ -1848,6 +2039,7 @@
     }
 
     y += 6;
+    room(60);
     doc.setDrawColor(160, 157, 174);
     doc.line(x, y, pageW - x, y); y += 20;
     doc.setFont('helvetica', 'bold');
@@ -1866,6 +2058,7 @@
     ].forEach(function (line) { block(line, 13.5); y += 2; });
 
     y += 12;
+    room(14);
     doc.setTextColor(164, 157, 174);
     doc.setFontSize(9.5);
     doc.text('Crackbotics · San Diego, CA · ' + EMAIL + ' · discord.gg/bJsQCynzec', x, y);
@@ -1921,16 +2114,30 @@
     });
   }
 
-  function uploadBytes() {
-    var input = form.elements['upload'];
-    var total = 0;
-    if (input && input.files) for (var i = 0; i < input.files.length; i++) total += input.files[i].size;
-    return total;
+  // Uploads the files one after another (gentler on a slow connection than
+  // all at once). A file that fails doesn't stop the others or the request:
+  // it's flagged in the email and the visitor is asked to send it.
+  function uploadAll(list, onProgress) {
+    var results = [], i = 0;
+    function next() {
+      if (i >= list.length) return Promise.resolve(results);
+      var item = list[i++];
+      onProgress(i, list.length);
+      return uploadDesignFile(item.file).then(function (url) {
+        results.push({ name: item.name, url: url });
+      }, function (err) {
+        console.error('Design file upload failed (' + item.name + '):', err);
+        results.push({ name: item.name, url: '', failed: true });
+      }).then(next);
+    }
+    return next();
   }
+  function failedText(name) { return 'UPLOAD FAILED — ask the customer to email the file (' + name + ')'; }
 
   form.addEventListener('submit', function (event) {
     event.preventDefault();
 
+    els.files.setCustomValidity(items.length ? '' : 'Add at least one design file.');
     if (!form.checkValidity()) {
       form.reportValidity();
       return;
@@ -1939,6 +2146,7 @@
     // Honeypot: bots fill this field in. Pretend success and stop, quietly.
     if (value('_honey')) {
       form.reset();
+      clearItems();
       say('Got it. We\'ll email you back, usually the same day.', 'ok');
       return;
     }
@@ -1949,65 +2157,70 @@
       return;
     }
 
-    if (uploadBytes() > MAX_UPLOAD) {
-      say('That file is over 10 MB. Compress it or email it to us directly.', 'bad');
-      return;
-    }
-
-    var q = buildQuote();
-    if (q.error) {
-      renderResult('<p class="calc-headline">' + q.error + '</p>', 'bad');
-      return;
-    }
-
     var data = {
       name: value('name'), team: value('team'), email: value('email'),
       part_type: els.type.selectedOptions[0].text, details: value('details')
     };
-
-    renderResult(quoteToHtml(q), q.escalated ? 'escalate' : 'ok');
-    var summary = quoteToSummaryText(q, data);
-    els.summaryField.value = summary;
-
-    // Doesn't block the submit below — the art is usually already cached
-    // from the page-load prefetch, but if not, the download button just
-    // appears a moment later rather than holding up the actual request.
-    Promise.all([loadPdfArt(), loadJsPdf().catch(function () {})]).then(function (r) {
-      var art = r[0];
-      var pdfDoc = buildPdf(q, data, art);
-      if (!pdfDoc) return;
-      var dlWrap = document.createElement('p');
-      dlWrap.className = 'hint';
-      var dlBtn = document.createElement('button');
-      dlBtn.type = 'button';
-      dlBtn.className = 'linkish';
-      dlBtn.textContent = 'Download quote PDF';
-      dlBtn.addEventListener('click', function () { pdfDoc.save('crackbotics-quote.pdf'); });
-      dlWrap.appendChild(dlBtn);
-      els.result.appendChild(dlWrap);
-    });
-
-    els.button.disabled = true;
     var label = els.button.textContent;
-    var file = els.files.files[0];
+    var list = items.slice(); // what was in the list when they pressed the button
+    els.button.disabled = true;
+    els.files.disabled = true;
+    els.button.textContent = 'Measuring your files…';
 
-    // Step 1: upload the design file to Vercel Blob and keep its link.
-    // A failed upload doesn't stop the request — the details still go out,
-    // flagged, and the visitor is asked to email the file.
-    els.button.textContent = 'Uploading file…';
-    uploadDesignFile(file).then(function (url) {
-      els.fileUrl.value = url;
-      return true;
-    }, function (err) {
-      console.error('Design file upload failed:', err);
-      els.fileUrl.value = 'UPLOAD FAILED — ask the customer to email the file (' + (file ? file.name : 'no file') + ')';
-      return false;
-    }).then(sendForm);
+    whenMeasured().then(function () {
+      var q = buildQuote();
+      renderResult(quoteToHtml(q), q.escalated ? 'escalate' : 'ok');
+      var summary = quoteToSummaryText(q, data);
+      els.summaryField.value = summary;
+
+      // Doesn't block the submit below — the art is usually already cached
+      // from the page-load prefetch, but if not, the download button just
+      // appears a moment later rather than holding up the actual request.
+      Promise.all([loadPdfArt(), loadJsPdf().catch(function () {})]).then(function (r) {
+        var pdfDoc = buildPdf(q, data, r[0]);
+        if (!pdfDoc) return;
+        var dlWrap = document.createElement('p');
+        dlWrap.className = 'hint';
+        var dlBtn = document.createElement('button');
+        dlBtn.type = 'button';
+        dlBtn.className = 'linkish';
+        dlBtn.textContent = 'Download quote PDF';
+        dlBtn.addEventListener('click', function () { pdfDoc.save('crackbotics-quote.pdf'); });
+        dlWrap.appendChild(dlBtn);
+        els.result.appendChild(dlWrap);
+      });
+
+      // Step 1: upload the design files to Vercel Blob and keep their links.
+      return uploadAll(list, function (n, total) {
+        els.button.textContent = total > 1 ? 'Uploading file ' + n + ' of ' + total + '…' : 'Uploading file…';
+      }).then(function (uploaded) {
+        // One link per file in the email: design_file, then design_file_2, _3, …
+        form.querySelectorAll('input[data-extra-file]').forEach(function (inp) { inp.remove(); });
+        uploaded.forEach(function (u, i) {
+          var v = u.failed ? failedText(u.name) : u.url;
+          if (i === 0) { els.fileUrl.value = v; return; }
+          var inp = document.createElement('input');
+          inp.type = 'hidden';
+          inp.name = 'design_file_' + (i + 1);
+          inp.value = v;
+          inp.setAttribute('data-extra-file', '');
+          form.appendChild(inp);
+        });
+        sendForm(q, summary, uploaded);
+      });
+    }).catch(function (err) {
+      console.error('Preparing the request failed:', err);
+      els.files.disabled = false;
+      els.button.disabled = false;
+      els.button.textContent = label;
+      say('Something went wrong preparing your request. Please try again, or email it to us at ' + EMAIL + '.', 'bad');
+    });
 
     // Copy of the request for the admin order log (admin.html). Fire and
     // forget: the email is the primary record, so a failure here is only
     // logged, and keepalive lets it finish even if the page is left.
-    function logOrder() {
+    function logOrder(q, summary, uploaded) {
+      var files = uploaded.map(function (u) { return { name: u.name, url: u.failed ? failedText(u.name) : u.url }; });
       try {
         fetch('/api/order', {
           method: 'POST',
@@ -2015,11 +2228,13 @@
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
             name: data.name, team: data.team, email: data.email, part_type: data.part_type,
-            details: data.details, address: value('address'), delivery: q.delivery || (document.querySelector('input[name="delivery"]:checked') || {}).value,
+            details: data.details, address: value('address'), delivery: q.delivery,
             escalated: !!q.escalated,
-            price: q.escalated ? 'Hand quote' : money(q.total),
-            part: q.escalated ? q.reason : q.qty + ' × ' + q.sizeNote + (q.detailLine ? ', ' + q.detailLine : ''),
-            quote_summary: summary, design_file: els.fileUrl.value, file_name: file ? file.name : '',
+            price: q.escalated ? 'Hand quote' : money(q.total) + (q.partial ? ' + hand quote' : ''),
+            part: q.lines.map(function (l) { return l.qty + ' × ' + l.name + (l.priced ? '' : ' (by hand)'); }).join(', '),
+            quote_summary: summary,
+            files: files,
+            design_file: files[0] ? files[0].url : '', file_name: files[0] ? files[0].name : '',
             specs: orderSpecs(q),
             _honey: value('_honey')
           })
@@ -2029,14 +2244,15 @@
       }
     }
 
-    // Step 2: post the details (and file link) to FormSubmit. Success = the
+    // Step 2: post the details (and file links) to FormSubmit. Success = the
     // hidden iframe landing on our own sent.html via FormSubmit's _next
     // redirect; anything else it lands on is FormSubmit's own page (an
     // error, or the form needing activation), which is cross-origin and
     // unreadable here.
-    function sendForm(fileUploaded) {
+    function sendForm(q, summary, uploaded) {
       els.button.textContent = 'Sending…';
-      logOrder();
+      logOrder(q, summary, uploaded);
+      var failed = uploaded.filter(function (u) { return u.failed; }).map(function (u) { return u.name; });
       var frame = document.getElementById('q-send-frame');
       document.getElementById('q-next').value = new URL('sent.html', window.location.href).href;
       var settled = false;
@@ -2048,18 +2264,21 @@
         els.files.disabled = false;
         els.button.disabled = false;
         els.button.textContent = label;
-        if (ok && fileUploaded) {
+        if (ok && !failed.length) {
           if (els.note) els.note.hidden = true;
           say('Sent — we\'ll confirm by email, usually the same day.', 'ok');
           return;
         }
         if (ok) {
-          say('Your details were sent, but the file didn\'t upload. Please email it to ' + EMAIL + '.', 'bad');
+          say('Your details were sent, but ' + (failed.length === uploaded.length
+            ? (uploaded.length === 1 ? 'the file' : 'the files')
+            : failed.length + ' of ' + uploaded.length + ' files') + ' didn\'t upload (' + failed.join(', ') +
+            '). Please email ' + (failed.length === 1 ? 'it' : 'them') + ' to ' + EMAIL + '.', 'bad');
         } else {
           console.error('Quote form submission failed:', reason);
           say(reason === 'timeout'
-            ? 'The request didn\'t send — it timed out. Check your connection and try again, or email us the file.'
-            : 'We couldn\'t confirm the request went through. To be safe, email it to us with the file attached.', 'bad');
+            ? 'The request didn\'t send — it timed out. Check your connection and try again, or email us the files.'
+            : 'We couldn\'t confirm the request went through. To be safe, email it to us with the files attached.', 'bad');
         }
         var retry = document.createElement('button');
         retry.type = 'button';
@@ -2074,9 +2293,6 @@
         try { path = frame.contentWindow.location.pathname; } catch (e) { /* cross-origin: FormSubmit's own page */ }
         finish(!!path && /\/sent\.html$/.test(path), 'unconfirmed');
       };
-      // The file already went to Blob; leave it out of this post (a disabled
-      // field isn't submitted). submit() builds the form data synchronously.
-      els.files.disabled = true;
       form.submit();
     }
   });

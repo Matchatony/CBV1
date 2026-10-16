@@ -111,8 +111,13 @@ export async function deleteOrder(id, { withFile }) {
   const found = await getOrder(id);
   if (!found) return false;
   const urls = [...found.versions];
-  const file = found.order.design_file || '';
-  if (withFile && /^https:\/\/[a-z0-9]+\.public\.blob\.vercel-storage\.com\/quotes\//.test(file)) urls.push(file);
+  if (withFile) {
+    // Every design file on the order (older orders only have design_file).
+    const files = [found.order.design_file, ...(found.order.files || []).map((f) => f && f.url)];
+    for (const file of new Set(files)) {
+      if (/^https:\/\/[a-z0-9]+\.public\.blob\.vercel-storage\.com\/quotes\//.test(file || '')) urls.push(file);
+    }
+  }
   await del(urls);
   return true;
 }

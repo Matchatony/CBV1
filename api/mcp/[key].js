@@ -49,13 +49,20 @@ function total(o) {
   return o.price; // older orders: the price text as emailed
 }
 
+// Every design file on an order as { name, url }; orders from before multi-file
+// quotes only have design_file / file_name.
+function filesOf(o) {
+  if (Array.isArray(o.files) && o.files.length) return o.files;
+  return o.design_file ? [{ name: o.file_name || '', url: o.design_file }] : [];
+}
+
 function summary(o) {
   const sp = o.specs || {};
   return {
     id: o.id, created: o.createdAt, name: o.name, team: o.team || '', kind: kindOf(o),
-    qty: sp.qty ?? null, material: sp.material || '', status: o.status,
+    qty: sp.qty ?? null, files: filesOf(o).length, material: sp.material || '', status: o.status,
     delivery: o.delivery, delivery_date: o.delivery_date || '', delivery_stop: o.delivery_stop || 0, delivered_at: o.delivered_at || '',
-    total: total(o)
+    total: total(o), ...(sp.price && sp.price.partial ? { plus_hand_quote: true } : {})
   };
 }
 
@@ -86,10 +93,10 @@ function write(id, fields) {
   });
 }
 
-// Lines the measured file up with what was ordered: flags parts whose thickness
+// Lines a measured file up with what was ordered: flags parts whose thickness
 // doesn't match the stock on the order (e.g. "6061 aluminum, 1/8 in."), and
-// scales the time and electricity totals by the order's quantity.
-function checkAgainstOrder(report, o) {
+// scales the time and electricity totals by how many of that file were ordered.
+function checkAgainstOrder(report, o, qty) {
   const sp = o.specs || {};
   const frac = String(sp.material || '').match(/(\d+)\s*\/\s*(\d+)\s*in/);
   if (frac) {
@@ -100,7 +107,6 @@ function checkAgainstOrder(report, o) {
       }
     }
   }
-  const qty = Number(sp.qty) || 1;
   if (qty > 1 && report.totals_all_copies) {
     const t = report.totals_all_copies;
     report.totals_for_order = {
@@ -119,17 +125,19 @@ const READ = { readOnlyHint: true, openWorldHint: false };
 const EDIT = { readOnlyHint: false, destructiveHint: false, openWorldHint: false };
 
 function buildServer() {
-  const server = new McpServer({ name: 'crackbotics-orders', version: '1.1.0' }, {
+  const server = new McpServer({ name: 'crackbotics-orders', version: '1.2.0' }, {
     instructions: 'Crackbotics is a student-run CNC and 3D-print shop for FTC robotics teams. These tools read and update its order log. ' +
       'An order moves new → quoted → paid → in-progress → ready → done (or cancelled). Paid, in-progress and ready delivery orders go on a delivery day. ' +
       'Every change you make is saved in the order\'s history, which the shop\'s admins can see. Orders can\'t be deleted from here. ' +
+      'An order can have several design files, one per part, each with its own quantity (get_order: files, and specs.items for each file\'s line). ' +
       'STEP files are quoted by hand: analyze_part_file measures them (plate size, thickness, cut length, holes, pockets) and estimates machine time and electricity.'
   });
 
   server.registerTool('list_orders', {
     title: 'List orders',
     description: 'List orders, newest first, as a short summary each: id, created date, name, team, kind (cnc/print/other), quantity, material, ' +
-      'status, delivery type (delivery or pickup), delivery date and stop number, delivered time, and total in dollars (or "hand quote" when it needs pricing by hand). ' +
+      'status, delivery type (delivery or pickup), delivery date and stop number, delivered time, number of design files, and total in dollars (or "hand quote" when it needs pricing by hand; ' +
+      'plus_hand_quote: true when some of its files still need pricing by hand). ' +
       'Use get_order for the full details of one order.',
     inputSchema: fromJsonSchema({
       type: 'object',
@@ -157,7 +165,8 @@ function buildServer() {
     title: 'Get one order',
     description: 'Everything about one order: what was ordered (specs: kind, material, quantity, color, infill, walls, CNC options, rush, measured size, file type), ' +
       'the price breakdown (or the reason it needs a hand quote), customer name, email and team, pickup or delivery with address, date, time window, ' +
-      'stop number and delivered time, status, private notes, the design file download URL, the original quote text, and the history of changes made through this connector.',
+      'stop number and delivered time, status, private notes, the design files (files: name and download URL of each, in order; specs.items has each ' +
+      'file\'s quantity, measurements and price or hand-quote reason), the original quote text, and the history of changes made through this connector.',
     inputSchema: fromJsonSchema({ type: 'object', properties: { id: ID }, required: ['id'], additionalProperties: false }),
     annotations: READ
   }, ({ id }) => {
@@ -223,16 +232,26 @@ function buildServer() {
   }, ({ id, delivered }) => write(id, { delivered }));
 
   server.registerTool('analyze_part_file', {
-    title: 'Measure an order\'s STEP file',
-    description: 'Download the order\'s STEP (.step/.stp) design file and measure every part in it as a CNC plate: thickness and the matching ' +
+    title: 'Measure an order\'s STEP files',
+    description: 'Download the order\'s STEP (.step/.stp) design files and measure every part in each as a CNC plate: thickness and the matching ' +
       'stock size, plate size and stock area, total cut length, round holes by diameter, other cutouts, pockets (area and depth), parts with sloped ' +
       'or bottom-side features that need a hand quote, holes smaller than the shop\'s 1/8 in. tool, and identical copies grouped. Also estimates ' +
-      'machine minutes, kWh and electricity cost per part and for all copies, from the shop\'s cutting constants (an estimate, not a CAM toolpath), ' +
-      'and returns a top-view picture of each distinct part. The material isn\'t in the file: take it from get_order. Only works on the order\'s own ' +
-      'uploaded file; DXF files are already priced by the quote page. Takes a few seconds, up to about 30 for big files.',
-    inputSchema: fromJsonSchema({ type: 'object', properties: { id: ID }, required: ['id'], additionalProperties: false }),
+      'machine minutes, kWh and electricity cost per part, per file (times how many of that file were ordered) and for the whole order, from the ' +
+      'shop\'s cutting constants (an estimate, not a CAM toolpath), and returns a top-view picture of each distinct part. An order can have up to ' +
+      '10 files: by default every STEP file is measured, or give file (its number, 1 = first, as listed by get_order\'s files) for just one. ' +
+      'The material isn\'t in the files: take it from get_order. Only works on the order\'s own uploaded files; DXF files are already priced by ' +
+      'the quote page. Takes a few seconds per file, up to about 30 for a big one; if time runs out, the reply says which files to ask for next.',
+    inputSchema: fromJsonSchema({
+      type: 'object',
+      properties: {
+        id: ID,
+        file: { type: 'integer', minimum: 1, maximum: 10, description: 'Measure only this file: its number on the order (1 = the first file).' }
+      },
+      required: ['id'],
+      additionalProperties: false
+    }),
     annotations: READ
-  }, async ({ id }) => {
+  }, async ({ id, file }) => {
     if (!isValidId(id)) return fail('Bad id');
     let found;
     try {
@@ -242,28 +261,71 @@ function buildServer() {
       return fail('Could not load the order. Try again in a moment.');
     }
     if (!found) return fail('Not found');
-    const o = found.order, url = o.design_file || '';
-    const name = o.file_name || url.split('/').pop() || '';
-    if (!url || url.startsWith('UPLOAD FAILED')) return fail('This order has no design file.');
-    if (!isStoreUrl(url)) return fail('The design file isn\'t in the shop\'s file store, so it won\'t be downloaded.');
-    if (!isStepUrl(url)) return fail(`The design file (${name}) isn't a STEP file. This tool measures .step and .stp files only.`);
-    try {
-      const { report, pictures } = await analyzeStep(await downloadDesignFile(url));
-      checkAgainstOrder(report, o);
-      return {
-        content: [
-          { type: 'text', text: JSON.stringify({ order: summary(o), file: name, ...report }, null, 2) },
-          ...pictures.flatMap((p) => [
-            { type: 'text', text: `Part ${p.part}, top view:` },
-            { type: 'image', data: p.image, mimeType: 'image/png' }
-          ])
-        ]
-      };
-    } catch (err) {
-      if (err instanceof UserError) return fail(err.message);
-      console.error('Claude connector: analyze the design file failed:', err);
-      return fail('Could not analyze the design file. It may be damaged, or too complex to measure in time: quote it by hand.');
+    const o = found.order, sp = o.specs || {};
+    const all = filesOf(o).map((f, i) => ({ ...f, number: i + 1 }));
+    if (!all.length) return fail('This order has no design files.');
+    let targets;
+    if (file !== undefined) {
+      const f = all.find((x) => x.number === file);
+      if (!f) return fail(`This order has ${all.length} file${all.length === 1 ? '' : 's'}: pick a number from 1 to ${all.length}.`);
+      targets = [f];
+    } else {
+      targets = all.filter((f) => isStepUrl(f.url) || /\.(step|stp)$/i.test(f.name || ''));
+      if (!targets.length) return fail(`None of this order's files is a STEP file (${all.map((f) => f.name || 'unnamed').join(', ')}). This tool measures .step and .stp files only.`);
     }
+
+    // Files one at a time, inside the function's time limit: past 25 s no new
+    // file is started, and the reply lists the ones left for another call.
+    const started = Date.now(), results = [], pictures = [], left = [];
+    for (const f of targets) {
+      if (results.length && Date.now() - started > 25000) { left.push(f.number); continue; }
+      const entry = { file: f.number, name: f.name || '' };
+      results.push(entry);
+      if (!f.url || f.url.startsWith('UPLOAD FAILED')) { entry.error = 'This file didn\'t upload: ask the customer to email it.'; continue; }
+      if (!isStoreUrl(f.url)) { entry.error = 'This file isn\'t in the shop\'s file store, so it won\'t be downloaded.'; continue; }
+      if (!isStepUrl(f.url)) { entry.error = 'Not a STEP file. This tool measures .step and .stp files only.'; continue; }
+      try {
+        const { report, pictures: pics } = await analyzeStep(await downloadDesignFile(f.url));
+        // How many of this file were ordered: its own line, or the order's quantity for a single-file order.
+        const item = (sp.items || [])[f.number - 1];
+        const qty = Number(item ? item.qty : sp.qty) || 1;
+        checkAgainstOrder(report, o, qty);
+        Object.assign(entry, { qty_ordered: qty }, report);
+        for (const p of pics) pictures.push({ label: `File ${f.number} (${f.name || 'unnamed'}), part ${p.part}, top view:`, image: p.image });
+      } catch (err) {
+        if (!(err instanceof UserError)) console.error('Claude connector: analyze a design file failed:', err);
+        entry.error = err instanceof UserError ? err.message : 'Could not analyze this file. It may be damaged, or too complex to measure in time: quote it by hand.';
+      }
+    }
+
+    const measured = results.filter((r) => !r.error);
+    const order = { machine_minutes: 0, kwh: 0, electricity_usd: 0 };
+    for (const r of measured) {
+      const t = r.totals_for_order || r.totals_all_copies;
+      order.machine_minutes += t.machine_minutes; order.kwh += t.kwh; order.electricity_usd += t.electricity_usd;
+    }
+    const payload = {
+      order: summary(o),
+      files: results,
+      ...(measured.length > 1 ? { totals_all_files: {
+        note: 'Every measured file, times how many of each were ordered.',
+        machine_minutes: Math.round(order.machine_minutes * 10) / 10, kwh: Math.round(order.kwh * 1000) / 1000,
+        electricity_usd: Math.round(order.electricity_usd * 100) / 100
+      } } : {}),
+      ...(left.length ? { not_measured_yet: `Out of time for this call: measure file${left.length === 1 ? '' : 's'} ${left.join(', ')} with the file parameter.` } : {})
+    };
+    if (!measured.length && results.length === 1) return fail(results[0].error);
+    const MAX_PICTURES = 8;
+    return {
+      content: [
+        { type: 'text', text: JSON.stringify(payload, null, 2) },
+        ...pictures.slice(0, MAX_PICTURES).flatMap((p) => [
+          { type: 'text', text: p.label },
+          { type: 'image', data: p.image, mimeType: 'image/png' }
+        ]),
+        ...(pictures.length > MAX_PICTURES ? [{ type: 'text', text: `(${pictures.length - MAX_PICTURES} more pictures left out: ask for one file at a time to see them.)` }] : [])
+      ]
+    };
   });
 
   return server;

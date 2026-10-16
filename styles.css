@@ -877,6 +877,68 @@ footer { padding-block: 48px 56px; border-top: 1px solid var(--line); }
 }
 .measured b { color: var(--text); font-weight: 500; font-family: var(--mono); }
 
+/* The files in a quote request: one row per part, with its quantity, a
+   remove button, and what it measured (or why it's priced by hand) below. */
+.file-list { list-style: none; margin: 4px 0 0; padding: 0; border-top: 1px solid var(--line); }
+.file-list[hidden] { display: none; }
+.file-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 4px 14px;
+  padding: 10px 0 10px 12px;
+  border-bottom: 1px solid var(--line);
+  border-left: 2px solid transparent;
+}
+.file-item.is-active { border-left-color: var(--accent); background: rgba(var(--accent-rgb), .05); }
+.file-name {
+  font: 500 15px var(--sans);
+  color: var(--text);
+  background: none;
+  border: 0;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.file-name:hover { color: var(--accent); }
+.file-name:focus-visible, .file-remove:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.file-note { grid-column: 1 / -1; font-size: 14px; color: var(--muted); }
+.file-note b { color: var(--text); font-weight: 500; font-family: var(--mono); }
+.file-item.is-hand .file-note { color: var(--faint); }
+.form .file-qty { display: flex; align-items: center; gap: 8px; color: var(--faint); font-size: 14px; }
+.form .file-qty input[type="number"] { width: 76px; padding: 7px 9px; }
+.file-remove {
+  font: 400 14px var(--sans);
+  color: var(--faint);
+  background: none;
+  border: 0;
+  padding: 4px 0;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.file-remove:hover { color: var(--text); }
+.file-problem { color: var(--text); }
+@media (max-width: 480px) {
+  .file-item { grid-template-columns: minmax(0, 1fr) auto; }
+  .file-item .file-name { grid-column: 1 / -1; }
+}
+
+/* Per-file rows in the quote result. */
+.calc-lines { list-style: none; margin: 0 0 16px; padding: 0; border-top: 1px solid var(--line); }
+.calc-lines li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 16px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line);
+}
+.cl-name { color: var(--text); overflow-wrap: anywhere; }
+.cl-price { font-family: var(--mono); color: var(--text); text-align: right; }
+.calc-lines li.is-hand .cl-price { color: var(--faint); font-family: var(--sans); }
+.cl-detail { grid-column: 1 / -1; font-size: 13.5px; color: var(--faint); }
+.calc-plus { font-family: var(--sans); font-size: 15px; font-weight: 400; color: var(--muted); }
+
 .preview-label { display: block; margin-bottom: 8px; }
 #q-preview {
   display: block;

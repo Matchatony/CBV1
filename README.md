@@ -33,9 +33,16 @@ Both pages ship with placeholders. Search and replace:
 
 ## The order form
 
+A request can carry up to 10 design files (10 MB each, 50 MB together). Each
+file gets its own row with a quantity, and the estimate prices each one on its
+own line: DXF plates and STL / 3MF / STEP prints are measured in the browser and
+priced; STEP plates and anything the page can't measure are listed as "priced by
+hand", and the total then reads "$X + hand quote". One delivery fee covers the
+whole order. Click a file's name to preview it.
+
 Sending a quote is two steps:
 
-1. **The design file goes to Vercel Blob.** The browser uploads it straight
+1. **The design files go to Vercel Blob.** The browser uploads them one at a time, straight
    to the `crackbotics-uploads` Blob store on the Vercel project, using
    `vendor/blob-upload.js` (the `@vercel/blob` client, bundled). The small
    function `api/upload.js` only hands out a short-lived upload token, and only
@@ -44,15 +51,18 @@ Sending a quote is two steps:
    is what sets `BLOB_READ_WRITE_TOKEN`. Free on the Hobby plan within its
    Blob limits.
 2. **The details go to [FormSubmit](https://formsubmit.co)** at
-   `https://formsubmit.co/anthonyhuynh980@gmail.com`, with the file's download
-   link in the `design_file` field. The `_cc` field copies every submission to
+   `https://formsubmit.co/anthonyhuynh980@gmail.com`, with the first file's
+   download link in the `design_file` field and the rest in `design_file_2`,
+   `design_file_3` and so on. The quote PDF and the summary list every file
+   with its quantity, size and price. The `_cc` field copies every submission to
    crackboticssandiego@gmail.com too (comma-separate to add more addresses). FormSubmit strips CAD attachments, which is
    why the file travels as a link. It's a plain form post into a hidden iframe;
    FormSubmit redirects the iframe to `sent.html` (the `_next` field), which is
    how the page knows the send went through, so keep `sent.html` deployed.
 
-If the upload fails, the details are still sent with `design_file` saying
-UPLOAD FAILED, and the customer is asked to email the file.
+If an upload fails, the details are still sent with that file's link saying
+UPLOAD FAILED, and the customer is asked to email the files that didn't make it
+(named in the message).
 
 To browse or delete uploaded files: Vercel dashboard, then Storage, then
 `crackbotics-uploads`.
@@ -83,24 +93,30 @@ How it behaves:
   explains why and offers to open their mail app with the same details
   pre-filled. The file has to be attached by hand there, since a mailto link
   can't carry it.
-- The page refuses files over 10 MB up front, matching the upload limit.
+- The page refuses files over 10 MB up front, matching the upload limit, plus
+  an 11th file, more than 50 MB in all, a duplicate, or an unsupported type,
+  saying which file and why.
 
 ## Order admin (admin.html)
 
 Every quote request is also saved to an order log you can manage at
 `/admin.html` (not linked anywhere on the site, and hidden from search engines).
 Sign in with the `ADMIN_PASSWORD` set in Vercel → Settings → Environment
-Variables. There you can see every order, download its design file, set a
+Variables. There you can see every order, download its design files, set a
 status (New → Quoted → Paid → In progress → Ready → Done / Cancelled), keep
-private notes, search, filter, and delete an order (optionally with its file).
+private notes, search, filter, and delete an order (optionally with its files).
 Each order carries the full spec the customer chose (`specs`: CNC / 3D print /
 other, material, quantity, color, infill and walls, CNC options, rush, measured
-size, file type, price breakdown or hand-quote reason), shown as tags on the list
+size, file type, price breakdown or hand-quote reason, and per file in
+`specs.items`), shown as tags on the list
 and in Job / Price / Customer / Delivery sections when opened; filter by type from
-the toolbar. Orders from before specs were saved show their original quote text.
+the toolbar. An order with several files shows a table of them (quantity,
+measured size, price or why it's priced by hand), and its upload links are in
+`files`. Orders from before specs were saved show their original quote text,
+and single-file orders from before `files` existed still work.
 
-**Download files** saves the design files for the orders on screen as one ZIP,
-with an `orders.csv` index.
+**Download files** saves the design files for the orders on screen as one ZIP
+(every file of every order), with an `orders.csv` index, one row per file.
 
 The **Deliveries** tab plans handoffs. Drop-offs are scheduled automatically:
 once an order is Paid, In progress or Ready it goes on the delivery day the
@@ -148,8 +164,9 @@ orders, change passwords or keys, or see environment variables or settings. Edit
 admin panel (`api/_lib/changes.js`), and every change it makes is saved on the
 order and shown under **History** when you open the order in `admin.html`.
 
-**STEP file analysis.** `analyze_part_file` downloads an order's STEP file (only
-the order's own file, from this project's Blob store) and measures each part with
+**STEP file analysis.** `analyze_part_file` downloads an order's STEP files
+(only the order's own files, from this project's Blob store; all of them, or one
+with `file: N`) and measures each part with
 OpenCascade (`occt-import-js`, the same WebAssembly build the quote page uses for
 its 3D preview), in `api/_lib/step.js`. Per part it reports:
 
@@ -162,8 +179,8 @@ its 3D preview), in `api/_lib/step.js`. Per part it reports:
   (chamfers, fillets, 3D shapes), features on the bottom face, holes smaller
   than the 1/8 in. tool, and a thickness that doesn't match the stock on the
   order
-- estimated machine minutes, kWh and electricity cost, per part and for the
-  quantity ordered
+- estimated machine minutes, kWh and electricity cost, per part, for the
+  quantity ordered of that file, and for all the order's files together
 - a top-view picture (gray plate, blue pocket floors, grid every 10 mm)
 
 The time estimate uses the shop constants at the top of `api/_lib/step.js`

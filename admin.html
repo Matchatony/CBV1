@@ -50,6 +50,16 @@
   .price-table td { padding: 3px 0; }
   .price-table td:last-child { text-align: right; font-family: var(--mono); }
   .price-table tr.total td { border-top: 1px solid var(--line-firm); padding-top: 7px; font-weight: 600; }
+  .price-table + .hand-reason { margin-top: 10px; }
+  .file-links { margin: 0; padding: 0; list-style: none; }
+  .file-links li + li { margin-top: 3px; }
+  .items-table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 13.5px; table-layout: fixed; }
+  .items-table th { text-align: left; font: 500 11px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); padding: 0 8px 5px 0; border-bottom: 1px solid var(--line-firm); }
+  .items-table td { padding: 6px 8px 6px 0; border-bottom: 1px solid var(--line); vertical-align: top; overflow-wrap: anywhere; }
+  .items-table th:nth-child(2), .items-table td:nth-child(2) { width: 44px; }
+  .items-table th:last-child, .items-table td:last-child { text-align: right; padding-right: 0; width: 34%; }
+  .items-table td:last-child { font-family: var(--mono); }
+  .items-table td.hand { font-family: var(--sans); color: var(--muted); }
   details.orig summary { cursor: pointer; color: var(--muted); font-size: 13px; }
   details.orig pre { margin-top: 8px; }
   .history h2 { margin: 0 0 8px; font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); }
@@ -343,11 +353,19 @@
       o.specs && o.specs.rush ? el('span', { class: 'kind rush', text: 'Rush' }) : null
     ]);
   }
-  // Short "what is it" line: material · quantity · color.
+  // Every design file on an order as { name, url } (url is the "UPLOAD FAILED" note
+  // when that upload didn't make it). Orders from before multi-file quotes have one.
+  function filesOf(o) {
+    if (Array.isArray(o.files) && o.files.length) return o.files;
+    return o.design_file ? [{ name: o.file_name || '', url: o.design_file }] : [];
+  }
+  function isUrl(u) { return /^https:\/\//.test(u || ''); }
+
+  // Short "what is it" line: material · quantity · color · file count.
   function specShort(o) {
-    var s = o.specs;
+    var s = o.specs, n = filesOf(o).length;
     if (!s) return o.part_type || '';
-    return [s.material, '×' + s.qty, s.color].filter(Boolean).join(' · ');
+    return [s.material, '×' + s.qty, s.color, n > 1 ? n + ' files' : ''].filter(Boolean).join(' · ');
   }
   function money(n) { return '$' + (Math.round(n * 100) / 100).toFixed(2); }
 
@@ -408,12 +426,12 @@
 
   function orderCard(o) {
     var card = el('div', { class: 'order s-' + o.status });
-    var fileNode = null;
-    if (/^https:\/\//.test(o.design_file)) {
-      fileNode = el('a', { href: o.design_file, target: '_blank', rel: 'noopener', text: 'Download ' + (o.file_name || 'design file') });
-    } else if (o.design_file) {
-      fileNode = el('span', { class: 'warn', text: o.design_file });
-    }
+    var files = filesOf(o);
+    var fileNode = files.length ? el('ul', { class: 'file-links' }, files.map(function (f) {
+      return el('li', {}, [isUrl(f.url)
+        ? el('a', { href: f.url, target: '_blank', rel: 'noopener', text: 'Download ' + (f.name || 'design file') })
+        : el('span', { class: 'warn', text: f.url || ('No file for ' + f.name) })]);
+    })) : null;
     var notes = el('textarea', { 'aria-label': 'Private notes', placeholder: 'Private notes (only you see these)…' });
     notes.value = o.notes || '';
     var saveNotes = el('button', { type: 'button', text: 'Save notes' });
@@ -429,7 +447,8 @@
     var delBtn = el('button', { type: 'button', class: 'danger', text: 'Delete order' });
     delBtn.addEventListener('click', function () {
       if (!confirm('Delete this order from the log? This can\'t be undone.')) return;
-      var withFile = /^https:\/\//.test(o.design_file) && confirm('Also delete the uploaded design file?');
+      var stored = files.filter(function (f) { return isUrl(f.url); }).length;
+      var withFile = stored > 0 && confirm(stored === 1 ? 'Also delete the uploaded design file?' : 'Also delete the ' + stored + ' uploaded design files?');
       delBtn.disabled = true;
       api('DELETE', { id: o.id, withFile: withFile }).then(function () {
         state.orders = state.orders.filter(function (x) { return x.id !== o.id; });
@@ -464,9 +483,20 @@
       sp ? fact('Rush', sp.rush ? el('span', { class: 'warn', text: 'Yes — skip the normal batch' }) : 'No') : [],
       fact('Measured', sp && sp.size),
       sp ? [] : fact('Part', o.part),
-      fact('Design file', fileNode ? el('span', {}, [fileNode, sp && sp.file_type ? ' (' + sp.file_type + ')' : '']) : ''),
+      fact(files.length > 1 ? 'Design files' : 'Design file', fileNode ? el('span', {}, [fileNode, sp && sp.file_type && files.length === 1 ? ' (' + sp.file_type + ')' : '']) : ''),
       fact('Customer notes', o.details)
     );
+    // Several files: one row each with its quantity, what it measured and its price.
+    var itemsTable = sp && sp.items && sp.items.length > 1 ? el('table', { class: 'items-table' }, [
+      el('tr', {}, ['File', 'Qty', 'Measured', 'Price'].map(function (h) { return el('th', { text: h }); }))
+    ].concat(sp.items.map(function (it) {
+      return el('tr', {}, [
+        el('td', { text: it.file || '—' }),
+        el('td', { text: String(it.qty) }),
+        el('td', { text: it.size || (it.price ? '' : it.reason) || '—' }),
+        el('td', { class: it.price ? '' : 'hand', text: it.price ? money(it.price.total) + (it.qty > 1 ? ' (' + money(it.price.per_part) + ' each)' : '') : 'By hand' })
+      ]);
+    }))) : null;
     var price;
     if (sp && sp.price && sp.price.total > 0) {
       var p = sp.price, rows = [['Material' + (p.discount ? ' (5+ parts, 8% off)' : ''), p.material], ['Machine time', p.machine], ['Labor', p.labor]];
@@ -475,7 +505,8 @@
       var handoff = [o.delivery === 'delivery' ? 'Delivery' : 'Pickup', p.delivery ? money(p.delivery) : 'Free'];
       price = el('table', { class: 'price-table' }, rows.map(function (r) { return el('tr', {}, [el('td', { text: r[0] }), el('td', { text: money(r[1]) })]); })
         .concat([el('tr', {}, [el('td', { text: handoff[0] }), el('td', { text: handoff[1] })])])
-        .concat([el('tr', { class: 'total' }, [el('td', { text: 'Estimated total' + (sp.qty > 1 ? ' (' + money(p.per_part) + ' per part)' : '') }), el('td', { text: money(p.total) })])]));
+        .concat([el('tr', { class: 'total' }, [el('td', { text: (p.partial ? 'Estimated total, priced files' : 'Estimated total') + (sp.qty > 1 && p.per_part ? ' (' + money(p.per_part) + ' per part)' : '') }), el('td', { text: money(p.total) })])]));
+      if (p.partial) price = el('div', {}, [price, el('p', { class: 'hand-reason' }, [el('b', { text: 'Plus a hand quote: ' }), sp.reason || ''])]);
     } else if (o.escalated || (sp && sp.reason)) {
       price = el('p', { class: 'hand-reason' }, [el('b', { text: 'Needs a hand quote. ' }), (sp && sp.reason) || o.part || '']);
     } else {
@@ -483,7 +514,7 @@
     }
     var body = el('div', { class: 'body', id: bodyId, hidden: '' }, [
       el('div', { class: 'sections' }, [
-        el('div', {}, [el('h2', { text: 'Job' }), el('dl', { class: 'facts' }, job)]),
+        el('div', {}, [el('h2', { text: 'Job' }), el('dl', { class: 'facts' }, job), itemsTable]),
         el('div', {}, [
           el('h2', { text: 'Price' }), price,
           el('h2', { text: 'Customer' }),
@@ -1081,7 +1112,14 @@
   }
 
   // ---- Bulk download: every design file for the orders currently shown ----
-  function filesIn(list) { return list.filter(function (o) { return /^https:\/\//.test(o.design_file); }); }
+  // Every downloadable file of the orders given, as { o, name, url, i } (i = its place on the order).
+  function filesIn(list) {
+    var out = [];
+    list.forEach(function (o) {
+      filesOf(o).forEach(function (f, i) { if (isUrl(f.url)) out.push({ o: o, name: f.name, url: f.url, i: i }); });
+    });
+    return out;
+  }
 
   function loadZipLib() {
     if (window.fflate) return Promise.resolve(window.fflate);
@@ -1097,9 +1135,9 @@
   function safeName(s) {
     return String(s || '').replace(/[\\/:*?"<>|\x00-\x1f]+/g, '_').replace(/\s+/g, ' ').trim().slice(0, 80);
   }
-  function fileNameOf(o) {
-    if (o.file_name) return safeName(o.file_name);
-    try { return safeName(decodeURIComponent(new URL(o.design_file).pathname.split('/').pop())); } catch (e) { return 'design-file'; }
+  function fileNameOf(f) {
+    if (f.name) return safeName(f.name);
+    try { return safeName(decodeURIComponent(new URL(f.url).pathname.split('/').pop())); } catch (e) { return 'design-file'; }
   }
   function isoDay(iso) { var d = new Date(iso); return isNaN(d) ? 'undated' : d.toISOString().slice(0, 10); }
 
@@ -1119,13 +1157,13 @@
   // If the files can't be fetched into a ZIP, hand each one to the browser to download.
   function downloadOneByOne(list) {
     var seen = {};
-    list = list.filter(function (o) { return !seen[o.design_file] && (seen[o.design_file] = 1); });
+    list = list.filter(function (f) { return !seen[f.url] && (seen[f.url] = 1); });
     var i = 0;
     (function next() {
       if (i >= list.length) { say('app-msg', 'Started ' + list.length + ' downloads. If only one arrived, allow multiple downloads for this site and try again.'); return; }
       // A hidden frame per file: the blob host sends ?download=1 as an attachment, and a
       // missing file just fails inside the frame instead of navigating this page away.
-      var u = list[i++].design_file;
+      var u = list[i++].url;
       var f = el('iframe', { src: u + (u.indexOf('?') === -1 ? '?' : '&') + 'download=1', hidden: '', title: 'download' });
       document.body.appendChild(f);
       setTimeout(function () { f.remove(); }, 60000);
@@ -1145,25 +1183,27 @@
       var done = 0, i = 0;
       function fetchNext() {
         if (i >= list.length) return Promise.resolve();
-        var o = list[i++];
+        var f = list[i++], o = f.o;
         say('app-msg', 'Downloading ' + (done + 1) + ' of ' + list.length + '…');
-        return fetch(o.design_file, { cache: 'no-store' }).then(function (r) {
-          if (!r.ok) { missing.push(o); return null; }
+        return fetch(f.url, { cache: 'no-store' }).then(function (r) {
+          if (!r.ok) { missing.push(f); return null; }
           return r.arrayBuffer();
         }, function (err) {
           // A network/CORS failure on the very first file means none will work — fall back.
           if (!done && !Object.keys(entries).length) { err.fallback = true; throw err; }
-          missing.push(o); return null;
+          missing.push(f); return null;
         }).then(function (buf) {
           done++;
-          var fname = fileNameOf(o);
+          var fname = fileNameOf(f);
           var base = isoDay(o.createdAt) + '_' + (safeName(o.name) || 'order') + '_' + fname, name = base, k = 2;
           while (used[name.toLowerCase()]) { name = base.replace(/(\.[^.]*)?$/, '-' + (k++) + '$1'); }
           if (buf) { used[name.toLowerCase()] = 1; entries['files/' + name] = new Uint8Array(buf); }
           var sp = o.specs || {};
-          rows.push([o.name, o.email, o.team, KINDS[kindOf(o)], sp.material || '', sp.qty || '', sp.color || '',
+          // This file's own line, when the order has several.
+          var item = sp.items && sp.items.length > 1 ? sp.items[f.i] || {} : null;
+          rows.push([o.name, o.email, o.team, KINDS[kindOf(o)], sp.material || '', item ? item.qty || '' : sp.qty || '', sp.color || '',
             sp.options ? sp.options.map(function (x) { return OPTION_LABELS[x] || x; }).join('; ') : '', sp.rush ? 'Yes' : '',
-            o.part, o.price, LABELS[o.status] || o.status,
+            item ? (item.size || item.reason || '') : o.part, item ? (item.price ? money(item.price.total) : 'Hand quote') : o.price, LABELS[o.status] || o.status,
             o.delivery === 'delivery' ? 'Delivery' : 'Pickup', o.address, buf ? 'files/' + name : 'MISSING (' + fname + ')',
             new Date(o.createdAt).toLocaleString()]);
           return fetchNext();
@@ -1180,7 +1220,7 @@
         saveBlob(new Blob([zip], { type: 'application/zip' }), 'crackbotics-files-' + stamp + '.zip');
         var got = list.length - missing.length;
         say('app-msg', 'Downloaded ' + got + ' file' + (got === 1 ? '' : 's') + ' as a ZIP' +
-          (missing.length ? '. Couldn\'t get ' + missing.length + ' (marked MISSING in orders.csv): ' + missing.map(function (o) { return o.name; }).join(', ') : '.'), !!missing.length);
+          (missing.length ? '. Couldn\'t get ' + missing.length + ' (marked MISSING in orders.csv): ' + missing.map(function (f) { return f.o.name + ' (' + fileNameOf(f) + ')'; }).join(', ') : '.'), !!missing.length);
       });
     }).catch(function (err) {
       if (err && err.fallback || /ZIP library/.test(err && err.message)) {
