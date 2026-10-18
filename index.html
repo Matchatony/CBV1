@@ -156,25 +156,23 @@
   </header>
 
   <!-- ============================ MACHINE VIDEO ============================ -->
-  <!-- A silent 10-second loop of the router (images/cnc-loop.*, 1280×720,
-       WebM first and MP4 for Safari; it fades through the page color where it
-       loops). It sits just under the hero so a short scroll brings it in: it
-       starts loading as it nears the screen, then fades in and plays from the
-       start once it's a third on screen (script at the end of the page). After
-       that it pauses off screen and resumes on screen, and the button pauses it.
-       Visitors who ask for reduced motion get the still frame, no fade, until
-       they press Play. Without JavaScript it's simply shown (<noscript> in head). -->
+  <!-- A silent 10-second loop of the router (images/cnc-loop.*, 1280×720;
+       MP4 first since every browser plays it, then a smaller WebM; it fades
+       through the page color where it loops). It sits just under the hero so a
+       short scroll brings it in: it starts loading as it nears the screen, then
+       fades in and plays from the start once it's partly on screen, and pauses
+       when scrolled away (script at the end of the page). If a phone refuses to
+       autoplay (an iPhone in Low Power Mode does), it shows the still frame and
+       starts on the visitor's next tap. Without JavaScript it's simply shown
+       (<noscript> in head). -->
   <figure class="machine-shot reveal wrap">
-    <div class="video-box">
-      <video id="cnc-video" muted loop playsinline preload="none" width="1280" height="720"
-             poster="images/cnc-loop-poster.webp"
-             aria-label="Video: our CNC router's spindle moving over the machine bed">
-        <source src="images/cnc-loop.webm" type="video/webm">
-        <!-- The last source failing means nothing can play: hide the figure, like the photos. -->
-        <source src="images/cnc-loop.mp4" type="video/mp4" onerror="this.closest('figure').hidden = true">
-      </video>
-      <button type="button" class="video-toggle" id="cnc-video-toggle" aria-pressed="false">Pause</button>
-    </div>
+    <video id="cnc-video" muted loop playsinline preload="none" width="1280" height="720"
+           poster="images/cnc-loop-poster.webp"
+           aria-label="Video: our CNC router's spindle moving over the machine bed">
+      <source src="images/cnc-loop.mp4" type="video/mp4">
+      <!-- The last source failing means nothing can play: hide the figure, like the photos. -->
+      <source src="images/cnc-loop.webm" type='video/webm; codecs="vp9"' onerror="this.closest('figure').hidden = true">
+    </video>
     <figcaption>Our CNC router at work</figcaption>
   </figure>
 
@@ -2645,16 +2643,17 @@
 
 <script>
 /* The router video under the hero. It starts loading when it's within a
-   screen of view (once the rest of the page has loaded), then the first time a third of it is on screen it fades in
-   and plays from the start (the fade waits, up to a second, for the first
-   frame, so it fades in moving rather than as a still). After that it plays
-   while on screen and pauses off screen, unless the button paused it.
-   Reduced motion: no fade, no autoplay; the still frame until Play. */
+   screen of view (once the rest of the page has loaded); the first time it's
+   partly on screen it fades in and plays from the start (the fade waits, up
+   to a second, for the first frame, so it fades in moving rather than as a
+   still). After that it plays while on screen and pauses off screen. If the
+   browser refuses to autoplay, the still frame shows and the video starts on
+   the visitor's next tap, click or key. */
 (function () {
-  var fig = document.querySelector('.machine-shot'), video = document.getElementById('cnc-video'), toggle = document.getElementById('cnc-video-toggle');
-  if (!fig || !video || !toggle) return;
-  var still = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
-  var userPaused = still, onScreen = false, shown = false, loading = false;
+  var fig = document.querySelector('.machine-shot'), video = document.getElementById('cnc-video');
+  if (!fig || !video) return;
+  video.muted = true; // some browsers only allow autoplay when muted is set on the element itself
+  var onScreen = false, shown = false, loading = false, waitingForTap = false;
 
   // Waits for the rest of the page first, so it never holds up the hero photo.
   function load() {
@@ -2669,30 +2668,35 @@
     shown = true;
     fig.classList.add('is-shown');
   }
+  function tapped() {
+    if (!waitingForTap) return;
+    waitingForTap = false;
+    sync();
+  }
   function sync() {
-    var play = onScreen && !userPaused;
-    if (play && video.paused) {
+    if (onScreen && video.paused) {
       load();
-      video.play().catch(function () { show(); /* autoplay refused: fade in the still frame */ });
+      var p = video.play();
+      if (p && p.catch) p.catch(function () {
+        show(); // autoplay refused: fade in the still frame, start on the next tap
+        waitingForTap = true;
+      });
+    } else if (!onScreen && !video.paused) {
+      video.pause();
     }
-    if (!play && !video.paused) video.pause();
-    toggle.textContent = userPaused ? 'Play' : 'Pause';
-    toggle.setAttribute('aria-pressed', String(userPaused));
   }
   video.addEventListener('playing', show);
-  toggle.addEventListener('click', function () { userPaused = !userPaused; sync(); });
+  ['pointerdown', 'touchend', 'keydown'].forEach(function (ev) { document.addEventListener(ev, tapped, { passive: true }); });
 
-  if (still) show(); // no fade; the still frame and a Play button
   if (!('IntersectionObserver' in window)) { show(); onScreen = true; sync(); return; }
-  sync();
   new IntersectionObserver(function (entries, obs) {
-    if (entries[0].isIntersecting) { if (!still) load(); obs.disconnect(); }
+    if (entries[0].isIntersecting) { load(); obs.disconnect(); }
   }, { rootMargin: '100% 0px' }).observe(fig);
   new IntersectionObserver(function (entries) {
     onScreen = entries[0].isIntersecting;
     if (onScreen && !shown) setTimeout(show, 1000); // don't wait on a slow connection forever
     sync();
-  }, { threshold: 0.33 }).observe(video);
+  }, { threshold: 0.2 }).observe(video);
 })();
 </script>
 

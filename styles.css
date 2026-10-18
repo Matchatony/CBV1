@@ -1022,22 +1022,6 @@ footer { padding-block: 48px 56px; border-top: 1px solid var(--line); }
   text-transform: uppercase;
   color: var(--faint);
 }
-.video-box { position: relative; }
-.video-toggle {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  font: 500 12px/1 var(--mono);
-  letter-spacing: .08em;
-  text-transform: uppercase;
-  color: var(--text);
-  background: rgba(20, 18, 26, .72);
-  border: 1px solid var(--line-firm);
-  padding: 8px 10px;
-  cursor: pointer;
-}
-.video-toggle:hover { border-color: var(--muted); }
-.video-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 @media (max-width: 700px) {
   .machine-shot video { aspect-ratio: 16 / 9; }
 }
