@@ -214,7 +214,10 @@ a { color: inherit; }
   padding-top: 26px;
   border-top: 1px solid var(--line);
 }
+/* Values sit on one line across a row even when a label wraps. */
+.facts > div { display: flex; flex-direction: column; }
 .facts dt { color: var(--faint); margin-bottom: 6px; }
+.facts > div > dd { margin-top: auto; }
 .facts dd {
   margin: 0;
   font-size: 19px;
