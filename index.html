@@ -159,14 +159,14 @@
   <!-- A silent 10-second loop of the router (images/cnc-loop.*, 1280×720;
        MP4 first since every browser plays it, then a smaller WebM; it fades
        through the page color where it loops). It sits just under the hero so a
-       short scroll brings it in: it starts loading as it nears the screen, then
-       fades in and plays from the start once it's partly on screen, and pauses
-       when scrolled away (script at the end of the page). If a phone refuses to
-       autoplay (an iPhone in Low Power Mode does), it shows the still frame and
-       starts on the visitor's next tap. Without JavaScript it's simply shown
-       (<noscript> in head). -->
+       short scroll brings it in. It uses the browser's own muted autoplay (the
+       most reliable way to get a video playing, iPhones included); the script
+       at the end of the page keeps it invisible until it's partly on screen,
+       then rewinds it and fades it in. If a phone refuses to autoplay (an
+       iPhone in Low Power Mode does), it starts on the visitor's next tap.
+       Without JavaScript it's simply shown (<noscript> in head). -->
   <figure class="machine-shot reveal wrap">
-    <video id="cnc-video" muted loop playsinline preload="none" width="1280" height="720"
+    <video id="cnc-video" autoplay muted loop playsinline preload="auto" width="1280" height="720"
            poster="images/cnc-loop-poster.webp"
            aria-label="Video: our CNC router's spindle moving over the machine bed">
       <source src="images/cnc-loop.mp4" type="video/mp4">
@@ -2642,60 +2642,34 @@
 </script>
 
 <script>
-/* The router video under the hero. It starts loading when it's within a
-   screen of view (once the rest of the page has loaded); the first time it's
-   partly on screen it fades in and plays from the start (the fade waits, up
-   to a second, for the first frame, so it fades in moving rather than as a
-   still). After that it plays while on screen and pauses off screen. If the
-   browser refuses to autoplay, the still frame shows and the video starts on
-   the visitor's next tap, click or key. */
+/* The router video under the hero. It autoplays on its own (muted, looped);
+   this keeps it invisible until a fifth of it is on screen, then rewinds it
+   to the start and fades it in. Browsers pause autoplaying videos that are
+   off screen and resume them on their own. If autoplay is refused (an iPhone
+   in Low Power Mode), the next tap, click or key starts it. */
 (function () {
   var fig = document.querySelector('.machine-shot'), video = document.getElementById('cnc-video');
   if (!fig || !video) return;
   video.muted = true; // some browsers only allow autoplay when muted is set on the element itself
-  var onScreen = false, shown = false, loading = false, waitingForTap = false;
-
-  // Waits for the rest of the page first, so it never holds up the hero photo.
-  function load() {
-    if (loading) return;
-    if (document.readyState !== 'complete') { window.addEventListener('load', load, { once: true }); return; }
-    loading = true;
-    video.preload = 'auto';
-    video.load();
+  var shown = false;
+  function play() {
+    var p = video.play();
+    if (p && p.catch) p.catch(function () { /* refused: the still frame stays until a tap */ });
   }
-  function show() {
-    if (shown) return;
+  function reveal() {
     shown = true;
+    try { video.currentTime = 0; } catch (e) { /* not loaded yet: it starts at 0 anyway */ }
+    play();
     fig.classList.add('is-shown');
   }
-  function tapped() {
-    if (!waitingForTap) return;
-    waitingForTap = false;
-    sync();
-  }
-  function sync() {
-    if (onScreen && video.paused) {
-      load();
-      var p = video.play();
-      if (p && p.catch) p.catch(function () {
-        show(); // autoplay refused: fade in the still frame, start on the next tap
-        waitingForTap = true;
-      });
-    } else if (!onScreen && !video.paused) {
-      video.pause();
-    }
-  }
-  video.addEventListener('playing', show);
-  ['pointerdown', 'touchend', 'keydown'].forEach(function (ev) { document.addEventListener(ev, tapped, { passive: true }); });
-
-  if (!('IntersectionObserver' in window)) { show(); onScreen = true; sync(); return; }
-  new IntersectionObserver(function (entries, obs) {
-    if (entries[0].isIntersecting) { load(); obs.disconnect(); }
-  }, { rootMargin: '100% 0px' }).observe(fig);
+  ['pointerdown', 'touchend', 'keydown'].forEach(function (ev) {
+    document.addEventListener(ev, function () { if (shown && video.paused) play(); }, { passive: true });
+  });
+  if (!('IntersectionObserver' in window)) { reveal(); return; }
   new IntersectionObserver(function (entries) {
-    onScreen = entries[0].isIntersecting;
-    if (onScreen && !shown) setTimeout(show, 1000); // don't wait on a slow connection forever
-    sync();
+    if (!entries[0].isIntersecting) return;
+    if (!shown) reveal();
+    else if (video.paused) play();
   }, { threshold: 0.2 }).observe(video);
 })();
 </script>
