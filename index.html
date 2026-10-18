@@ -822,6 +822,12 @@
     var a = ACCEPT[type] || ACCEPT.other;
     els.files.setAttribute('accept', a.ext);
     els.fileHint.textContent = a.hint;
+    // Files added under another type that this one doesn't take come out.
+    var dropped = items.filter(function (it) { return !fitsType(it.name, type); });
+    dropped.forEach(removeItem);
+    if (dropped.length) {
+      fileProblem('Removed ' + dropped.map(function (it) { return it.name; }).join(', ') + ': ' + TYPE_RULE[type] + '.');
+    }
     // Whether a file prices automatically depends on the part type.
     items.forEach(updateRow);
   }
@@ -1620,18 +1626,33 @@
     els.fileProblem.hidden = !text;
   }
 
+  // Each job type takes only its own file types (ACCEPT[type].ext): CNC plates
+  // DXF or STEP, prints STL or 3MF. The file picker's filter is only a hint
+  // (people can pick "All files", or drop a file in), so this is the real check.
+  var TYPE_RULE = { plate: 'CNC plates take DXF or STEP files', print: '3D prints take STL or 3MF files',
+    other: 'we take DXF, STEP, STL, 3MF, PDF or ZIP files' };
+  function fitsType(name, type) {
+    return (ACCEPT[type] || ACCEPT.other).ext.split(',').indexOf('.' + extOf(name)) !== -1;
+  }
+
   function addFiles(list) {
-    var skipped = [], added = null;
+    var skipped = [], added = null, wrongType = false, tooBig = false;
+    var type = els.type.value;
     var total = items.reduce(function (sum, it) { return sum + it.file.size; }, 0);
     Array.prototype.forEach.call(list, function (file) {
-      if (items.some(function (it) { return it.name === file.name && it.file.size === file.size && it.file.lastModified === file.lastModified; })) {
+      if (!fitsType(file.name, type)) {
+        skipped.push(file.name);
+        wrongType = true;
+      } else if (items.some(function (it) { return it.name === file.name && it.file.size === file.size && it.file.lastModified === file.lastModified; })) {
         skipped.push(file.name + ' is already in the list');
       } else if (items.length >= MAX_FILES) {
         skipped.push(file.name + ' (' + MAX_FILES + ' files per request)');
       } else if (file.size > MAX_UPLOAD) {
         skipped.push(file.name + ' is over 10 MB');
+        tooBig = true;
       } else if (total + file.size > MAX_TOTAL) {
         skipped.push(file.name + ' (over 50 MB all together)');
+        tooBig = true;
       } else {
         total += file.size;
         var item = { file: file, name: file.name, ext: extOf(file.name), qty: 1, status: 'measuring' };
@@ -1642,7 +1663,9 @@
       }
     });
     els.fileList.hidden = !items.length;
-    fileProblem(skipped.length ? 'Not added: ' + skipped.join('; ') + '. Bigger files can be emailed to ' + EMAIL + '.' : '');
+    fileProblem(skipped.length ? 'Not added: ' + skipped.join('; ') + '.' +
+      (wrongType ? ' ' + TYPE_RULE[type].replace(/^./, function (c) { return c.toUpperCase(); }) + '.' : '') +
+      (tooBig ? ' Bigger files can be emailed to ' + EMAIL + '.' : '') : '');
     if (added) setActive(added);
   }
 

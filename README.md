@@ -190,9 +190,13 @@ How it behaves:
   explains why and offers to open their mail app with the same details
   pre-filled. The file has to be attached by hand there, since a mailto link
   can't carry it.
+- Each job type takes only its own files: CNC plates DXF or STEP, 3D prints
+  STL or 3MF, "Something else" any of those plus PDF or ZIP. The file picker's
+  filter is only a hint (anyone can pick "All files" or drop a file in), so
+  `addFiles()` checks it, and switching the job type removes files the new type
+  doesn't take, saying which and why.
 - The page refuses files over 10 MB up front, matching the upload limit, plus
-  an 11th file, more than 50 MB in all, a duplicate, or an unsupported type,
-  saying which file and why.
+  an 11th file, more than 50 MB in all, or a duplicate, saying which file and why.
 
 ## Bot protection
 
