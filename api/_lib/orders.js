@@ -134,3 +134,21 @@ export async function isAdmin(request) {
   if (!ok) await new Promise((r) => setTimeout(r, 800));
   return ok;
 }
+
+// Small settings records (the discount codes) live next to the orders, under
+// settings/<name>/<version>.json, encrypted and versioned the same way.
+export async function readDoc(name) {
+  const blobs = await listVersions(`settings/${name}/`);
+  if (!blobs.length) return null;
+  const latest = blobs.reduce((a, b) => (b.pathname > a.pathname ? b : a));
+  return readBlob(latest.url);
+}
+
+export async function writeDoc(name, doc) {
+  const old = await listVersions(`settings/${name}/`);
+  const version = String(Date.now()).padStart(15, '0');
+  await put(`settings/${name}/${version}.json`, encrypt(doc), {
+    access: 'public', addRandomSuffix: false, contentType: 'application/json'
+  });
+  if (old.length) await del(old.map((b) => b.url));
+}

@@ -62,7 +62,9 @@ function summary(o) {
     id: o.id, created: o.createdAt, name: o.name, team: o.team || '', kind: kindOf(o),
     qty: sp.qty ?? null, files: filesOf(o).length, material: sp.material || '', status: o.status,
     delivery: o.delivery, delivery_date: o.delivery_date || '', delivery_stop: o.delivery_stop || 0, delivered_at: o.delivered_at || '',
-    total: total(o), ...(sp.price && sp.price.partial ? { plus_hand_quote: true } : {})
+    total: total(o), ...(sp.price && sp.price.partial ? { plus_hand_quote: true } : {}),
+    ...(o.delivery === 'ship' ? { plus_shipping: true } : {}),
+    ...(sp.discount ? { discount_code: sp.discount.code + (sp.discount.invalid ? ' (not valid: ' + sp.discount.invalid + ')' : ' (' + sp.discount.label + ')') } : {})
   };
 }
 
@@ -125,9 +127,12 @@ const READ = { readOnlyHint: true, openWorldHint: false };
 const EDIT = { readOnlyHint: false, destructiveHint: false, openWorldHint: false };
 
 function buildServer() {
-  const server = new McpServer({ name: 'crackbotics-orders', version: '1.2.0' }, {
+  const server = new McpServer({ name: 'crackbotics-orders', version: '1.3.0' }, {
     instructions: 'Crackbotics is a student-run CNC and 3D-print shop for FTC robotics teams. These tools read and update its order log. ' +
       'An order moves new → quoted → paid → in-progress → ready → done (or cancelled). Paid, in-progress and ready delivery orders go on a delivery day. ' +
+      'An order is picked up in San Diego (delivery "pickup"), delivered locally for a flat $15.99 ("delivery"), or shipped anywhere in the US ("ship"); ' +
+      'shipping isn\'t in the total and is quoted by hand. A discount code on an order (specs.discount) was checked when the order came in; ' +
+      'its dollar amount is already taken off the total (specs.price.code_discount), or, for a hand quote, still has to be. ' +
       'Every change you make is saved in the order\'s history, which the shop\'s admins can see. Orders can\'t be deleted from here. ' +
       'An order can have several design files, one per part, each with its own quantity (get_order: files, and specs.items for each file\'s line). ' +
       'STEP files are quoted by hand: analyze_part_file measures them (plate size, thickness, cut length, holes, pockets) and estimates machine time and electricity.'
@@ -136,8 +141,8 @@ function buildServer() {
   server.registerTool('list_orders', {
     title: 'List orders',
     description: 'List orders, newest first, as a short summary each: id, created date, name, team, kind (cnc/print/other), quantity, material, ' +
-      'status, delivery type (delivery or pickup), delivery date and stop number, delivered time, number of design files, and total in dollars (or "hand quote" when it needs pricing by hand; ' +
-      'plus_hand_quote: true when some of its files still need pricing by hand). ' +
+      'status, delivery type (pickup, delivery or ship), delivery date and stop number, delivered time, number of design files, and total in dollars (or "hand quote" when it needs pricing by hand; ' +
+      'plus_hand_quote: true when some of its files still need pricing by hand, plus_shipping: true when shipping still has to be added, discount_code when it used one). ' +
       'Use get_order for the full details of one order.',
     inputSchema: fromJsonSchema({
       type: 'object',
@@ -216,8 +221,8 @@ function buildServer() {
   }, ({ id, delivery_date, delivery_window, delivery_stop }) => write(id, { delivery_date, delivery_window, delivery_stop }));
 
   server.registerTool('mark_delivered', {
-    title: 'Mark delivered or picked up',
-    description: 'Record that an order was handed over (delivered: true saves the current time) or undo that (delivered: false clears it). ' +
+    title: 'Mark delivered, picked up or shipped',
+    description: 'Record that an order was handed over or shipped (delivered: true saves the current time) or undo that (delivered: false clears it). ' +
       'This doesn\'t change the status: the admin panel\'s Delivered button also sets the status to done, so use update_order for that too.',
     inputSchema: fromJsonSchema({
       type: 'object',

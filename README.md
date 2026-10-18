@@ -40,6 +40,22 @@ priced; STEP plates and anything the page can't measure are listed as "priced by
 hand", and the total then reads "$X + hand quote". One delivery fee covers the
 whole order. Click a file's name to preview it.
 
+**Getting it to them.** Three choices: free pickup in San Diego, local delivery
+in the San Diego area for a flat $15.99, or **Ship it** anywhere in the US.
+Shipping isn't priced on the page: the estimate reads "$X + shipping", and you
+quote the shipping by email (the order card and the email say so). Delivery and
+shipping both ask for an address.
+
+**Discount codes.** The form has a Discount code box with an Apply button. Codes
+are made in the admin panel (**Discounts**, below) and checked by
+`api/discount.js`; a good code takes its percent or dollar amount off the priced
+parts (never delivery or shipping) and shows as its own line in the estimate,
+the PDF and the email. A code that's wrong, switched off, past its end date or
+used up stops the send until the customer fixes or clears it. `api/order.js`
+checks the code again when the order comes in, counts the use, and writes in the
+email's `discount_code` field whether it checked out. On a hand quote the code is
+recorded for you to take off the price you send.
+
 Sending a quote is three steps:
 
 1. **The bot check.** Cloudflare Turnstile runs on the form as it scrolls into
@@ -131,8 +147,9 @@ Three layers stop that:
 
    Both must be set; with either missing the check is off and the form works
    as before. The pass is signed with a key derived from `ORDERS_KEY`.
-2. **Rate limits per IP address**, in the functions: 8 orders, 20 bot checks
-   and 40 upload tokens per 10 minutes. They live in each function instance's
+2. **Rate limits per IP address**, in the functions: 8 orders, 20 bot checks,
+   40 upload tokens and 15 discount-code checks per 10 minutes (the last so
+   codes can't be found by guessing). They live in each function instance's
    memory, so they stop bursts but reset when Vercel starts a fresh instance.
 3. **The Vercel Firewall**, in the dashboard under the project's **Firewall**
    tab: turn on **Bot Protection** (it challenges known bad bots before they
@@ -161,10 +178,27 @@ measured size, price or why it's priced by hand), and its upload links are in
 `files`. Orders from before specs were saved show their original quote text,
 and single-file orders from before `files` existed still work.
 
+An order with a discount code shows it under Price (the amount taken off, or, if
+the code had stopped working by the time the order came in, a warning that the
+estimate still includes it). Shipped orders say **Plus shipping** there.
+
+**Discounts** (third tab) lists every code with how many times it's been used,
+its end date and status, and makes new ones: the code (3 to 24 letters, digits,
+`-` or `_`; customers can type it in any case), % or $ off, an optional end date
+(it works through that day, San Diego time), an optional use limit, and a
+private note. **Turn off** stops a code without losing its count. Codes are
+stored encrypted next to the orders (`settings/discounts/` in the Blob store,
+`api/discounts.js`, `api/_lib/discounts.js`). Use counts are best effort: two
+orders at the same instant can count as one.
+
 **Download files** saves the design files for the orders on screen as one ZIP
 (every file of every order), with an `orders.csv` index, one row per file.
 
-The **Deliveries** tab plans handoffs. Drop-offs are scheduled automatically:
+The **Deliveries** tab plans handoffs. Orders to ship are listed first, under
+**To ship**, once they're Paid, In progress or Ready: each has the address, an
+**Email tracking** button (a pre-filled email to paste the tracking number into)
+and **Shipped**, which marks it done. They never go on a delivery day or the map.
+Drop-offs are scheduled automatically:
 once an order is Paid, In progress or Ready it goes on the delivery day the
 customer was promised (orders close Mon/Wed/Fri at 6 pm and go out the next
 day, the same rule as the quote form's `CUTOFF_DAYS` / `CUTOFF_HOUR` — keep the
@@ -186,6 +220,7 @@ looking it up. Scroll or pinch to zoom; "Show all" zooms back out to everything.
 
 - `api/order.js` saves a request and emails it (called by the quote form).
 - `api/human.js` and `api/_lib/guard.js` are the bot check and rate limits (see **Bot protection**).
+- `api/discount.js` checks a code for the quote form; `api/discounts.js` (password) makes and edits them.
 - `api/orders.js` lists / updates / deletes; every call needs the password.
   Its update rules live in `api/_lib/changes.js`, shared with the Claude connector.
 - `api/mcp/[key].js` is the Claude connector (see below).

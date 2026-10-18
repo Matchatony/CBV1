@@ -21,7 +21,7 @@
   .card { background: var(--bg-raised); border: 1px solid var(--line); border-radius: 8px; padding: 20px; }
   .login { max-width: 380px; }
   .login label { display: block; font-family: var(--mono); font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); margin-bottom: 8px; }
-  .admin input[type="password"], .admin input[type="search"], .admin input[type="text"], .admin input[type="date"], .admin select, .admin textarea {
+  .admin input[type="password"], .admin input[type="search"], .admin input[type="text"], .admin input[type="date"], .admin input[type="number"], .admin select, .admin textarea {
     font: inherit; font-size: 15px; color: var(--text); background: var(--bg); border: 1px solid var(--line-firm);
     border-radius: 6px; padding: 9px 11px; width: 100%; box-sizing: border-box; }
   .admin textarea { min-height: 80px; resize: vertical; }
@@ -171,6 +171,27 @@
   pre.summary { margin: 0; white-space: pre-wrap; font-family: var(--mono); font-size: 12.5px; line-height: 1.5; color: var(--muted);
     background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 12px; }
   .empty { color: var(--muted); padding: 30px 0; text-align: center; }
+  /* Discounts tab */
+  .code-form { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px 12px; align-items: end; margin-bottom: 18px; }
+  .code-form label { display: block; font: 500 11px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+  .code-form label input, .code-form label select { margin-top: 5px; text-transform: none; letter-spacing: 0; }
+  .code-form .wide { grid-column: span 4; }
+  .code-form .row { grid-column: span 2; justify-content: flex-end; }
+  #code-code { text-transform: uppercase; }
+  .codes-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .codes-table th { text-align: left; font: 500 11px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); padding: 0 10px 6px 0; border-bottom: 1px solid var(--line-firm); }
+  .codes-table td { padding: 9px 10px 9px 0; border-bottom: 1px solid var(--line); vertical-align: middle; overflow-wrap: anywhere; }
+  .codes-table td.code { font-family: var(--mono); font-weight: 500; }
+  .codes-table td.acts { text-align: right; white-space: nowrap; }
+  .codes-table tr.off td { color: var(--muted); }
+  @media (max-width: 720px) {
+    .code-form { grid-template-columns: 1fr 1fr; }
+    .code-form .wide, .code-form .row { grid-column: 1 / -1; }
+    .codes-table thead { display: none; }
+    .codes-table tr { display: block; border-bottom: 1px solid var(--line); padding: 8px 0; }
+    .codes-table td { display: inline-block; border: 0; padding: 2px 10px 2px 0; }
+    .codes-table td.acts { display: block; text-align: left; padding-top: 6px; }
+  }
   @media (max-width: 760px) {
     #deliv-map { height: 320px; }
     .stop { grid-template-columns: 40px 1fr; }
@@ -214,6 +235,7 @@
     <div class="tabs">
       <button type="button" class="tab" id="tab-orders" aria-pressed="true">Orders</button>
       <button type="button" class="tab" id="tab-deliv" aria-pressed="false">Deliveries</button>
+      <button type="button" class="tab" id="tab-codes" aria-pressed="false">Discounts</button>
       <button type="button" id="refresh">Refresh</button>
     </div>
     <p class="msg" id="app-msg" role="status"></p>
@@ -245,6 +267,21 @@
       </div>
       <div id="deliv"></div>
     </div>
+    <div id="view-codes" hidden>
+      <form class="card code-form" id="code-form">
+        <label>Code <input type="text" id="code-code" maxlength="24" required autocomplete="off" spellcheck="false" placeholder="e.g. FTC10"></label>
+        <label>Type
+          <select id="code-kind"><option value="percent">% off</option><option value="amount">$ off</option></select></label>
+        <label>Amount <input type="number" id="code-value" min="0.01" step="0.01" required placeholder="10"></label>
+        <label>Ends <input type="date" id="code-expires" aria-describedby="code-help"></label>
+        <label>Use limit <input type="number" id="code-max" min="0" step="1" placeholder="No limit" aria-describedby="code-help"></label>
+        <label>Note <input type="text" id="code-note" maxlength="200" placeholder="Who it's for"></label>
+        <p class="msg wide" id="code-help">Codes come off the parts, never delivery or shipping. A code works through its end date (San Diego time); leave Ends or Use limit empty for none. Customers never see the note or use count.</p>
+        <div class="row"><button type="submit" class="primary" id="code-add">Add code</button></div>
+      </form>
+      <p class="msg" id="codes-msg" role="status"></p>
+      <div id="codes"></div>
+    </div>
   </section>
 </main>
 
@@ -271,9 +308,9 @@
   function storeGet() { try { return sessionStorage.getItem('cb-admin') || ''; } catch (e) { return ''; } }
   function storeSet(v) { try { v ? sessionStorage.setItem('cb-admin', v) : sessionStorage.removeItem('cb-admin'); } catch (e) {} }
 
-  function api(method, body) {
+  function api(method, body, path) {
     var pw = state.pw;
-    return fetch('/api/orders', {
+    return fetch(path || '/api/orders', {
       method: method,
       headers: Object.assign({ authorization: 'Bearer ' + pw }, body ? { 'content-type': 'application/json' } : {}),
       body: body ? JSON.stringify(body) : undefined,
@@ -316,6 +353,7 @@
     state.pw = ''; storeSet('');
     $('app').hidden = true; $('signout').hidden = true; $('login').hidden = false;
     $('orders').textContent = '';
+    codes = null; $('codes').textContent = '';
     say('login-msg', message || '', !!message);
   }
 
@@ -329,6 +367,7 @@
       $('login').hidden = true; $('app').hidden = false; $('signout').hidden = false;
       say('app-msg', '');
       render();
+      if (!$('view-codes').hidden) loadCodes();
     }).catch(function (err) {
       if (err.message !== 'unauthorized') say(state.orders.length ? 'app-msg' : 'login-msg', 'Couldn\'t load orders: ' + err.message, true);
     }).then(function () { $('refresh').disabled = false; });
@@ -342,6 +381,7 @@
 
   // What kind of job an order is. Orders from before specs were saved fall back to the part type text.
   var KINDS = { cnc: 'CNC', print: '3D print', other: 'Other' };
+  var CODE_PROBLEMS = { unknown: 'no such code', inactive: 'switched off', expired: 'expired', used_up: 'used up', unchecked: 'couldn\'t be checked' };
   var OPTION_LABELS = { tapped: 'Tapped holes', tight_tolerances: 'Tight tolerances (±0.005″)', complex_geometry: 'Multiple setups / unusual geometry' };
   function kindOf(o) {
     if (o.specs && KINDS[o.specs.kind]) return o.specs.kind;
@@ -368,6 +408,10 @@
     return [s.material, '×' + s.qty, s.color, n > 1 ? n + ' files' : ''].filter(Boolean).join(' · ');
   }
   function money(n) { return '$' + (Math.round(n * 100) / 100).toFixed(2); }
+  // How the order reaches the customer: local drop-off, shop pickup, or shipped.
+  var HANDOFF = { delivery: 'Delivery', pickup: 'Pickup', ship: 'Shipping' };
+  function handoffName(o) { return HANDOFF[o.delivery] || 'Pickup'; }
+  function handedOverWord(o) { return o.delivery === 'delivery' ? 'delivered' : o.delivery === 'ship' ? 'shipped' : 'picked up'; }
 
   function statusSelect(order, card) {
     var sel = el('select', { class: 'status-select', 'aria-label': 'Status for ' + order.name });
@@ -410,7 +454,7 @@
         var c = a.change || {}, lines = [], notes = null;
         Object.keys(c).forEach(function (k) {
           var ch = c[k] || {};
-          if (k === 'delivered_at') lines.push((ch.to ? 'Marked ' : 'Unmarked ') + (o.delivery === 'delivery' ? 'delivered' : 'picked up'));
+          if (k === 'delivered_at') lines.push((ch.to ? 'Marked ' : 'Unmarked ') + handedOverWord(o));
           else if (k === 'notes') notes = el('details', {}, [el('summary', { text: 'Changed the notes' }),
             el('pre', { class: 'summary', text: 'Before:\n' + (ch.from || '(empty)') + '\n\nAfter:\n' + (ch.to || '(empty)') })]);
           else lines.push((HISTORY_FIELDS[k] || k) + ': ' + historyValue(k, ch.from) + ' → ' + historyValue(k, ch.to));
@@ -464,7 +508,7 @@
       el('span', { class: 'when', text: fmtDate(o.createdAt), style: 'white-space:pre-line' }),
       el('span', { class: 'who' }, [el('b', {}, [kindTags(o), o.name]), el('span', { text: [o.team ? 'FTC ' + o.team : '', specShort(o)].filter(Boolean).join(' · ') })]),
       el('span', { class: 'price' + (o.escalated ? ' hand' : ''), text: o.price || '' }),
-      el('span', { class: 'badge', text: o.delivery === 'delivery' ? 'Delivery' : 'Pickup' })
+      el('span', { class: 'badge', text: o.delivery === 'ship' ? 'Ship' : handoffName(o) })
     ]);
     toggle.addEventListener('click', function () {
       var open = toggle.getAttribute('aria-expanded') !== 'true';
@@ -502,15 +546,25 @@
       var p = sp.price, rows = [['Material' + (p.discount ? ' (5+ parts, 8% off)' : ''), p.material], ['Machine time', p.machine], ['Labor', p.labor]];
       if (p.flags) rows.push(['Flagged options', p.flags]);
       if (p.minimum) rows.push(['Minimum applied', p.minimum]);
-      var handoff = [o.delivery === 'delivery' ? 'Delivery' : 'Pickup', p.delivery ? money(p.delivery) : 'Free'];
-      price = el('table', { class: 'price-table' }, rows.map(function (r) { return el('tr', {}, [el('td', { text: r[0] }), el('td', { text: money(r[1]) })]); })
+      var code = sp.discount && !sp.discount.invalid ? sp.discount : null;
+      if (p.code_discount) rows.push([(code ? 'Code ' + code.code + ' (' + code.label + ')' : 'Discount code'), -p.code_discount]);
+      var handoff = [handoffName(o), o.delivery === 'ship' ? 'Quoted by email' : p.delivery ? money(p.delivery) : 'Free'];
+      price = el('table', { class: 'price-table' }, rows.map(function (r) { return el('tr', {}, [el('td', { text: r[0] }), el('td', { text: r[1] < 0 ? '−' + money(-r[1]) : money(r[1]) })]); })
         .concat([el('tr', {}, [el('td', { text: handoff[0] }), el('td', { text: handoff[1] })])])
         .concat([el('tr', { class: 'total' }, [el('td', { text: (p.partial ? 'Estimated total, priced files' : 'Estimated total') + (sp.qty > 1 && p.per_part ? ' (' + money(p.per_part) + ' per part)' : '') }), el('td', { text: money(p.total) })])]));
       if (p.partial) price = el('div', {}, [price, el('p', { class: 'hand-reason' }, [el('b', { text: 'Plus a hand quote: ' }), sp.reason || ''])]);
+      if (o.delivery === 'ship') price = el('div', {}, [price, el('p', { class: 'hand-reason' }, [el('b', { text: 'Plus shipping: ' }), 'quote it to the address below and add it to the total.'])]);
     } else if (o.escalated || (sp && sp.reason)) {
       price = el('p', { class: 'hand-reason' }, [el('b', { text: 'Needs a hand quote. ' }), (sp && sp.reason) || o.part || '']);
     } else {
       price = el('p', { text: o.price || '—' });
+    }
+    // The discount code, as checked when the order came in.
+    if (sp && sp.discount) {
+      var d = sp.discount;
+      price = el('div', {}, [price, d.invalid
+        ? el('p', { class: 'warn' }, ['Code ' + d.code + ' was NOT valid when the order came in (' + (CODE_PROBLEMS[d.invalid] || d.invalid) + '). The estimate still includes it.'])
+        : el('p', { class: 'meta' }, ['Discount code ' + d.code + ': ' + d.label + (sp.price && sp.price.code_discount ? ', −' + money(sp.price.code_discount) + ' taken off' : ', to take off the hand quote') + '.'])]);
     }
     var body = el('div', { class: 'body', id: bodyId, hidden: '' }, [
       el('div', { class: 'sections' }, [
@@ -523,10 +577,10 @@
             fact('Team', o.team ? 'FTC ' + o.team : ''),
             fact('Received', new Date(o.createdAt).toLocaleString())
           )),
-          el('h2', { text: o.delivery === 'delivery' ? 'Delivery' : 'Pickup' }),
+          el('h2', { text: handoffName(o) }),
           el('dl', { class: 'facts' }, [].concat(
-            fact('Method', o.delivery === 'delivery' ? 'Local delivery (flat $15.99)' : 'Pickup in San Diego'),
-            o.delivery === 'delivery' ? fact('Address', o.address || el('span', { class: 'warn', text: 'No address given' })) : [],
+            fact('Method', o.delivery === 'delivery' ? 'Local delivery (flat $15.99)' : o.delivery === 'ship' ? 'Ship it (shipping quoted by email)' : 'Pickup in San Diego'),
+            o.delivery !== 'pickup' ? fact('Address', o.address || el('span', { class: 'warn', text: 'No address given' })) : [],
             fact('Date', o.delivered_at ? 'Handed over ' + new Date(o.delivered_at).toLocaleString()
               : o.delivery_date ? dayLabel(o.delivery_date) + (o.delivery_window ? ', ' + o.delivery_window : '') : 'Not scheduled yet'),
             fact('Last updated', o.updatedAt ? new Date(o.updatedAt).toLocaleString() : '')
@@ -716,6 +770,35 @@
     return li;
   }
 
+  // A paid / in-progress / ready order to ship: where it goes, and buttons to
+  // email the tracking number and mark it shipped.
+  function shippedMail(o) {
+    var body = 'Hi ' + (o.name || '').split(' ')[0] + ',\n\n' +
+      'Your Crackbotics order' + (o.part_type ? ' (' + o.part_type + ')' : '') + ' has shipped to:\n' + (o.address || '') + '\n\n' +
+      'Tracking number: \n\n— Crackbotics';
+    return mailto(o.email) + '?subject=' + encodeURIComponent('Your Crackbotics order has shipped') + '&body=' + encodeURIComponent(body);
+  }
+  function shipItem(o) {
+    var li = el('li', { class: 'stop', id: 'stop-' + o.id });
+    li.appendChild(el('div', { class: 'stop-num', text: '→' }));
+    li.appendChild(el('div', { class: 'stop-main' }, [
+      el('div', { class: 'who-line' }, [
+        el('b', { text: o.name }),
+        el('span', { class: 'st' + (o.status === 'ready' ? ' ready' : ''), text: LABELS[o.status] || o.status })
+      ]),
+      o.address ? el('span', { text: o.address }) : el('span', { class: 'warn', text: 'No address given' }),
+      el('div', { class: 'meta' }, [kindTags(o), [o.team ? 'FTC ' + o.team : '', specShort(o), o.price].filter(Boolean).join(' · ')]),
+      el('div', { class: 'meta' }, [el('a', { href: mailto(o.email), text: o.email })])
+    ]));
+    var done = el('button', { type: 'button', class: 'sm', text: 'Shipped' });
+    done.addEventListener('click', function () {
+      done.disabled = true;
+      patch(o, { status: 'done', delivered: true }).then(render, function (err) { done.disabled = false; failed('mark it shipped')(err); });
+    });
+    li.appendChild(el('div', { class: 'stop-actions' }, [el('a', { class: 'btn-link', href: shippedMail(o), text: 'Email tracking' }), done]));
+    return li;
+  }
+
   function printDay(dayEl) {
     function clean() {
       document.body.classList.remove('printing');
@@ -864,16 +947,28 @@
     if (!box) return;
     autoSchedule();
     var withPickups = $('with-pickups').checked, today = ymd(new Date());
-    var mine = state.orders.filter(function (o) { return withPickups || o.delivery === 'delivery'; });
+    // Shipped orders get their own list (no day or route); the rest are planned by day.
+    var mine = state.orders.filter(function (o) { return o.delivery !== 'ship' && (withPickups || o.delivery === 'delivery'); });
+    var toShip = state.orders.filter(function (o) { return o.delivery === 'ship' && COMMITTED.indexOf(o.status) !== -1; })
+      .sort(function (a, b) { return a.createdAt < b.createdAt ? -1 : 1; });
     var active = mine.filter(function (o) {
       return o.status !== 'done' && o.status !== 'cancelled' && (o.delivery_date || COMMITTED.indexOf(o.status) !== -1);
     });
     var waiting = mine.filter(function (o) { return !o.delivery_date && (o.status === 'new' || o.status === 'quoted'); }).length;
     var twoWeeks = Date.now() - 14 * 864e5;
-    var recent = mine.filter(function (o) { return o.status === 'done' && o.delivered_at && Date.parse(o.delivered_at) > twoWeeks; })
+    var recent = state.orders.filter(function (o) { return (mine.indexOf(o) !== -1 || o.delivery === 'ship') && o.status === 'done' && o.delivered_at && Date.parse(o.delivered_at) > twoWeeks; })
       .sort(function (a, b) { return a.delivered_at < b.delivered_at ? 1 : -1; });
-    $('tab-deliv').textContent = 'Deliveries' + (active.length ? ' (' + active.length + ')' : '');
+    $('tab-deliv').textContent = 'Deliveries' + (active.length + toShip.length ? ' (' + (active.length + toShip.length) + ')' : '');
     box.textContent = '';
+
+    if (toShip.length) {
+      var sl = el('ul', { class: 'stops' });
+      toShip.forEach(function (o) { sl.appendChild(shipItem(o)); });
+      box.appendChild(el('section', { class: 'day' }, [
+        el('div', { class: 'day-head' }, [el('h2', { text: 'To ship' }),
+          el('span', { class: 'tag', text: toShip.length + ' — paid, in progress or ready' })]),
+        sl]));
+    }
 
     var unscheduled = active.filter(function (o) { return !o.delivery_date; })
       .sort(function (a, b) { return a.createdAt < b.createdAt ? -1 : 1; });
@@ -939,7 +1034,7 @@
       box.appendChild(section);
     });
 
-    if (!active.length) box.appendChild(el('p', { class: 'empty', text: 'Nothing to deliver right now.' }));
+    if (!active.length && !toShip.length) box.appendChild(el('p', { class: 'empty', text: 'Nothing to deliver right now.' }));
     mapState.pins = pins; mapState.legend = legend;
     updateMap();
     if (waiting) box.appendChild(el('p', { class: 'msg no-print', text: waiting + ' more ' + (withPickups ? 'order' : 'delivery request') + (waiting === 1 ? ' is' : 's are') +
@@ -956,7 +1051,7 @@
         rl.appendChild(el('li', { class: 'stop' }, [
           el('div', { class: 'stop-num', text: '✓' }),
           el('div', { class: 'stop-main' }, [el('b', { text: o.name }),
-            el('span', { class: 'meta', text: (o.delivery === 'delivery' ? 'Delivered ' : 'Picked up ') + new Date(o.delivered_at).toLocaleString() + (o.address && o.delivery === 'delivery' ? ' · ' + o.address : '') })]),
+            el('span', { class: 'meta', text: handedOverWord(o).replace(/^./, function (c) { return c.toUpperCase(); }) + ' ' + new Date(o.delivered_at).toLocaleString() + (o.address && o.delivery !== 'pickup' ? ' · ' + o.address : '') })]),
           el('div', { class: 'stop-actions' }, [undo])
         ]));
       });
@@ -1104,12 +1199,80 @@
   }
 
   function showTab(which) {
-    var deliv = which === 'deliv';
-    $('view-orders').hidden = deliv; $('view-deliv').hidden = !deliv;
-    $('tab-orders').setAttribute('aria-pressed', String(!deliv)); $('tab-deliv').setAttribute('aria-pressed', String(deliv));
+    ['orders', 'deliv', 'codes'].forEach(function (t) {
+      $('view-' + t).hidden = t !== which;
+      $('tab-' + t).setAttribute('aria-pressed', String(t === which));
+    });
     try { sessionStorage.setItem('cb-admin-tab', which); } catch (e) {}
-    if (deliv) updateMap();
+    if (which === 'deliv') updateMap();
+    if (which === 'codes' && state.pw && !$('app').hidden) loadCodes();
   }
+
+  // ---- Discount codes (api/discounts.js). The quote form checks them with
+  // api/discount.js; api/order.js checks again and counts each use. ----
+  var codes = null;
+  function codeOff(c) { return c.kind === 'percent' ? c.value + '% off' : money(c.value).replace(/\.00$/, '') + ' off'; }
+  function codeState(c) {
+    var today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles' }).format(new Date());
+    if (!c.active) return 'Off';
+    if (c.expires && c.expires < today) return 'Ended';
+    if (c.max_uses && (c.uses || 0) >= c.max_uses) return 'Used up';
+    return 'Active';
+  }
+  function codesApi(method, body) {
+    return api(method, body, '/api/discounts').then(function (j) { codes = j.codes || []; renderCodes(); return j; });
+  }
+  function loadCodes() {
+    if (codes === null) say('codes-msg', 'Loading…');
+    return codesApi('GET').then(function () { say('codes-msg', ''); },
+      function (err) { if (err.message !== 'unauthorized') say('codes-msg', 'Couldn\'t load the codes: ' + err.message, true); });
+  }
+  function renderCodes() {
+    var box = $('codes');
+    box.textContent = '';
+    if (!codes.length) { box.appendChild(el('p', { class: 'empty', text: 'No discount codes yet. Add one above.' })); return; }
+    var rows = codes.slice().sort(function (a, b) { return a.created < b.created ? 1 : -1; }).map(function (c) {
+      var st = codeState(c);
+      var flip = el('button', { type: 'button', class: 'sm', text: c.active ? 'Turn off' : 'Turn on' });
+      flip.addEventListener('click', function () {
+        flip.disabled = true;
+        codesApi('PATCH', { code: c.code, active: !c.active }).catch(function (err) { flip.disabled = false; say('codes-msg', 'Couldn\'t change ' + c.code + ': ' + err.message, true); });
+      });
+      var drop = el('button', { type: 'button', class: 'sm danger', text: 'Delete' });
+      drop.addEventListener('click', function () {
+        if (!confirm('Delete the code ' + c.code + '? Orders that used it keep their record of it.')) return;
+        drop.disabled = true;
+        codesApi('DELETE', { code: c.code }).catch(function (err) { drop.disabled = false; say('codes-msg', 'Couldn\'t delete ' + c.code + ': ' + err.message, true); });
+      });
+      return el('tr', { class: st === 'Active' ? '' : 'off' }, [
+        el('td', { class: 'code', text: c.code }),
+        el('td', { text: codeOff(c) }),
+        el('td', { text: (c.uses || 0) + (c.max_uses ? ' of ' + c.max_uses : '') + ' used' }),
+        el('td', { text: c.expires ? 'Ends ' + dayLabel(c.expires) : 'No end date' }),
+        el('td', { text: st }),
+        el('td', { text: c.note || '' }),
+        el('td', { class: 'acts' }, [flip, ' ', drop])
+      ]);
+    });
+    box.appendChild(el('table', { class: 'codes-table' }, [
+      el('thead', {}, [el('tr', {}, ['Code', 'Discount', 'Uses', 'Ends', 'Status', 'Note', ''].map(function (h) { return el('th', { text: h }); }))]),
+      el('tbody', {}, rows)
+    ]));
+  }
+  $('code-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var btn = $('code-add');
+    btn.disabled = true;
+    codesApi('POST', {
+      code: $('code-code').value, kind: $('code-kind').value, value: $('code-value').value,
+      expires: $('code-expires').value, max_uses: $('code-max').value || 0, note: $('code-note').value
+    }).then(function () {
+      say('codes-msg', 'Added.');
+      $('code-form').reset();
+    }, function (err) {
+      if (err.message !== 'unauthorized') say('codes-msg', 'Couldn\'t add it: ' + err.message, true);
+    }).then(function () { btn.disabled = false; });
+  });
 
   // ---- Bulk download: every design file for the orders currently shown ----
   // Every downloadable file of the orders given, as { o, name, url, i } (i = its place on the order).
@@ -1204,7 +1367,7 @@
           rows.push([o.name, o.email, o.team, KINDS[kindOf(o)], sp.material || '', item ? item.qty || '' : sp.qty || '', sp.color || '',
             sp.options ? sp.options.map(function (x) { return OPTION_LABELS[x] || x; }).join('; ') : '', sp.rush ? 'Yes' : '',
             item ? (item.size || item.reason || '') : o.part, item ? (item.price ? money(item.price.total) : 'Hand quote') : o.price, LABELS[o.status] || o.status,
-            o.delivery === 'delivery' ? 'Delivery' : 'Pickup', o.address, buf ? 'files/' + name : 'MISSING (' + fname + ')',
+            handoffName(o), o.address, buf ? 'files/' + name : 'MISSING (' + fname + ')',
             new Date(o.createdAt).toLocaleString()]);
           return fetchNext();
         });
@@ -1243,8 +1406,9 @@
   $('dl-all').addEventListener('click', downloadAll);
   $('tab-orders').addEventListener('click', function () { showTab('orders'); });
   $('tab-deliv').addEventListener('click', function () { showTab('deliv'); });
+  $('tab-codes').addEventListener('click', function () { showTab('codes'); });
   $('with-pickups').addEventListener('change', renderDeliveries);
-  try { if (sessionStorage.getItem('cb-admin-tab') === 'deliv') showTab('deliv'); } catch (e) {}
+  try { var lastTab = sessionStorage.getItem('cb-admin-tab'); if (lastTab === 'deliv' || lastTab === 'codes') showTab(lastTab); } catch (e) {}
   $('q').addEventListener('input', render);
   $('filter').addEventListener('change', render);
   $('kind-filter').addEventListener('change', render);

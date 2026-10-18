@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>CNC Plates &amp; 3D Prints for FTC Teams in San Diego | Crackbotics</title>
-<meta name="description" content="Custom CNC aluminum and polycarbonate plates and 3D printed parts for FTC teams. Instant online quotes, 8 mm hole grid, San Diego pickup or local delivery.">
+<title>CNC Plates &amp; 3D Prints for FTC Teams Nationwide | Crackbotics</title>
+<meta name="description" content="Custom CNC aluminum and polycarbonate plates and 3D printed parts for FTC teams anywhere in the US. Instant online quotes, 8 mm hole grid, shipped nationwide or picked up in San Diego.">
 <meta name="theme-color" content="#14121A">
 
 <meta property="og:title" content="Crackbotics — CNC plates &amp; 3D prints for FTC teams">
-<meta property="og:description" content="Custom CNC plates and 3D printed parts for FTC teams, built by world champions. Instant quotes online, pickup in San Diego or local delivery.">
+<meta property="og:description" content="Custom CNC plates and 3D printed parts for FTC teams, built by world champions. Instant quotes online, shipped anywhere in the US.">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Crackbotics">
 <meta property="og:url" content="https://crackbotics.com/">
@@ -51,8 +51,8 @@
     "addressCountry": "US"
    },
    "areaServed": {
-    "@type": "AdministrativeArea",
-    "name": "San Diego County, California"
+    "@type": "Country",
+    "name": "United States"
    },
    "sameAs": [
     "https://discord.gg/bJsQCynzec"
@@ -125,11 +125,11 @@
         <span class="lockup-tag">addicted to precision</span>
       </a>
       <p class="hero-badge">Built by world champions</p>
-      <h1>Precision CNC parts for <em>San Diego FTC teams</em></h1>
+      <h1>Precision CNC parts for <em>FTC teams nationwide</em></h1>
       <p class="lede">
         CNC-machined plates and additively manufactured components, built to your
-        drawings on an 8&nbsp;mm hole grid. Priced below major suppliers, with
-        pickup in San Diego or delivery in 1–3 days.
+        drawings on an 8&nbsp;mm hole grid. Priced below major suppliers, made in
+        1–3 days, and shipped anywhere in the US — or picked up free in San Diego.
       </p>
       <div class="actions">
         <a class="btn" href="#quote">Get a quote</a>
@@ -216,8 +216,9 @@
           flagged with suggested revisions before work begins.
         </p>
         <p>
-          Pickup in San Diego is free. Local delivery is a flat $15.99, regardless
-          of distance.
+          We ship to FTC teams anywhere in the US; shipping is quoted with your
+          order. In San Diego, pickup is free and local delivery is a flat $15.99,
+          regardless of distance.
         </p>
       </div>
       <ul class="terms">
@@ -273,8 +274,8 @@
         too, and our process is built around not repeating that.
       </p>
       <p>
-        Every member here is an active competitor. San Diego orders are typically
-        hand-delivered rather than shipped. For anything outside standard plates or
+        Every member here is an active competitor. San Diego orders are usually
+        hand-delivered; everywhere else, we ship. For anything outside standard plates or
         printed components, describe the application and we'll determine a
         fabrication approach.
       </p>
@@ -341,7 +342,7 @@
     <ul class="terms contract-terms">
       <li><span>Estimates, confirmed by file</span> The price you see here is final once we see the actual design; if the real file costs more (extra material, tighter tolerances, extra setup), we tell you before starting, not after.</li>
       <li><span>Payment</span> Venmo, Cash App, or PayPal, arranged by email once a quote is confirmed. We don't take payment on this site.</li>
-      <li><span>Pickup or local delivery</span> Free pickup in San Diego, or local delivery for a flat $15.99. We don't ship outside the local area.</li>
+      <li><span>Shipping, pickup or delivery</span> We ship anywhere in the US: the shipping cost is quoted by email with your order and paid along with it. In San Diego, pickup is free and local delivery is a flat $15.99.</li>
       <li><span>Turnaround</span> 1&ndash;3 days is typical, not guaranteed; material availability or order volume can push it out, and we'll say so.</li>
       <li><span>Cancellations</span> Full refund any time before we start cutting or printing. Once your part is cut or printed it isn't refundable, except when we made the mistake.</li>
       <li><span>Deburring</span> Included standard, no added charge.</li>
@@ -475,13 +476,14 @@
 
       <fieldset class="calc-flags">
         <legend>Delivery</legend>
+        <label><input type="radio" name="delivery" value="ship" id="q-delivery-ship"> Ship it — anywhere in the US <span class="opt">shipping quoted by email</span></label>
         <label><input type="radio" name="delivery" value="pickup" id="q-delivery-pickup" checked> Pickup — San Diego, CA <span class="opt">free</span></label>
-        <label><input type="radio" name="delivery" value="delivery" id="q-delivery-drive"> Local delivery <span class="opt">flat $15.99</span></label>
+        <label><input type="radio" name="delivery" value="delivery" id="q-delivery-drive"> Local delivery — San Diego area <span class="opt">flat $15.99</span></label>
       </fieldset>
 
       <div class="calc-group" id="q-delivery-group" hidden>
         <div class="field field-wide address-search">
-          <label for="q-address">Delivery address</label>
+          <label for="q-address" id="q-address-label">Delivery address</label>
           <input id="q-address" name="address" type="text" placeholder="Start typing an address…"
                  autocomplete="off" role="combobox" aria-expanded="false" aria-autocomplete="list"
                  aria-controls="q-address-suggestions">
@@ -490,6 +492,17 @@
             Start typing and pick your address from the list. Local delivery is a flat $15.99.
           </p>
         </div>
+      </div>
+
+      <!-- Codes are made in admin.html (Discounts) and checked by api/discount.js. -->
+      <div class="field field-wide discount-field">
+        <label for="q-code">Discount code <span class="opt">optional</span></label>
+        <div class="code-row">
+          <input id="q-code" name="discount_code" type="text" maxlength="24" autocomplete="off"
+                 autocapitalize="characters" spellcheck="false" aria-describedby="q-code-status">
+          <button type="button" class="btn btn-quiet" id="q-code-apply">Apply</button>
+        </div>
+        <p class="hint" id="q-code-status" aria-live="polite" hidden></p>
       </div>
 
       <div class="field field-wide">
@@ -532,7 +545,7 @@
       <span class="lockup-tag">addicted to precision</span>
     </span>
     <p class="footer-line">
-      Precision CNC and additive manufacturing for FTC teams · San Diego, CA ·
+      Precision CNC and additive manufacturing for FTC teams nationwide · San Diego, CA ·
       <a href="mailto:crackboticssandiego@gmail.com">crackboticssandiego@gmail.com</a> ·
       <a href="https://discord.gg/bJsQCynzec" target="_blank" rel="noopener">Discord</a>
     </p>
@@ -652,6 +665,10 @@
     rush: document.getElementById('q-rush'),
     deliveryGroup: document.getElementById('q-delivery-group'),
     address: document.getElementById('q-address'),
+    addressLabel: document.getElementById('q-address-label'),
+    code: document.getElementById('q-code'),
+    codeApply: document.getElementById('q-code-apply'),
+    codeStatus: document.getElementById('q-code-status'),
     addressList: document.getElementById('q-address-suggestions'),
     geoStatus: document.getElementById('q-geo-status'),
     summaryField: document.getElementById('q-summary-field'),
@@ -699,12 +716,20 @@
     input.addEventListener('input', function () { items.forEach(updateRow); });
   });
 
+  // 'pickup', 'delivery' (local, flat rate) or 'ship' (anywhere in the US, quoted by email).
+  function deliveryMode() { return document.querySelector('input[name="delivery"]:checked').value; }
+  function addressHint(picked) {
+    if (deliveryMode() === 'ship') return picked ? 'We\'ll email you the shipping cost to that address.' : 'Start typing and pick your address from the list. We\'ll email you the shipping cost.';
+    return picked ? 'Local delivery is a flat $15.99 to that address.' : 'Start typing and pick your address from the list. Local delivery is a flat $15.99.';
+  }
   document.querySelectorAll('input[name="delivery"]').forEach(function (r) {
     r.addEventListener('change', function () {
-      var delivering = document.querySelector('input[name="delivery"]:checked').value === 'delivery';
-      els.deliveryGroup.hidden = !delivering;
-      // A delivery order with no address can't be delivered.
-      els.address.required = delivering;
+      var mode = deliveryMode(), needsAddress = mode !== 'pickup';
+      els.deliveryGroup.hidden = !needsAddress;
+      // A delivery or shipping order with no address can't go anywhere.
+      els.address.required = needsAddress;
+      els.addressLabel.textContent = mode === 'ship' ? 'Shipping address' : 'Delivery address';
+      if (needsAddress) geoSay(addressHint(!!els.address.value.trim()));
     });
   });
 
@@ -721,8 +746,8 @@
   /* -------------------- ADDRESS SEARCH -------------------- */
   /* A live search-as-you-type dropdown (Nominatim) so visitors pick a real,
      unambiguous address instead of typing something we might misread. It
-     doesn't feed pricing — delivery is a flat rate regardless of distance —
-     it's just there to get a clean address for the email. */
+     doesn't feed pricing — local delivery is a flat rate regardless of distance,
+     and shipping is quoted by email — it's just there to get a clean address. */
 
   var geoTimer = null;
   var suggestions = [];
@@ -760,7 +785,7 @@
     justSelected = true;
     els.address.value = item.label;
     hideSuggestions();
-    geoSay('Local delivery is a flat $15.99 to that address.');
+    geoSay(addressHint(true));
   }
 
   function renderSuggestions(list) {
@@ -793,7 +818,7 @@
     var query = els.address.value.trim();
     if (query.length < 4) {
       hideSuggestions();
-      geoSay('Start typing and pick your address from the list. Local delivery is a flat $15.99.');
+      geoSay(addressHint(false));
       return;
     }
     geoSay('Searching…');
@@ -859,6 +884,9 @@
   }
 
   function batchMessage(delivery) {
+    if (delivery === 'ship') {
+      return 'Ships as soon as it\'s made, usually within 1–3 days, plus the carrier\'s transit time. We\'ll email you tracking.';
+    }
     if (delivery === 'pickup') {
       return 'No batch to wait for — ready for pickup as soon as it\'s made, usually within 1–3 days.';
     }
@@ -1558,6 +1586,63 @@
       : 'No preview for this kind of file — we\'ll open it on our end.');
   }
 
+  /* ------------------------ DISCOUNT CODE ------------------------ */
+  /* Checked with api/discount.js when the customer presses Apply (or sends the
+     form with a code typed in). A good code takes its percent or dollars off
+     the priced parts, never delivery or shipping; api/order.js checks it again
+     when the order comes in and counts the use. */
+  var discount = null;  // { code, kind, value, label } once the typed code checks out
+  var codeCheck = null; // the check in flight, as { code, promise }
+
+  function codeSay(text, bad) {
+    els.codeStatus.textContent = text;
+    els.codeStatus.hidden = !text;
+    els.codeStatus.classList.toggle('is-bad', !!bad);
+  }
+  function typedCode() { return els.code.value.trim().toUpperCase(); }
+
+  // Resolves true when the typed code is good (or the box is empty), false when it isn't.
+  function checkCode() {
+    var code = typedCode();
+    if (!code) { discount = null; codeSay(''); return Promise.resolve(true); }
+    if (discount && discount.code === code) return Promise.resolve(true);
+    if (codeCheck && codeCheck.code === code) return codeCheck.promise;
+    codeSay('Checking…');
+    var promise = fetch('/api/discount', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ code: code })
+    }).then(function (res) {
+      return res.json().catch(function () { return {}; }).then(function (out) {
+        if (typedCode() !== code) return false; // they changed it meanwhile
+        if (out.valid) {
+          discount = { code: out.code, kind: out.kind, value: out.value, label: out.label };
+          codeSay(out.code + ': ' + out.label + ' your parts (not delivery or shipping).');
+          return true;
+        }
+        discount = null;
+        codeSay(res.status === 429 ? 'Too many tries. Wait a few minutes and try again.'
+          : out.message || 'We couldn\'t check that code. Try again in a moment.', true);
+        return false;
+      });
+    }, function () {
+      discount = null;
+      codeSay('We couldn\'t check that code. Check your connection and try again.', true);
+      return false;
+    });
+    codeCheck = { code: code, promise: promise };
+    promise.then(function () { if (codeCheck && codeCheck.promise === promise) codeCheck = null; });
+    return promise;
+  }
+  els.codeApply.addEventListener('click', function () { checkCode(); });
+  els.code.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); checkCode(); } // Enter applies the code instead of sending the form
+  });
+  els.code.addEventListener('input', function () {
+    if (discount && discount.code !== typedCode()) discount = null;
+    codeSay('');
+  });
+
   /* -------------------------- PRICING -------------------------- */
 
   /* One file, priced on its own: per-part material, machine time, labor and
@@ -1645,10 +1730,11 @@
     var q = {
       type: type, delivery: delivery, lines: lines, priced: priced, hand: hand, qty: qty,
       detailLine: detailLine(), notes: notes,
-      batch: batchMessage(delivery === 'delivery' ? 'delivery' : 'pickup')
+      batch: batchMessage(delivery)
     };
     if (!priced.length) {
       q.escalated = true;
+      if (discount) q.code = { code: discount.code, label: discount.label, amount: 0 };
       q.reason = lines.length === 1
         ? lines[0].reason + ' We\'ll quote it by hand and email you.'
         : 'We\'ll price ' + (lines.length === 2 ? 'both files' : 'all ' + lines.length + ' files') + ' by hand and email you.';
@@ -1663,9 +1749,15 @@
     q.pricedQty = priced.reduce(function (n, l) { return n + l.qty; }, 0);
     q.discounted = priced.some(function (l) { return l.discounted; });
     q.partsTotal = priced.reduce(function (t, l) { return t + l.total; }, 0);
+    if (discount) {
+      var off = discount.kind === 'percent' ? q.partsTotal * discount.value / 100 : discount.value;
+      q.code = { code: discount.code, label: discount.label, amount: Math.round(Math.min(off, q.partsTotal) * 100) / 100 };
+      if (q.partial) notes.push('Your code ' + discount.code + ' also comes off the files we price by hand.');
+    }
     q.deliveryCost = delivery === 'delivery' ? RATE.flatDeliveryRate : null;
-    q.deliveryLine = delivery === 'delivery' ? 'Local delivery (flat rate): ' + money(RATE.flatDeliveryRate) : 'Pickup in San Diego — free';
-    q.total = q.partsTotal + (q.deliveryCost || 0);
+    q.deliveryLine = delivery === 'delivery' ? 'Local delivery (flat rate): ' + money(RATE.flatDeliveryRate)
+      : delivery === 'ship' ? 'Ship it — shipping cost quoted by email' : 'Pickup in San Diego — free';
+    q.total = Math.round((q.partsTotal - (q.code ? q.code.amount : 0) + (q.deliveryCost || 0)) * 100) / 100;
     return q;
   }
 
@@ -1682,10 +1774,24 @@
     }).join('') + '</ul>';
   }
 
+  // The row for how the order gets to the customer: [label, price text].
+  function handoffRow(q) {
+    if (q.delivery === 'delivery') return ['Delivery', money(q.deliveryCost)];
+    if (q.delivery === 'ship') return ['Shipping', 'Quoted by email'];
+    return ['Pickup', 'Free'];
+  }
+  function codeLabel(c) { return 'Code ' + c.code + ' (' + c.label + ')'; }
+  // What the headline total leaves out: by-hand files, shipping.
+  function totalExtras(q) {
+    return (q.partial ? ' + hand quote' : '') + (q.delivery === 'ship' ? ' + shipping' : '');
+  }
+
   function quoteToHtml(q) {
     if (q.escalated) {
       return '<p class="calc-headline">Let\'s work this one out by email.</p>' +
-        '<p class="calc-sub">' + escapeHtml(q.reason) + '</p>' + (q.lines.length > 1 ? linesHtml(q) : '');
+        '<p class="calc-sub">' + escapeHtml(q.reason) + '</p>' +
+        (q.code ? '<p class="calc-sub">Your code ' + escapeHtml(q.code.code) + ' (' + escapeHtml(q.code.label) + ') comes off the price we email you.</p>' : '') +
+        (q.lines.length > 1 ? linesHtml(q) : '');
     }
     var s = q.sum;
     var breakdown = '<dl class="calc-breakdown">' +
@@ -1694,7 +1800,8 @@
       '<div><dt>Labor</dt><dd>' + money(s.labor) + '</dd></div>' +
       (s.flags ? '<div><dt>Flagged items</dt><dd>' + money(s.flags) + '</dd></div>' : '') +
       (s.minimum ? '<div><dt>Minimum applied</dt><dd>' + money(s.minimum) + '</dd></div>' : '') +
-      '<div><dt>' + (q.delivery === 'delivery' ? 'Delivery' : 'Pickup') + '</dt><dd>' + (q.delivery === 'delivery' ? money(q.deliveryCost) : 'Free') + '</dd></div>' +
+      (q.code ? '<div class="calc-discount"><dt>' + escapeHtml(codeLabel(q.code)) + '</dt><dd>−' + money(q.code.amount) + '</dd></div>' : '') +
+      '<div><dt>' + handoffRow(q)[0] + '</dt><dd>' + handoffRow(q)[1] + '</dd></div>' +
       '</dl>';
     var detail = q.detailLine ? escapeHtml(q.detailLine) : '', sub;
     if (q.partial) {
@@ -1706,7 +1813,7 @@
       sub = q.qty + ' parts from ' + q.lines.length + ' files' + (detail ? ', ' + detail : '');
     }
     var notesHtml = q.notes.length ? '<ul class="calc-reasons">' + q.notes.map(function (n) { return '<li>' + escapeHtml(n) + '</li>'; }).join('') + '</ul>' : '';
-    return '<p class="calc-headline">' + money(q.total) + (q.partial ? '<span class="calc-plus"> + hand quote</span>' : '') + '</p>' +
+    return '<p class="calc-headline">' + money(q.total) + (totalExtras(q) ? '<span class="calc-plus">' + totalExtras(q) + '</span>' : '') + '</p>' +
       '<p class="calc-sub">' + sub + '</p>' +
       (q.lines.length > 1 || q.lines[0].notes.length ? linesHtml(q) : '') +
       breakdown + notesHtml +
@@ -1754,7 +1861,8 @@
     } else {
       s.price = {
         material: q.sum.material, machine: q.sum.machine, labor: q.sum.labor, flags: q.sum.flags, minimum: q.sum.minimum,
-        delivery: q.deliveryCost || 0, per_part: q.lines.length === 1 ? q.lines[0].perPart : 0,
+        delivery: q.deliveryCost || 0, code_discount: q.code ? q.code.amount : 0,
+        per_part: q.lines.length === 1 ? q.lines[0].perPart : 0,
         total: q.total, discount: q.discounted, partial: q.partial
       };
       if (q.partial) s.reason = q.hand.length + ' of ' + q.lines.length + ' files priced by hand: ' + q.hand.map(function (l) { return l.name; }).join(', ');
@@ -1788,13 +1896,16 @@
     ].concat(specLines(orderSpecs(q)), ['']);
     if (q.escalated) {
       lines.push('PRICE: needs a manual quote — ' + q.reason);
+      if (q.code) lines.push('Discount code: ' + q.code.code + ' (' + q.code.label + ') — take it off the hand quote');
     } else {
       lines.push('Delivery: ' + q.deliveryLine);
+      if (q.code) lines.push('Discount code: ' + q.code.code + ' (' + q.code.label + '): −' + money(q.code.amount));
       var flags = q.notes.slice();
       q.lines.forEach(function (l) { flags.push.apply(flags, l.notes); });
       if (flags.length) lines.push('Flags: ' + flags.join(' | '));
       lines.push('ESTIMATED TOTAL: ' + money(q.total) +
-        (q.partial ? ' for the priced files — plus ' + q.hand.length + (q.hand.length === 1 ? ' file' : ' files') + ' to price by hand' : ''));
+        (q.partial ? ' for the priced files — plus ' + q.hand.length + (q.hand.length === 1 ? ' file' : ' files') + ' to price by hand' : '') +
+        (q.delivery === 'ship' ? ' — plus shipping, to quote' : ''));
     }
     if (data.details) lines.push('', 'Customer notes: ' + data.details);
     return lines.join('\n');
@@ -1990,7 +2101,9 @@
     if (q.escalated) {
       doc.setFontSize(11);
       doc.setTextColor(20, 18, 26);
-      block(q.reason, 15); y += 10;
+      block(q.reason, 15); y += 4;
+      if (q.code) block('Your code ' + q.code.code + ' (' + q.code.label + ') comes off the price we email you.', 15);
+      y += 6;
     } else {
       y += 2;
 
@@ -2008,8 +2121,8 @@
       priceRow('Labor', money(s.labor));
       if (s.flags) priceRow('Flagged items', money(s.flags));
       if (s.minimum) priceRow('Minimum applied', money(s.minimum));
-      priceRow(q.delivery === 'delivery' ? 'Delivery' : 'Pickup',
-        q.delivery === 'delivery' ? money(q.deliveryCost) : 'Free');
+      if (q.code) priceRow(codeLabel(q.code), '-' + money(q.code.amount));
+      priceRow(handoffRow(q)[0], handoffRow(q)[1]);
 
       y += 2;
       room(30);
@@ -2017,7 +2130,7 @@
       doc.setLineWidth(1);
       doc.line(x, y, pageW - x, y); y += 20;
 
-      priceRow(q.partial ? 'Estimated total (priced files)' : 'Estimated total', money(q.total), true);
+      priceRow((q.partial ? 'Estimated total (priced files)' : 'Estimated total') + (q.delivery === 'ship' ? ', before shipping' : ''), money(q.total), true);
       y += 6;
 
       var notes = q.notes.slice();
@@ -2061,7 +2174,7 @@
     [
       'This price is an estimate, confirmed once we see the actual design file.',
       'Payment via Venmo, Cash App, or PayPal, arranged by email once confirmed.',
-      'Free pickup in San Diego, or local delivery for a flat $15.99. We don\'t ship outside the local area.',
+      'We ship anywhere in the US, with shipping quoted by email and paid with the order. In San Diego: free pickup, or local delivery for a flat $15.99.',
       'Turnaround is typically 1–3 days, not guaranteed. Deburring is included, standard.',
       'Full refund any time before we start cutting or printing; not refundable once your part is made, except when the mistake is ours. Full terms: see the site\'s Terms & conditions.'
     ].forEach(function (line) { block(line, 13.5); y += 2; });
@@ -2263,7 +2376,10 @@
     els.files.disabled = true;
     els.button.textContent = 'Measuring your files…';
 
-    whenMeasured().then(function () {
+    checkCode().then(function (ok) {
+      if (!ok) { var bad = new Error('Discount code not valid'); bad.badCode = true; throw bad; }
+      return whenMeasured();
+    }).then(function () {
       var q = buildQuote();
       renderResult(quoteToHtml(q), q.escalated ? 'escalate' : 'ok');
       var summary = quoteToSummaryText(q, data);
@@ -2310,10 +2426,15 @@
         sendOrder(q, summary, uploaded, pass);
       });
     }).catch(function (err) {
-      console.error('Preparing the request failed:', err);
       els.files.disabled = false;
       els.button.disabled = false;
       els.button.textContent = label;
+      if (err && err.badCode) {
+        say('Nothing was sent yet: fix or clear the discount code, then send again.', 'bad');
+        els.code.focus();
+        return;
+      }
+      console.error('Preparing the request failed:', err);
       say(err && err.human
         ? 'We couldn\'t confirm you\'re not a bot, so nothing was sent. Reload the page and try again, or email us at ' + EMAIL + '.'
         : 'Something went wrong preparing your request. Please try again, or email it to us at ' + EMAIL + '.', 'bad');
@@ -2348,13 +2469,14 @@
           name: data.name, team: data.team, email: data.email, part_type: data.part_type,
           details: data.details, address: value('address'), delivery: q.delivery,
           escalated: !!q.escalated,
-          price: q.escalated ? 'Hand quote' : money(q.total) + (q.partial ? ' + hand quote' : ''),
+          price: q.escalated ? 'Hand quote' : money(q.total) + totalExtras(q),
           part: q.lines.map(function (l) { return l.qty + ' × ' + l.name + (l.priced ? '' : ' (by hand)'); }).join(', '),
           quote_summary: summary,
           files: files,
           design_file: files[0] ? files[0].url : '', file_name: files[0] ? files[0].name : '',
           specs: orderSpecs(q),
           email_fields: emailFields,
+          discount_code: discount ? discount.code : '',
           pass: pass,
           _honey: value('_honey')
         })

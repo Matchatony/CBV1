@@ -949,3 +949,12 @@ footer { padding-block: 48px 56px; border-top: 1px solid var(--line); }
   background: var(--bg);
   border: 1px solid var(--line);
 }
+
+/* Discount code: the box and its Apply button side by side. */
+.code-row { display: flex; gap: 8px; align-items: stretch; }
+.form .code-row input[type="text"] { flex: 1 1 auto; min-width: 0; text-transform: uppercase; }
+.code-row .btn { flex: none; padding-block: 0; }
+.hint.is-bad { color: var(--accent); }
+.calc-breakdown .calc-discount dd { color: var(--accent); }
+/* Turnstile's box, when it needs a click. */
+.human-check { min-height: 65px; }

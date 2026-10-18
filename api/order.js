@@ -1,5 +1,6 @@
 import { newId, saveOrder } from './_lib/orders.js';
 import { passOk, rateLimited, tooMany } from './_lib/guard.js';
+import { readCodes, saveCodes, normalizeCode, problem, publicView, MESSAGES } from './_lib/discounts.js';
 
 // The quote form's send: saves the request to the admin order log and emails
 // it through FormSubmit, from here rather than from the browser, so the
@@ -12,7 +13,8 @@ const LIMITS = { name: 120, team: 20, email: 200, part_type: 60, details: 4000, 
 const clip = (v, n) => (typeof v === 'string' ? v.trim().slice(0, n) : '');
 const num = (v, min, max) => (typeof v === 'number' && Number.isFinite(v) && v >= min && v <= max ? v : null);
 const OPTIONS = ['tapped', 'tight_tolerances', 'complex_geometry'];
-const PRICE_KEYS = ['material', 'machine', 'labor', 'flags', 'minimum', 'delivery', 'per_part', 'total'];
+const PRICE_KEYS = ['material', 'machine', 'labor', 'flags', 'minimum', 'delivery', 'code_discount', 'per_part', 'total'];
+const DELIVERY = ['pickup', 'delivery', 'ship'];
 const MAX_FILES = 10;
 // An uploaded design file lives in this project's public Blob store; anything
 // else (a failed upload) is kept only as the "UPLOAD FAILED" note.
@@ -27,6 +29,33 @@ const MAIL_CC = () => process.env.FORMSUBMIT_CC ?? 'crackboticssandiego@gmail.co
 const MAIL_SITE = () => process.env.FORMSUBMIT_SITE || 'https://crackbotics.com';
 const FIELD_NAME = /^[a-z][a-z0-9_]{0,39}$/;
 
+// Checks the discount code again now that the order is in (it may have ended
+// or run out since the customer pressed Apply) and counts the use. Returns
+// what's saved on the order: the code's public details, or { code, invalid }.
+async function takeCode(raw) {
+  const code = normalizeCode(raw);
+  if (!code) return null;
+  try {
+    const codes = await readCodes();
+    const found = codes.find((c) => c.code === code);
+    const why = problem(found);
+    if (why) return { code: code.slice(0, 24), invalid: why };
+    found.uses = (found.uses || 0) + 1;
+    // Counting is best effort: two orders at the same moment can count as one.
+    await saveCodes(codes).catch((err) => console.error('Counting a discount use failed:', err));
+    return publicView(found);
+  } catch (err) {
+    console.error('Checking a discount code failed:', err);
+    return { code: code.slice(0, 24), invalid: 'unchecked' };
+  }
+}
+
+function codeText(d) {
+  if (!d) return '';
+  if (!d.invalid) return d.code + ' — ' + d.label + ' (checked)';
+  return d.code + ' — NOT VALID: ' + (MESSAGES[d.invalid] || 'it couldn\'t be checked.') + ' The estimate above still includes it.';
+}
+
 // The form's own fields, as the email table shows them. FormSubmit's control
 // fields (names starting with "_") are set here, never taken from the request.
 function mailFields(fields, order) {
@@ -38,6 +67,8 @@ function mailFields(fields, order) {
   }
   out.name = order.name;
   out.email = order.email;
+  if (order.specs && order.specs.discount) out.discount_code = codeText(order.specs.discount);
+  else delete out.discount_code;
   if (!out.quote_summary && order.quote_summary) out.quote_summary = order.quote_summary;
   return { ...out, _subject: 'New quote request — Crackbotics', _template: 'table', ...(MAIL_CC() ? { _cc: MAIL_CC() } : {}) };
 }
@@ -108,7 +139,7 @@ export async function POST(request) {
 
   const order = { id: newId(), createdAt: new Date().toISOString(), status: 'new', notes: '' };
   for (const [field, max] of Object.entries(LIMITS)) order[field] = clip(body[field], max);
-  order.delivery = body.delivery === 'delivery' ? 'delivery' : 'pickup';
+  order.delivery = DELIVERY.includes(body.delivery) ? body.delivery : 'pickup';
   order.escalated = body.escalated === true;
   order.specs = cleanSpecs(body.specs);
   if (!order.name || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(order.email)) {
@@ -121,6 +152,8 @@ export async function POST(request) {
     .map((f) => ({ name: clip(f.name, 200), url: FILE_URL.test(clip(f.url, 600)) ? clip(f.url, 600) : '' }))
     .filter((f) => f.name || f.url);
   if (!order.files.length && (order.design_file || order.file_name)) order.files = [{ name: order.file_name, url: order.design_file }];
+  const discount = await takeCode(body.discount_code);
+  if (discount && order.specs) order.specs.discount = discount;
   const [saved, emailed] = await Promise.all([
     saveOrder(order).then(() => true, (err) => { console.error('Saving order failed:', err); return false; }),
     sendMail(mailFields(body.email_fields, order))
