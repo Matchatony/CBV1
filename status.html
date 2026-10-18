@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Customers check an order here with its order number and their email
+     (api/status.js). The quote form's "sent" message and the confirmation
+     email link here with both filled in. -->
+<meta name="robots" content="noindex">
+<title>Order Status | Crackbotics</title>
+<meta name="description" content="Check where your Crackbotics order is: quoted, paid, being made, ready, shipped.">
+<meta name="theme-color" content="#14121A">
+<link rel="icon" href="/favicon.ico" sizes="48x48">
+<link rel="icon" href="/favicon-192.png" sizes="192x192" type="image/png">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="/styles.css">
+<!-- Vercel Web Analytics: anonymous, cookieless visit counts (see privacy.html#analytics). -->
+<script>window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };</script>
+<script defer src="/_vercel/insights/script.js"></script>
+</head>
+<body id="top">
+<nav class="nav" aria-label="Main">
+  <div class="nav-inner">
+    <a class="wordmark" href="/" aria-label="Crackbotics — addicted to precision">
+      <span class="wordmark-crack">crack</span><span class="wordmark-botics">botics</span>
+    </a>
+    <ul class="nav-links">
+      <li><a href="/#parts">Parts</a></li>
+      <li><a href="/#pricing">Pricing</a></li>
+      <li><a href="/#faq">FAQ</a></li>
+      <li><a href="/#team">About us</a></li>
+    </ul>
+    <a class="btn btn-sm" href="/#quote">Get a quote</a>
+  </div>
+</nav>
+
+<main>
+  <section class="wrap claim status-page">
+    <p class="claim-kicker">Order status</p>
+    <h1>Where's my order?</h1>
+    <p class="lede">Enter the order number from your confirmation and the email you ordered with.</p>
+
+    <form class="form status-form" id="lookup">
+      <div class="field">
+        <label for="s-order">Order number</label>
+        <input id="s-order" name="order" type="text" autocomplete="off" spellcheck="false" required
+               placeholder="e.g. mvdc8srj-5f42…">
+      </div>
+      <div class="field">
+        <label for="s-email">Email</label>
+        <input id="s-email" name="email" type="email" autocomplete="email" required>
+      </div>
+      <div class="field-wide">
+        <button class="btn" type="submit" id="s-go">Check status</button>
+      </div>
+      <p class="form-status field-wide" id="s-msg" role="status" aria-live="polite" hidden></p>
+    </form>
+
+    <div class="status-card" id="result" hidden aria-live="polite">
+      <p class="status-now"><span id="r-label"></span></p>
+      <ol class="status-steps" id="r-steps"></ol>
+      <dl class="status-facts" id="r-facts"></dl>
+      <p class="hint">Questions? Email <a href="mailto:crackboticssandiego@gmail.com">crackboticssandiego@gmail.com</a> with your order number.</p>
+    </div>
+  </section>
+</main>
+
+<footer class="wrap">
+  <div class="footer-inner">
+    <span class="footer-lockup">
+      <span class="wordmark-crack">crack</span><span class="wordmark-botics">botics</span>
+      <span class="lockup-tag">addicted to precision</span>
+    </span>
+    <p class="footer-line">
+      Custom CNC parts for FTC teams nationwide · San Diego, CA ·
+      <a href="mailto:crackboticssandiego@gmail.com">crackboticssandiego@gmail.com</a>
+    </p>
+  </div>
+  <nav class="footer-links" aria-label="Legal">
+    <a href="/privacy.html">Privacy policy</a>
+    <a href="/privacy.html#cookies">Cookie policy</a>
+    <a href="/terms.html">Terms &amp; conditions</a>
+    <a href="/terms.html#refunds">Refunds &amp; cancellations</a>
+  </nav>
+  <p class="fine">
+    Crackbotics is an independent, unincorporated student-run business based in San Diego, CA
+    — not a registered company. Parts use 8&nbsp;mm grid spacing. Crackbotics is not
+    affiliated with, sponsored by or endorsed by goBILDA, REV Robotics, or
+    <i>FIRST</i>®. FIRST® Tech Challenge is a trademark of FIRST®.
+  </p>
+</footer>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var ORDER = ['new', 'quoted', 'paid', 'in-progress', 'ready', 'done'];
+
+  function el(tag, attrs, kids) {
+    var n = document.createElement(tag);
+    Object.keys(attrs || {}).forEach(function (k) {
+      if (attrs[k] == null) return;
+      if (k === 'text') n.textContent = attrs[k]; else n.setAttribute(k, attrs[k]);
+    });
+    (kids || []).forEach(function (c) { if (c) n.appendChild(typeof c === 'string' ? document.createTextNode(c) : c); });
+    return n;
+  }
+  function say(text, bad) {
+    $('s-msg').textContent = text;
+    $('s-msg').className = 'form-status field-wide is-' + (bad ? 'bad' : 'ok');
+    $('s-msg').hidden = !text;
+  }
+  function day(iso) {
+    var d = /^\d{4}-\d{2}-\d{2}$/.test(iso) ? new Date(iso + 'T12:00:00') : new Date(iso);
+    return isNaN(d) ? iso : d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+  }
+
+  function show(o) {
+    var last = o.delivery === 'ship' ? 'Shipped' : o.delivery === 'delivery' ? 'Delivered' : 'Picked up';
+    var steps = ['Received', 'Quoted', 'Paid', 'Being made', 'Ready', last];
+    var at = ORDER.indexOf(o.status);
+    $('r-label').textContent = o.status === 'cancelled' ? 'Cancelled' : o.status === 'done' ? last : o.label;
+    var ol = $('r-steps');
+    ol.textContent = '';
+    ol.hidden = o.status === 'cancelled';
+    steps.forEach(function (s, i) {
+      ol.appendChild(el('li', { class: i < at ? 'done' : i === at ? 'now' : '', 'aria-current': i === at ? 'step' : null, text: s }));
+    });
+
+    var facts = [['Order number', o.order], ['Placed', day(o.created)]];
+    if (o.part_type) facts.push(['Job', o.part_type + (o.files > 1 ? ', ' + o.files + ' files' : '')]);
+    if (o.price) facts.push(['Estimate', o.price]);
+    var how = o.delivery === 'ship' ? 'Shipping, USPS Priority Mail' + (o.shipping_box ? ' (' + o.shipping_box + ')' : '')
+      : o.delivery === 'delivery' ? 'Local delivery' : 'Pickup in San Diego';
+    facts.push(['Getting it to you', how]);
+    if (o.delivered_at) facts.push([last, day(o.delivered_at)]);
+    else if (o.delivery_date) facts.push([o.delivery === 'pickup' ? 'Pickup day' : o.delivery === 'ship' ? 'Ships' : 'Delivery day', day(o.delivery_date) + (o.delivery_window ? ', ' + o.delivery_window : '')]);
+    var dl = $('r-facts');
+    dl.textContent = '';
+    facts.forEach(function (f) { dl.appendChild(el('div', {}, [el('dt', { text: f[0] }), el('dd', { text: f[1] })])); });
+    if (o.tracking) {
+      dl.appendChild(el('div', {}, [el('dt', { text: 'Tracking' }), el('dd', {}, [el('a', {
+        href: 'https://tools.usps.com/go/TrackConfirmAction?tLabels=' + encodeURIComponent(o.tracking.replace(/\s+/g, '')), target: '_blank', rel: 'noopener', text: o.tracking })])]));
+    }
+    $('result').hidden = false;
+  }
+
+  function lookup() {
+    var order = $('s-order').value.trim(), email = $('s-email').value.trim();
+    if (!order || !email) return;
+    $('s-go').disabled = true;
+    say('Looking it up…');
+    $('result').hidden = true;
+    fetch('/api/status?order=' + encodeURIComponent(order) + '&email=' + encodeURIComponent(email), { cache: 'no-store' })
+      .then(function (res) { return res.json().catch(function () { return {}; }).then(function (out) { out.http = res.status; return out; }); })
+      .then(function (out) {
+        if (out.order) { say(''); show(out); return; }
+        say(out.http === 429 ? 'Too many lookups. Wait a few minutes and try again.' : out.error || 'Couldn\'t look that up. Try again in a minute.', true);
+      }, function () { say('Couldn\'t reach the server. Check your connection and try again.', true); })
+      .then(function () { $('s-go').disabled = false; });
+  }
+
+  $('lookup').addEventListener('submit', function (e) { e.preventDefault(); lookup(); });
+  // Links from the quote form and the confirmation email fill both in.
+  var q = new URLSearchParams(location.search);
+  if (q.get('order')) $('s-order').value = q.get('order');
+  if (q.get('email')) $('s-email').value = q.get('email');
+  if (q.get('order') && q.get('email')) lookup();
+})();
+</script>
+</body>
+</html>

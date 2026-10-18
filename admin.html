@@ -180,6 +180,8 @@
   .code-form label.once-box input { margin: 0; }
   .code-form .row { grid-column: span 2; justify-content: flex-end; }
   .codes-table .once { display: block; color: var(--muted); font-size: 12.5px; }
+  .track-row { margin-top: 8px; flex-wrap: nowrap; max-width: 360px; }
+  .track-row input { flex: 1 1 auto; min-width: 0; }
   .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
   #code-code { text-transform: uppercase; }
   .codes-table { width: 100%; border-collapse: collapse; font-size: 14px; }
@@ -445,7 +447,7 @@
 
   // Changes made through the Claude connector (api/mcp), newest first. Each entry is
   // { at, by, change: { field: { from, to } } }; earlier notes are kept in full here.
-  var HISTORY_FIELDS = { status: 'Status', delivery_date: 'Delivery date', delivery_window: 'Time window', delivery_stop: 'Stop' };
+  var HISTORY_FIELDS = { status: 'Status', delivery_date: 'Delivery date', delivery_window: 'Time window', delivery_stop: 'Stop', tracking: 'Tracking number' };
   function historyValue(k, v) {
     if (v === null || v === undefined || v === '' || (k === 'delivery_stop' && !v)) return 'none';
     if (k === 'status') return LABELS[v] || v;
@@ -554,12 +556,13 @@
       if (p.minimum) rows.push(['Minimum applied', p.minimum]);
       var code = sp.discount && !sp.discount.invalid ? sp.discount : null;
       if (p.code_discount) rows.push([(code ? 'Code ' + code.code + ' (' + code.label + ')' : 'Discount code'), -p.code_discount]);
-      var handoff = [handoffName(o), o.delivery === 'ship' ? 'Quoted by email' : p.delivery ? money(p.delivery) : 'Free'];
+      var handoff = [handoffName(o) + (o.delivery === 'ship' && sp.shipping_box ? ', USPS ' + sp.shipping_box : ''),
+        o.delivery === 'ship' && !p.delivery ? 'Quoted by email' : p.delivery ? money(p.delivery) : 'Free'];
       price = el('table', { class: 'price-table' }, rows.map(function (r) { return el('tr', {}, [el('td', { text: r[0] }), el('td', { text: r[1] < 0 ? '−' + money(-r[1]) : money(r[1]) })]); })
         .concat([el('tr', {}, [el('td', { text: handoff[0] }), el('td', { text: handoff[1] })])])
         .concat([el('tr', { class: 'total' }, [el('td', { text: (p.partial ? 'Estimated total, priced files' : 'Estimated total') + (sp.qty > 1 && p.per_part ? ' (' + money(p.per_part) + ' per part)' : '') }), el('td', { text: money(p.total) })])]));
       if (p.partial) price = el('div', {}, [price, el('p', { class: 'hand-reason' }, [el('b', { text: 'Plus a hand quote: ' }), sp.reason || ''])]);
-      if (o.delivery === 'ship') price = el('div', {}, [price, el('p', { class: 'hand-reason' }, [el('b', { text: 'Plus shipping: ' }), 'quote it to the address below and add it to the total.'])]);
+      if (o.delivery === 'ship' && !p.delivery) price = el('div', {}, [price, el('p', { class: 'hand-reason' }, [el('b', { text: 'Plus shipping: ' }), 'quote it to the address below and add it to the total.'])]);
     } else if (o.escalated || (sp && sp.reason)) {
       price = el('p', { class: 'hand-reason' }, [el('b', { text: 'Needs a hand quote. ' }), (sp && sp.reason) || o.part || '']);
     } else {
@@ -585,7 +588,8 @@
           )),
           el('h2', { text: handoffName(o) }),
           el('dl', { class: 'facts' }, [].concat(
-            fact('Method', o.delivery === 'delivery' ? 'Local delivery (flat $15.99)' : o.delivery === 'ship' ? 'Ship it (shipping quoted by email)' : 'Pickup in San Diego'),
+            fact('Method', o.delivery === 'delivery' ? 'Local delivery (flat $15.99)'
+              : o.delivery === 'ship' ? (sp && sp.shipping_box ? 'Ship it: USPS Priority Mail, ' + sp.shipping_box : 'Ship it (shipping quoted by email)') : 'Pickup in San Diego'),
             o.delivery !== 'pickup' ? fact('Address', o.address || el('span', { class: 'warn', text: 'No address given' })) : [],
             fact('Date', o.delivered_at ? 'Handed over ' + new Date(o.delivered_at).toLocaleString()
               : o.delivery_date ? dayLabel(o.delivery_date) + (o.delivery_window ? ', ' + o.delivery_window : '') : 'Not scheduled yet'),
@@ -778,10 +782,14 @@
 
   // A paid / in-progress / ready order to ship: where it goes, and buttons to
   // email the tracking number and mark it shipped.
+  function statusLink(o) {
+    return 'https://crackbotics.com/status.html?order=' + encodeURIComponent(o.id) + '&email=' + encodeURIComponent(o.email || '');
+  }
   function shippedMail(o) {
     var body = 'Hi ' + (o.name || '').split(' ')[0] + ',\n\n' +
       'Your Crackbotics order' + (o.part_type ? ' (' + o.part_type + ')' : '') + ' has shipped to:\n' + (o.address || '') + '\n\n' +
-      'Tracking number: \n\n— Crackbotics';
+      'USPS tracking number: ' + (o.tracking || '') + '\n' +
+      'Order status: ' + statusLink(o) + '\n\n— Crackbotics';
     return mailto(o.email) + '?subject=' + encodeURIComponent('Your Crackbotics order has shipped') + '&body=' + encodeURIComponent(body);
   }
   function shipItem(o) {
@@ -801,7 +809,18 @@
       done.disabled = true;
       patch(o, { status: 'done', delivered: true }).then(render, function (err) { done.disabled = false; failed('mark it shipped')(err); });
     });
-    li.appendChild(el('div', { class: 'stop-actions' }, [el('a', { class: 'btn-link', href: shippedMail(o), text: 'Email tracking' }), done]));
+    // Tracking number: saved on the order and shown on the customer's status page.
+    var track = el('input', { type: 'text', maxlength: '40', placeholder: 'USPS tracking number', 'aria-label': 'Tracking number for ' + o.name });
+    track.value = o.tracking || '';
+    var mail = el('a', { class: 'btn-link', href: shippedMail(o), text: 'Email tracking' });
+    var saveTrack = el('button', { type: 'button', class: 'sm', text: 'Save' });
+    saveTrack.addEventListener('click', function () {
+      saveTrack.disabled = true;
+      patch(o, { tracking: track.value }).then(function () { saveTrack.disabled = false; mail.href = shippedMail(o); say('app-msg', 'Tracking number saved.'); },
+        function (err) { saveTrack.disabled = false; failed('save the tracking number')(err); });
+    });
+    li.querySelector('.stop-main').appendChild(el('div', { class: 'row track-row' }, [track, saveTrack]));
+    li.appendChild(el('div', { class: 'stop-actions' }, [mail, done]));
     return li;
   }
 

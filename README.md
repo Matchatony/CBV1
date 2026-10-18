@@ -11,6 +11,8 @@ files in a browser and they work; drop the folder on a host and it's live.
 ├── index.html      one-page site
 ├── styles.css      site styles (all colors are CSS variables at the top)
 ├── discount-first.html  landing page for crackbotics.com/discountFirst
+├── status.html     customer order status lookup
+├── file-guide.html how to export DXF / STEP / STL / 3MF from Onshape and Fusion 360
 ├── flyer.html      8.5 x 11 flyer, print-ready
 ├── flyer.pdf       the flyer, already exported — hand this to a print shop
 ├── flyer-copy.txt  flyer wording as plain text, for tweaking
@@ -21,16 +23,15 @@ files in a browser and they work; drop the folder on a host and it's live.
 
 ## Fill these in first
 
-Both pages ship with placeholders. Search and replace:
+The flyer's placeholders are filled in: Discord `discord.gg/bJsQCynzec`, email
+crackboticssandiego@gmail.com, and a QR code to crackbotics.com/discountFirst.
+Still to set up (each is explained in its section below):
 
-| Placeholder | Where |
+| What | Where |
 |---|---|
-| `https://discord.gg/YOUR-INVITE` | `flyer.html` (6x — one per tear-off tab) |
-| `hello@crackbotics.com` | `flyer.html` |
-| `crackbotics.com` | `flyer.html` |
-| QR code box | `flyer.html` — see below |
-| Product photos | `index.html` — see below |
-| Logo image | `index.html` — see below |
+| Gmail app password, for customer confirmation emails | Vercel env `GMAIL_APP_PASSWORD` — see **Confirmation email** |
+| Cloudflare Turnstile keys | Vercel env — see **Bot protection** |
+| Product photos, logo image | `index.html` — see below |
 
 ## The order form
 
@@ -42,10 +43,20 @@ hand", and the total then reads "$X + hand quote". One delivery fee covers the
 whole order. Click a file's name to preview it.
 
 **Getting it to them.** Three choices: free pickup in San Diego, local delivery
-in the San Diego area for a flat $15.99, or **Ship it** anywhere in the US.
-Shipping isn't priced on the page: the estimate reads "$X + shipping", and you
-quote the shipping by email (the order card and the email say so). Delivery and
-shipping both ask for an address.
+in the San Diego area for a flat $15.99, or **Ship it** anywhere in the US by USPS
+Priority Mail. Delivery and shipping both ask for an address.
+
+**Shipping estimates.** For Ship it, the quote picks the cheapest USPS Priority
+Mail Flat Rate box the priced parts fit (`shipBox()` in `index.html`): plates lie
+flat in one stack, printed parts each have to fit and together fill at most 60%
+of the box, with 1/4 in. of packing on every side and the 70 lb limit. That box's
+price goes into the total, and the order records the box (`specs.shipping_box`,
+cost in `specs.price.delivery`). Parts too big for any flat rate box, or an order
+with a file priced by hand, read "$X + shipping" and you quote shipping by email.
+The box sizes and prices are `SHIP_BOXES` / `SHIP_HOLIDAY` near the top of the
+script: retail prices from USPS Notice 123 (July 12, 2026), with the holiday
+prices from Oct 4, 2026 to Jan 17, 2027. **USPS changes prices about every
+January and July: update them there.**
 
 **Discount codes.** The form has a Discount code box with an Apply button. Codes
 are made in the admin panel (**Discounts**, below) and checked by
@@ -104,6 +115,40 @@ Sending a quote is three steps:
    price. FormSubmit strips CAD attachments, which is why files travel as links.
    The control fields (`_subject`, `_template`, `_cc`) are set by the server, never
    taken from the request.
+
+**Confirmation email.** Right after a request is saved, `api/order.js` emails
+the customer a confirmation (`api/_lib/confirm.js`) from
+crackboticssandiego@gmail.com through Gmail: their order number, the estimate,
+how it gets to them, a **Track your order** link to the status page, and what
+happens next. Replies go to the shop inbox. It only contains text the site wrote
+(plus the customer's first name), so the form can't be used to mail spam, and an
+address gets at most 3 a day. It's off until you turn it on:
+
+1. The Google account crackboticssandiego@gmail.com needs 2-Step Verification on
+   (Google Account → Security).
+2. Make an app password: Google Account → Security → 2-Step Verification → **App
+   passwords** (or search "App passwords" in the account settings). Name it
+   Crackbotics; Google shows a 16-letter password once.
+3. In Vercel → Settings → Environment Variables, add `GMAIL_APP_PASSWORD` with
+   that password (Production), then redeploy. (`GMAIL_USER` defaults to
+   crackboticssandiego@gmail.com.)
+
+Gmail sends up to about 500 emails a day from one account, far more than the
+shop needs. Revoke the app password in Google to turn it off again.
+
+**Order status page.** `status.html` (with `api/status.js`) shows a customer
+where their order is: Received → Quoted → Paid → Being made → Ready →
+Shipped / Delivered / Picked up, plus the delivery day or the tracking number.
+It needs both the order number and the email it was placed with, shows nothing
+private (no notes, files or address), and is rate-limited. The quote form's
+"Sent" message and the confirmation email link to it with both filled in. Add a
+shipped order's USPS tracking number in the admin panel's **To ship** list (or
+with the Claude connector's `update_order`), and it shows on the status page
+with a link to USPS tracking.
+
+**FAQ and file guide.** The home page has an FAQ (`#faq`), and
+`file-guide.html` explains exporting DXF, STEP, STL and 3MF from Onshape and
+Fusion 360; the quote form links to it under the file picker.
 
 **If the server's email fails** (FormSubmit down, refusing Vercel, or wanting
 activation), `api/order.js` returns the FormSubmit URL and the page posts the
@@ -244,6 +289,7 @@ looking it up. Scroll or pinch to zoom; "Show all" zooms back out to everything.
 - `api/order.js` saves a request and emails it (called by the quote form).
 - `api/human.js` and `api/_lib/guard.js` are the bot check and rate limits (see **Bot protection**).
 - `api/discount.js` checks a code for the quote form; `api/discounts.js` (password) makes and edits them.
+- `api/status.js` answers the customer status page; `api/_lib/confirm.js` writes and sends the confirmation email.
 - `api/orders.js` lists / updates / deletes; every call needs the password.
   Its update rules live in `api/_lib/changes.js`, shared with the Claude connector.
 - `api/mcp/[key].js` is the Claude connector (see below).
@@ -291,10 +337,12 @@ its 3D preview), in `api/_lib/step.js`. Per part it reports:
 The time estimate uses the shop constants at the top of `api/_lib/step.js`
 (copied from `RATE` in `index.html`: setup, feed, depth per pass, per-hole time,
 plus a pocket stepover); it's an estimate, not a CAM toolpath. Electricity is
-machine minutes × `SHOP_MACHINE_KW` × `SHOP_USD_PER_KWH`. Set those two env vars
-in Vercel to the router's real draw (router, spindle and dust collection
-together) and the SDG&E rate; until then the placeholders are 1.5 kW and
-$0.45/kWh. Files over 1,000 CAD faces are turned away (meshing them takes too
+machine minutes × `SHOP_MACHINE_KW` × `SHOP_USD_PER_KWH`. The defaults are the
+shop's Shapeoko 5 Pro 2x2 with the Carbide Compact Router at rated draw (router
+about 6.5 A at 120 V, ~780 W; machine rated 4 A, ~440 W; 1.2 kW together, an upper
+bound, since real cuts draw less) and SDG&E's 2026 blended residential rate,
+about $0.49/kWh. To use a measured figure (a plug-in power meter on the
+machine's outlet strip) or add a shop vac, set those two env vars in Vercel. Files over 1,000 CAD faces are turned away (meshing them takes too
 long for the function's 60 s limit, set in `vercel.json`), as are DXF and other
 file types: DXFs are already priced by the quote page.
 
@@ -348,24 +396,13 @@ feel slow on venue wifi.
 There's also a commented-out `og:image` tag in `index.html` for the link
 preview when you paste the site into Discord. Worth filling in.
 
-## Adding the QR code
+## The QR code
 
-Generate a PNG pointing at your Discord invite (or the site), save it as
-`images/qr.png`, then in `flyer.html` replace the whole `<div class="qr">…</div>`
-block with:
-
-```html
-<img class="qr" src="images/qr.png" alt="Scan for our Discord">
-```
-
-To generate one locally:
-
-```sh
-qrencode -o images/qr.png -s 12 -m 1 'https://discord.gg/YOUR-INVITE'
-```
-
-Print it at least 1 inch square (the placeholder is 1.6in, which is comfortable)
-and test-scan the actual printed sheet before you run 50 copies.
+The flyer's QR code is an inline SVG in `flyer.html` (`<figure class="qr">`),
+pointing at https://crackbotics.com/discountFirst, captioned "Scan for 5% off
+your first order". To point it somewhere else, generate a new code (for example
+`qrencode -t SVG -m 0 'https://…'`) and swap the `<svg>` in. It prints at 1.45 in.
+square; test-scan the actual printed sheet before you run 50 copies.
 
 ## Printing the flyer
 

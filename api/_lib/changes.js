@@ -26,6 +26,8 @@ export function orderChanges(body) {
     changes.delivery_stop = n;
   }
   if (body.address !== undefined) changes.address = String(body.address).trim().slice(0, 300);
+  // The carrier's tracking number for a shipped order, shown on the customer's status page.
+  if (body.tracking !== undefined) changes.tracking = String(body.tracking).replace(/[^A-Za-z0-9 -]/g, '').trim().slice(0, 40);
   // Map position for the delivery map: { q: the address it was looked up for, lat, lon },
   // with lat/lon null when the lookup found nothing (so it isn't retried every load).
   if (body.geo !== undefined) {

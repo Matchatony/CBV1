@@ -1,5 +1,6 @@
 import { newId, saveOrder } from './_lib/orders.js';
 import { passOk, rateLimited, tooMany } from './_lib/guard.js';
+import { sendConfirmation } from './_lib/confirm.js';
 import { readCodes, saveCodes, normalizeCode, problem, customerProblem, remember, publicView, MESSAGES } from './_lib/discounts.js';
 
 // The quote form's send: saves the request to the admin order log and emails
@@ -112,6 +113,8 @@ function cleanSpecs(s) {
     options: Array.isArray(s.options) ? [...new Set(s.options.filter((o) => OPTIONS.includes(o)))] : [],
     material: clip(s.material, 80), color: clip(s.color, 40), size: clip(s.size, 200),
     file_type: clip(s.file_type, 10), reason: clip(s.reason, 400),
+    // Only a real USPS box name: it's repeated in the customer's confirmation email.
+    shipping_box: /^(Small|Medium|Large) Flat Rate Box$/.test(s.shipping_box) ? s.shipping_box : '',
     infill: num(s.infill, 0, 100), walls: num(s.walls, 1, 100)
   };
   const price = cleanPrice(s.price);
@@ -165,5 +168,8 @@ export async function POST(request) {
   // way it used to), so the request still reaches the inbox.
   const fallback = emailed ? undefined : 'https://formsubmit.co/' + encodeURIComponent(MAIL_TO());
   if (!saved && !emailed) return Response.json({ error: 'Could not save or send', fallback }, { status: 502 });
-  return Response.json({ ok: true, id: saved ? order.id : undefined, saved, emailed, fallback });
+  // The customer's confirmation (api/_lib/confirm.js; off until Gmail is set
+  // up). Only for a saved order, since it links to the order's status page.
+  const confirmed = saved ? await sendConfirmation(order) : false;
+  return Response.json({ ok: true, id: saved ? order.id : undefined, saved, emailed, confirmed, fallback });
 }

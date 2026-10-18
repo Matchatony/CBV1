@@ -63,7 +63,8 @@ function summary(o) {
     qty: sp.qty ?? null, files: filesOf(o).length, material: sp.material || '', status: o.status,
     delivery: o.delivery, delivery_date: o.delivery_date || '', delivery_stop: o.delivery_stop || 0, delivered_at: o.delivered_at || '',
     total: total(o), ...(sp.price && sp.price.partial ? { plus_hand_quote: true } : {}),
-    ...(o.delivery === 'ship' ? { plus_shipping: true } : {}),
+    ...(o.delivery === 'ship' && !(sp.price && sp.price.delivery) ? { plus_shipping: true } : {}),
+    ...(sp.shipping_box ? { shipping_box: sp.shipping_box } : {}),
     ...(sp.discount ? { discount_code: sp.discount.code + (sp.discount.invalid ? ' (not valid: ' + sp.discount.invalid + ')' : ' (' + sp.discount.label + ')') } : {})
   };
 }
@@ -131,7 +132,7 @@ function buildServer() {
     instructions: 'Crackbotics is a student-run CNC and 3D-print shop for FTC robotics teams. These tools read and update its order log. ' +
       'An order moves new → quoted → paid → in-progress → ready → done (or cancelled). Paid, in-progress and ready delivery orders go on a delivery day. ' +
       'An order is picked up in San Diego (delivery "pickup"), delivered locally for a flat $15.99 ("delivery"), or shipped anywhere in the US ("ship"); ' +
-      'shipping isn\'t in the total and is quoted by hand. A discount code on an order (specs.discount) was checked when the order came in; ' +
+      'shipping is in the total when the quote page could fit the parts in a USPS flat rate box (specs.shipping_box, cost in specs.price.delivery), otherwise it\'s quoted by hand. A discount code on an order (specs.discount) was checked when the order came in; ' +
       'its dollar amount is already taken off the total (specs.price.code_discount), or, for a hand quote, still has to be. ' +
       'Every change you make is saved in the order\'s history, which the shop\'s admins can see. Orders can\'t be deleted from here. ' +
       'An order can have several design files, one per part, each with its own quantity (get_order: files, and specs.items for each file\'s line). ' +
@@ -183,22 +184,23 @@ function buildServer() {
   });
 
   server.registerTool('update_order', {
-    title: 'Update status or notes',
-    description: `Change an order's status, its private notes, or both. Status must be one of: ${STATUSES.join(', ')}. ` +
+    title: 'Update status, notes or tracking',
+    description: `Change an order's status, its private notes, its shipping tracking number, or any of them. Status must be one of: ${STATUSES.join(', ')}. ` +
       'Notes replace the whole private notes field (up to 4000 characters), so to add to them, read the current notes with get_order first and send the full new text. ' +
-      'Customers never see notes. Marking a delivery handed over is mark_delivered.',
+      'Customers never see notes; they do see the tracking number, on their order status page. Marking an order handed over or shipped is mark_delivered.',
     inputSchema: fromJsonSchema({
       type: 'object',
       properties: {
         id: ID,
         status: { type: 'string', description: `New status: one of ${STATUSES.join(', ')}.` },
-        notes: { type: 'string', description: 'The full new private notes text. Replaces what is there now.' }
+        notes: { type: 'string', description: 'The full new private notes text. Replaces what is there now.' },
+        tracking: { type: 'string', description: 'Carrier tracking number for a shipped order (letters, digits, spaces, dashes; up to 40). "" clears it.' }
       },
       required: ['id'],
       additionalProperties: false
     }),
     annotations: EDIT
-  }, ({ id, status, notes }) => write(id, { status, notes }));
+  }, ({ id, status, notes, tracking }) => write(id, { status, notes, tracking }));
 
   server.registerTool('schedule_delivery', {
     title: 'Schedule a delivery or pickup',

@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>File Export Guide | Crackbotics</title>
+<meta name="description" content="How to export DXF, STEP, STL and 3MF files from Onshape and Fusion 360 for an instant CNC or 3D print quote from Crackbotics.">
+<meta name="theme-color" content="#14121A">
+<link rel="icon" href="/favicon.ico" sizes="48x48">
+<link rel="icon" href="/favicon-192.png" sizes="192x192" type="image/png">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="/styles.css">
+<!-- Vercel Web Analytics: anonymous, cookieless visit counts (see privacy.html#analytics). -->
+<script>window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };</script>
+<script defer src="/_vercel/insights/script.js"></script>
+</head>
+<body id="top">
+<nav class="nav" aria-label="Main">
+  <div class="nav-inner">
+    <a class="wordmark" href="/" aria-label="Crackbotics — addicted to precision">
+      <span class="wordmark-crack">crack</span><span class="wordmark-botics">botics</span>
+    </a>
+    <ul class="nav-links">
+      <li><a href="/#parts">Parts</a></li>
+      <li><a href="/#pricing">Pricing</a></li>
+      <li><a href="/#faq">FAQ</a></li>
+      <li><a href="/#team">About us</a></li>
+    </ul>
+    <a class="btn btn-sm" href="/#quote">Get a quote</a>
+  </div>
+</nav>
+
+<main>
+  <article class="wrap claim guide">
+    <p class="claim-kicker">File export guide</p>
+    <h1>Getting your part out of CAD</h1>
+    <p class="lede">
+      The quote form prices DXF plates and STL / 3MF prints instantly, straight from the file. Here's how
+      to export each from Onshape and Fusion 360, and what to check before you send.
+    </p>
+    <nav class="guide-toc" aria-label="On this page">
+      <a href="#dxf">DXF (plates)</a> · <a href="#step">STEP</a> · <a href="#mesh">STL / 3MF (prints)</a> · <a href="#check">Before you send</a>
+    </nav>
+
+    <section id="dxf">
+      <h2>DXF, for CNC plates</h2>
+      <p>A DXF is the flat outline of one plate: its edge and its holes. It's what we cut from, and the
+        quote form measures it to price it instantly.</p>
+      <h3>Onshape</h3>
+      <ol>
+        <li>In the Part Studio, right-click the plate's large flat face.</li>
+        <li>Choose <b>Export as DXF/DWG</b>.</li>
+        <li>Set the format to <b>DXF</b> and the units to inches or millimeters, then <b>Export</b>.</li>
+      </ol>
+      <p class="hint">You can also right-click a sketch in the feature list and export it the same way,
+        if the sketch has the full outline and holes.</p>
+      <h3>Fusion 360</h3>
+      <ol>
+        <li>Start a sketch on the plate's large flat face: <b>Create Sketch</b>, then click the face.</li>
+        <li>If the outline and holes don't show up in the sketch, use <b>Project</b> (shortcut <kbd>P</kbd>)
+          and click the face. Then <b>Finish Sketch</b>.</li>
+        <li>In the Browser on the left, right-click that sketch and choose <b>Save As DXF</b>.</li>
+      </ol>
+    </section>
+
+    <section id="step">
+      <h2>STEP, for a whole part</h2>
+      <p>A STEP file is the full 3D part. Send one when a plate has pockets or features a flat DXF can't
+        show. We measure it and price it by hand, usually the same day.</p>
+      <h3>Onshape</h3>
+      <ol>
+        <li>In the Parts list, right-click the part and choose <b>Export</b>.</li>
+        <li>Set the format to <b>STEP</b> and click <b>Export</b>.</li>
+      </ol>
+      <h3>Fusion 360</h3>
+      <ol>
+        <li><b>File → Export</b>.</li>
+        <li>Set the type to <b>STEP Files (*.stp, *.step)</b> and click <b>Export</b>.</li>
+      </ol>
+    </section>
+
+    <section id="mesh">
+      <h2>STL or 3MF, for 3D prints</h2>
+      <p>The quote form reads STL and 3MF files as millimeters and weighs the print from the model.</p>
+      <h3>Onshape</h3>
+      <ol>
+        <li>In the Parts list, right-click the part and choose <b>Export</b>.</li>
+        <li>Set the format to <b>STL</b>, the units to <b>Millimeter</b> and the resolution to <b>Fine</b>, then <b>Export</b>.</li>
+      </ol>
+      <h3>Fusion 360</h3>
+      <ol>
+        <li>In the Browser, right-click the body and choose <b>Save As Mesh</b> (older versions: <b>Save As STL</b>).</li>
+        <li>Pick <b>STL (Binary)</b> or <b>3MF</b>, set the units to <b>Millimeter</b>, and click <b>OK</b>.</li>
+      </ol>
+    </section>
+
+    <section id="check">
+      <h2>Before you send</h2>
+      <ul class="guide-checks">
+        <li><b>One part per file</b>, named after the part (like <code>left-side-plate.dxf</code>). Send up to 10 files at once and set each one's quantity.</li>
+        <li><b>Full size.</b> The quote form shows each file's measured size: check it matches your part. A DXF with no unit setting gets its units guessed from the size.</li>
+        <li><b>DXF: just the part.</b> The outline and holes as closed shapes, and nothing else: no dimensions, text, title blocks or construction lines.</li>
+        <li><b>Pockets</b> don't show in a DXF. Describe them in the Details box, or send a STEP.</li>
+        <li><b>Prints in inches?</b> Say so in the Details box, since STL and 3MF are read as millimeters.</li>
+        <li><b>10 MB per file</b> at most. Bigger files can be emailed to <a href="mailto:crackboticssandiego@gmail.com">crackboticssandiego@gmail.com</a>.</li>
+      </ul>
+      <p class="claim-actions"><a class="btn" href="/#quote">Get an instant quote</a></p>
+    </section>
+  </article>
+</main>
+
+<footer class="wrap">
+  <div class="footer-inner">
+    <span class="footer-lockup">
+      <span class="wordmark-crack">crack</span><span class="wordmark-botics">botics</span>
+      <span class="lockup-tag">addicted to precision</span>
+    </span>
+    <p class="footer-line">
+      Custom CNC parts for FTC teams nationwide · San Diego, CA ·
+      <a href="mailto:crackboticssandiego@gmail.com">crackboticssandiego@gmail.com</a>
+    </p>
+  </div>
+  <nav class="footer-links" aria-label="Legal">
+    <a href="/privacy.html">Privacy policy</a>
+    <a href="/privacy.html#cookies">Cookie policy</a>
+    <a href="/terms.html">Terms &amp; conditions</a>
+    <a href="/terms.html#refunds">Refunds &amp; cancellations</a>
+  </nav>
+  <p class="fine">
+    Crackbotics is an independent, unincorporated student-run business based in San Diego, CA
+    — not a registered company. Parts use 8&nbsp;mm grid spacing. Crackbotics is not
+    affiliated with, sponsored by or endorsed by goBILDA, REV Robotics, or
+    <i>FIRST</i>®. FIRST® Tech Challenge is a trademark of FIRST®. Onshape and Fusion 360 are
+    trademarks of their owners; we're not affiliated with them.
+  </p>
+</footer>
+</body>
+</html>

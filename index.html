@@ -110,6 +110,7 @@
       <li><a href="#pricing">Pricing</a></li>
       <li><a href="#work">Photos</a></li>
       <li><a href="#team">About us</a></li>
+      <li><a href="#faq">FAQ</a></li>
     </ul>
     <a class="btn btn-sm" href="#quote">Get a quote</a>
   </div>
@@ -240,9 +241,9 @@
           flagged with suggested revisions before work begins.
         </p>
         <p>
-          We ship to FTC teams anywhere in the US; shipping is quoted with your
-          order. In San Diego, pickup is free and local delivery is a flat $15.99,
-          regardless of distance.
+          We ship to FTC teams anywhere in the US by USPS Priority Mail, priced
+          right in your quote. In San Diego, pickup is free and local delivery is a
+          flat $15.99, regardless of distance.
         </p>
       </div>
       <ul class="terms">
@@ -357,6 +358,78 @@
     </div>
   </section>
 
+  <!-- ================================ FAQ ================================ -->
+  <!-- Plain <details>: each answer opens in place, and all of it works without JavaScript. -->
+  <section id="faq" class="wrap section">
+    <div class="section-head">
+      <h2>FAQ</h2>
+      <p class="section-note">The things teams ask before their first order.</p>
+    </div>
+    <div class="faq">
+      <details>
+        <summary>What files can I send?</summary>
+        <p>For plates, a DXF or STEP file of each part: DXFs are priced instantly, STEP files by hand.
+          For 3D prints, an STL or 3MF file, priced instantly. Anything else (a PDF drawing, a ZIP)
+          goes under "Something else" and we'll price it by email. Up to 10 files per request, 10&nbsp;MB each.</p>
+      </details>
+      <details>
+        <summary>How do I export a DXF from Onshape or Fusion 360?</summary>
+        <p>It takes a minute: see the <a href="file-guide.html">file export guide</a>, with steps for
+          DXF, STEP, STL and 3MF in both programs.</p>
+      </details>
+      <details>
+        <summary>What materials and thicknesses do you cut?</summary>
+        <p>Plates are 1/8&nbsp;in. 6061 aluminum or polycarbonate. Prints are PLA, PETG or ABS, and
+          special-order materials (nylon, PC, ASA, TPU) take a little longer while they arrive. For
+          anything else, pick "Other material" or "Something else" and tell us what you need.</p>
+      </details>
+      <details>
+        <summary>How accurate are the parts?</summary>
+        <p>Plates are cut to your file for the 8&nbsp;mm FTC hole grid, and edges are deburred. Inside
+          corners can't be sharper than a 1/16&nbsp;in. radius (we cut with a 1/8&nbsp;in. end mill), and
+          we check with you before cutting holes smaller than 1/8&nbsp;in. If a fit needs to be
+          ±0.005&nbsp;in. or tighter, tick "Tight tolerances" on the quote form.</p>
+      </details>
+      <details>
+        <summary>Is the instant quote the final price?</summary>
+        <p>It's an estimate from your files. We check the actual files and confirm the price by email,
+          usually the same day. If your part turns out to cost more to make, we tell you before we start,
+          never after.</p>
+      </details>
+      <details>
+        <summary>How do I pay?</summary>
+        <p>By Venmo, Cash App or PayPal, once we've confirmed the price by email. Nothing is charged on
+          this site.</p>
+      </details>
+      <details>
+        <summary>How fast will I get my parts?</summary>
+        <p>In San Diego, 1–3 business days is typical. Local delivery goes out in batches: orders close
+          Monday, Wednesday and Friday at 6&nbsp;pm and are delivered the next day. Shipped orders add
+          1–3 days of USPS Priority Mail transit. Need it sooner? Tick "rush" and we'll tell you what's possible.</p>
+      </details>
+      <details>
+        <summary>Do you ship outside San Diego?</summary>
+        <p>Yes, anywhere in the US, by USPS Priority Mail. When your parts fit a USPS flat rate box, the
+          quote form adds that box's price to your estimate; bigger orders get a shipping quote by email.
+          You'll get a tracking number when it ships.</p>
+      </details>
+      <details>
+        <summary>How do I check on my order?</summary>
+        <p>On the <a href="status.html">order status page</a>, with the order number from your
+          confirmation and the email you ordered with.</p>
+      </details>
+      <details>
+        <summary>Can I cancel?</summary>
+        <p>Yes, with a full refund, any time before we start cutting or printing. Once your part is made
+          it isn't refundable, unless we made the mistake. See <a href="terms.html#refunds">refunds &amp; cancellations</a>.</p>
+      </details>
+      <details>
+        <summary>I'm under 13. Can I order?</summary>
+        <p>Have a parent, coach or team mentor send the request for you, with their email.</p>
+      </details>
+    </div>
+  </section>
+
   <!-- ============================== CONTRACT ============================== -->
   <section id="contract" class="wrap section">
     <div class="section-head">
@@ -366,7 +439,7 @@
     <ul class="terms contract-terms">
       <li><span>Estimates, confirmed by file</span> The price you see here is final once we see the actual design; if the real file costs more (extra material, tighter tolerances, extra setup), we tell you before starting, not after.</li>
       <li><span>Payment</span> Venmo, Cash App, or PayPal, arranged by email once a quote is confirmed. We don't take payment on this site.</li>
-      <li><span>Shipping, pickup or delivery</span> We ship anywhere in the US: the shipping cost is quoted by email with your order and paid along with it. In San Diego, pickup is free and local delivery is a flat $15.99.</li>
+      <li><span>Shipping, pickup or delivery</span> We ship anywhere in the US by USPS Priority Mail: your quote includes the flat rate box price when your parts fit one, and bigger orders get a shipping quote by email. Shipping is paid along with the order. In San Diego, pickup is free and local delivery is a flat $15.99.</li>
       <li><span>Turnaround</span> 1&ndash;3 business days in San Diego is typical, not guaranteed; material availability or order volume can push it out, and we'll say so. Shipped orders add the carrier's transit time.</li>
       <li><span>Cancellations</span> Full refund any time before we start cutting or printing. Once your part is cut or printed it isn't refundable, except when we made the mistake.</li>
       <li><span>Deburring</span> Included standard, no added charge.</li>
@@ -483,6 +556,7 @@
         <label for="q-files">Design files <span class="opt">one file per part, up to 10</span></label>
         <input id="q-files" type="file" multiple accept=".dxf,.step,.stp" aria-describedby="q-file-hint">
         <p class="hint" id="q-file-hint">DXF or STEP for a CNC plate. A DXF gets measured and priced automatically; a STEP file is quoted by hand. 10&nbsp;MB max each.</p>
+        <p class="hint"><a class="guide-link" href="file-guide.html" target="_blank" rel="noopener">How to export your file from Onshape or Fusion 360</a></p>
         <p class="hint file-problem" id="q-file-problem" role="alert" hidden></p>
         <ul class="file-list" id="q-file-list" aria-label="Your files" hidden></ul>
       </div>
@@ -503,7 +577,7 @@
 
       <fieldset class="calc-flags">
         <legend>Delivery</legend>
-        <label><input type="radio" name="delivery" value="ship" id="q-delivery-ship"> Ship it — anywhere in the US <span class="opt">shipping quoted by email</span></label>
+        <label><input type="radio" name="delivery" value="ship" id="q-delivery-ship"> Ship it — anywhere in the US <span class="opt">USPS Priority Mail</span></label>
         <label><input type="radio" name="delivery" value="pickup" id="q-delivery-pickup" checked> Pickup — San Diego, CA <span class="opt">free</span></label>
         <label><input type="radio" name="delivery" value="delivery" id="q-delivery-drive"> Local delivery — San Diego area <span class="opt">flat $15.99</span></label>
       </fieldset>
@@ -545,6 +619,7 @@
           including how uploaded files are handled.
         </label>
       </div>
+      <p class="hint field-wide consent-note">Under 13? Have a parent, coach or team mentor send this for you.</p>
 
       <!-- Cloudflare Turnstile draws its "verify you're human" box here, only
            when it needs a click; most visitors never see it. -->
@@ -658,6 +733,24 @@
     flatDeliveryRate: 15.99
   };
 
+  /* Shipping: USPS Priority Mail Flat Rate boxes, inside sizes in inches,
+     smallest first. Retail prices from USPS Notice 123 (effective July 12,
+     2026), and USPS's holiday prices for SHIP_HOLIDAY. USPS changes these
+     about every January and July: update the prices and dates here. A quote
+     ships in the cheapest box its parts fit (see shipBox); anything bigger,
+     heavier or priced by hand gets a shipping quote by email. */
+  var SHIP_BOXES = [
+    { name: 'Small Flat Rate Box', inside: [8.625, 5.375, 1.625], price: 13.65, holiday: 14.65 },
+    { name: 'Medium Flat Rate Box', inside: [11.25, 8.75, 6], price: 24.80, holiday: 25.80 },
+    { name: 'Medium Flat Rate Box', inside: [14, 12, 3.5], price: 24.80, holiday: 25.80 }, // side-loading
+    { name: 'Large Flat Rate Box', inside: [12.25, 12.25, 6], price: 34.00, holiday: 36.10 }
+  ];
+  var SHIP_HOLIDAY = { from: '2026-10-04', to: '2027-01-17' };
+  var SHIP_PAD_IN = 0.25;   // packing on every side of the parts
+  var SHIP_MAX_LB = 70;     // USPS flat rate weight limit
+  var PLATE_THICK_IN = 0.125;
+  var PLATE_LB_PER_CU_IN = { aluminum: 0.0975, poly: 0.043, 'other-mat': 0.0975 };
+
   /* Keyless public endpoint: Nominatim turns the typed address into a list
      of matching suggestions. It's a free community service with no uptime
      promise, so a failed lookup just falls back to whatever was typed. */
@@ -746,7 +839,7 @@
   // 'pickup', 'delivery' (local, flat rate) or 'ship' (anywhere in the US, quoted by email).
   function deliveryMode() { return document.querySelector('input[name="delivery"]:checked').value; }
   function addressHint(picked) {
-    if (deliveryMode() === 'ship') return picked ? 'We\'ll email you the shipping cost to that address.' : 'Start typing and pick your address from the list. We\'ll email you the shipping cost.';
+    if (deliveryMode() === 'ship') return picked ? 'Shipping to that address is in your quote when your parts fit a USPS flat rate box.' : 'Start typing and pick your address from the list. Shipping is priced in your quote when your parts fit a USPS flat rate box.';
     return picked ? 'Local delivery is a flat $15.99 to that address.' : 'Start typing and pick your address from the list. Local delivery is a flat $15.99.';
   }
   document.querySelectorAll('input[name="delivery"]').forEach(function (r) {
@@ -1745,6 +1838,7 @@
       if (els.tapped.checked) surcharge += RATE.surchargeTapped;
       if (els.tol.checked) surcharge += RATE.surchargeTolerance;
       if (els.complex.checked) surcharge += RATE.surchargeComplex;
+      line.ship = { flat: [g.width, g.height], lb: area * PLATE_THICK_IN * (PLATE_LB_PER_CU_IN[els.material.value] || 0.0975) };
       line.size = g.width.toFixed(1) + '″ × ' + g.height.toFixed(1) + '″ (' + area.toFixed(1) + ' sq in), ' +
         g.cutLength.toFixed(1) + '″ cut path, ' + g.holes.length + (g.holes.length === 1 ? ' hole' : ' holes');
       var tooSmall = g.holes.filter(function (d) { return d < RATE.minToolDiaIn - 1e-6; }).length;
@@ -1762,6 +1856,7 @@
       material = grams * (els.printMaterial.value === 'premium' ? RATE.premiumFilamentPerGram : RATE.filamentPerGram);
       machine = RATE.printMachineFlat;
       labor = RATE.printLaborFlat;
+      line.ship = { box: item.mesh.dims.map(function (d) { return d / 25.4; }), lb: grams / 453.6 };
       line.size = item.mesh.dims.map(function (d) { return d.toFixed(0); }).join(' × ') + ' mm, ~' + Math.round(grams) + ' g at ' +
         infillPct() + '% infill, ' + wallCount() + (wallCount() === 1 ? ' wall' : ' walls');
     }
@@ -1787,6 +1882,41 @@
     if (type === 'plate') return els.material.selectedOptions[0].text;
     if (type === 'print') return els.printMaterial.selectedOptions[0].text + (els.color.value.trim() ? ', ' + els.color.value.trim() : '');
     return '';
+  }
+
+  // The cheapest flat rate box the priced parts fit, as { name, price }, or
+  // null. Plates lie flat in one stack; printed parts each have to fit and
+  // together fill at most 60% of the box. Any part may turn to fit.
+  function shipBox(lines) {
+    var today = new Date().toISOString().slice(0, 10);
+    var holiday = today >= SHIP_HOLIDAY.from && today <= SHIP_HOLIDAY.to;
+    var lb = lines.reduce(function (t, l) { return t + l.ship.lb * l.qty; }, 0);
+    if (lb > SHIP_MAX_LB) return null;
+    var desc = function (a, b) { return b - a; };
+    var fits = SHIP_BOXES.filter(function (box) {
+      var inside = box.inside.map(function (d) { return d - 2 * SHIP_PAD_IN; });
+      if (lines[0].ship.flat) {
+        // Try each face of the box as the floor; the plates stack up the rest.
+        return [[0, 1, 2], [0, 2, 1], [1, 2, 0]].some(function (o) {
+          var floor = [inside[o[0]], inside[o[1]]].sort(desc), height = inside[o[2]];
+          var stack = lines.reduce(function (t, l) { return t + l.qty * PLATE_THICK_IN; }, 0);
+          return stack <= height && lines.every(function (l) {
+            var f = l.ship.flat.slice().sort(desc);
+            return f[0] <= floor[0] && f[1] <= floor[1];
+          });
+        });
+      }
+      var room = inside.slice().sort(desc), volume = 0;
+      var each = lines.every(function (l) {
+        var d = l.ship.box.slice().sort(desc);
+        volume += d[0] * d[1] * d[2] * l.qty;
+        return d[0] <= room[0] && d[1] <= room[1] && d[2] <= room[2];
+      });
+      return each && volume <= 0.6 * room[0] * room[1] * room[2];
+    });
+    if (!fits.length) return null;
+    var best = fits.reduce(function (a, b) { return (holiday ? b.holiday : b.price) < (holiday ? a.holiday : a.price) ? b : a; });
+    return { name: best.name, price: holiday ? best.holiday : best.price };
   }
 
   function buildQuote() {
@@ -1836,8 +1966,19 @@
       if (q.partial) notes.push('Your code ' + discount.code + ' also comes off the files we price by hand.');
     }
     q.deliveryCost = delivery === 'delivery' ? RATE.flatDeliveryRate : null;
-    q.deliveryLine = delivery === 'delivery' ? 'Local delivery (flat rate): ' + money(RATE.flatDeliveryRate)
-      : delivery === 'ship' ? 'Ship it — shipping cost quoted by email' : 'Pickup in San Diego — free';
+    q.deliveryLine = delivery === 'delivery' ? 'Local delivery (flat rate): ' + money(RATE.flatDeliveryRate) : 'Pickup in San Diego — free';
+    if (delivery === 'ship') {
+      // Only when every file is priced: a by-hand file's size isn't known yet.
+      q.shipBox = q.partial ? null : shipBox(priced);
+      if (q.shipBox) {
+        q.deliveryCost = q.shipBox.price;
+        q.deliveryLine = 'Shipping, USPS Priority Mail ' + q.shipBox.name + ': ' + money(q.shipBox.price);
+        notes.push('Shipping is USPS Priority Mail in a ' + q.shipBox.name + ', 1–3 days in transit after it ships. If your parts need a different box, we\'ll tell you before charging.');
+      } else {
+        q.deliveryLine = 'Ship it — shipping cost quoted by email' + (q.partial ? '' : ' (too big for a flat rate box)');
+        if (!q.partial) notes.push('These parts are too big for a USPS flat rate box, so we\'ll email you the shipping cost.');
+      }
+    }
     q.total = Math.round((q.partsTotal - (q.code ? q.code.amount : 0) + (q.deliveryCost || 0)) * 100) / 100;
     return q;
   }
@@ -1858,13 +1999,13 @@
   // The row for how the order gets to the customer: [label, price text].
   function handoffRow(q) {
     if (q.delivery === 'delivery') return ['Delivery', money(q.deliveryCost)];
-    if (q.delivery === 'ship') return ['Shipping', 'Quoted by email'];
+    if (q.delivery === 'ship') return q.shipBox ? ['Shipping, USPS ' + q.shipBox.name, money(q.shipBox.price)] : ['Shipping', 'Quoted by email'];
     return ['Pickup', 'Free'];
   }
   function codeLabel(c) { return 'Code ' + c.code + ' (' + c.label + ')'; }
   // What the headline total leaves out: by-hand files, shipping.
   function totalExtras(q) {
-    return (q.partial ? ' + hand quote' : '') + (q.delivery === 'ship' ? ' + shipping' : '');
+    return (q.partial ? ' + hand quote' : '') + (q.delivery === 'ship' && !q.shipBox ? ' + shipping' : '');
   }
 
   function quoteToHtml(q) {
@@ -1937,6 +2078,7 @@
       return it;
     });
     if (q.lines.length === 1 && q.lines[0].size) s.size = q.lines[0].size;
+    if (q.shipBox) s.shipping_box = q.shipBox.name;
     if (q.escalated) {
       s.reason = q.reason;
     } else {
@@ -1986,7 +2128,7 @@
       if (flags.length) lines.push('Flags: ' + flags.join(' | '));
       lines.push('ESTIMATED TOTAL: ' + money(q.total) +
         (q.partial ? ' for the priced files — plus ' + q.hand.length + (q.hand.length === 1 ? ' file' : ' files') + ' to price by hand' : '') +
-        (q.delivery === 'ship' ? ' — plus shipping, to quote' : ''));
+        (q.delivery === 'ship' && !q.shipBox ? ' — plus shipping, to quote' : ''));
     }
     if (data.details) lines.push('', 'Customer notes: ' + data.details);
     return lines.join('\n');
@@ -2211,7 +2353,7 @@
       doc.setLineWidth(1);
       doc.line(x, y, pageW - x, y); y += 20;
 
-      priceRow((q.partial ? 'Estimated total (priced files)' : 'Estimated total') + (q.delivery === 'ship' ? ', before shipping' : ''), money(q.total), true);
+      priceRow((q.partial ? 'Estimated total (priced files)' : 'Estimated total') + (q.delivery === 'ship' && !q.shipBox ? ', before shipping' : ''), money(q.total), true);
       y += 6;
 
       var notes = q.notes.slice();
@@ -2255,7 +2397,7 @@
     [
       'This price is an estimate, confirmed once we see the actual design file.',
       'Payment via Venmo, Cash App, or PayPal, arranged by email once confirmed.',
-      'We ship anywhere in the US, with shipping quoted by email and paid with the order. In San Diego: free pickup, or local delivery for a flat $15.99.',
+      'We ship anywhere in the US by USPS Priority Mail: flat rate shipping is in this estimate when your parts fit a flat rate box, otherwise quoted by email. In San Diego: free pickup, or local delivery for a flat $15.99.',
       'Turnaround in San Diego is typically 1–3 business days, not guaranteed; shipping adds transit time. Deburring is included, standard.',
       'Full refund any time before we start cutting or printing; not refundable once your part is made, except when the mistake is ours. Full terms: see the site\'s Terms & conditions.'
     ].forEach(function (line) { block(line, 13.5); y += 2; });
@@ -2543,7 +2685,7 @@
         if (typeof v === 'string' && k.charAt(0) !== '_') emailFields[k] = v;
       });
       var frame = document.getElementById('q-send-frame');
-      var settled = false;
+      var settled = false, orderId = '';
       var controller = new AbortController();
       var timer = setTimeout(function () { controller.abort(); finish(false, 'timeout'); }, 60000);
 
@@ -2569,6 +2711,7 @@
         })
       }).then(function (res) {
         return res.json().catch(function () { return {}; }).then(function (out) {
+          orderId = out.id || '';
           if (out.emailed) return finish(true);
           if (out.fallback) return postToFormSubmit(out.fallback);
           if (res.status === 403) human.pass = ''; // expired: the next try gets a new one
@@ -2594,6 +2737,19 @@
         form.submit();
       }
 
+      // The order number and a link to the status page (status.html), under the "sent" message.
+      function trackLink() {
+        if (!orderId) return;
+        var p = document.createElement('span');
+        p.className = 'track-note';
+        p.appendChild(document.createTextNode(' Your order number is ' + orderId + '. '));
+        var a = document.createElement('a');
+        a.href = 'status.html?order=' + encodeURIComponent(orderId) + '&email=' + encodeURIComponent(data.email);
+        a.textContent = 'Track your order';
+        p.appendChild(a);
+        els.status.appendChild(p);
+      }
+
       function finish(ok, reason) {
         if (settled) return;
         settled = true;
@@ -2612,6 +2768,7 @@
         if (ok && !failed.length) {
           if (els.note) els.note.hidden = true;
           say('Sent — we\'ll confirm by email, usually the same day.', 'ok');
+          trackLink();
           return;
         }
         if (ok) {
@@ -2619,6 +2776,7 @@
             ? (uploaded.length === 1 ? 'the file' : 'the files')
             : failed.length + ' of ' + uploaded.length + ' files') + ' didn\'t upload (' + failed.join(', ') +
             '). Please email ' + (failed.length === 1 ? 'it' : 'them') + ' to ' + EMAIL + '.', 'bad');
+          trackLink();
         } else {
           console.error('Quote form submission failed:', reason);
           say(reason === 'timeout'

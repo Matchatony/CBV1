@@ -20,11 +20,15 @@ export const SHOP = {
   cncPerHoleMin: 0.25,     // plunge, lead-in and retract per round hole
   minToolDiaIn: 0.125,     // smallest end mill
   pocketStepoverIn: 0.05,  // sideways step when clearing a pocket (40% of a 1/8 in. tool)
-  // Electricity: the router, spindle and dust collection together, and the price
-  // of power. Set SHOP_MACHINE_KW and SHOP_USD_PER_KWH in Vercel to the real
-  // machine draw and SDG&E rate; these defaults are placeholders.
-  machineKw: Number(process.env.SHOP_MACHINE_KW) || 1.5,
-  usdPerKwh: Number(process.env.SHOP_USD_PER_KWH) || 0.45
+  // Electricity: the shop's Shapeoko 5 Pro 2x2 with the Carbide Compact Router,
+  // at their rated draw: the router is about 6.5 A at 120 V (~780 W, flat out)
+  // and the machine is rated 4 A (~440 W), so 1.2 kW at most. Real cutting
+  // draws less; a plug-in power meter would give the true figure. The price is
+  // SDG&E's 2026 blended residential rate, about $0.49/kWh (time-of-use runs
+  // ~$0.39 to $0.70). Set SHOP_MACHINE_KW / SHOP_USD_PER_KWH in Vercel to
+  // override either; add a shop vac's draw if one runs during cuts.
+  machineKw: Number(process.env.SHOP_MACHINE_KW) || 1.2,
+  usdPerKwh: Number(process.env.SHOP_USD_PER_KWH) || 0.49
 };
 
 export const MAX_FILE_BYTES = 10 * 1024 * 1024; // same cap as uploads (api/upload.js)
