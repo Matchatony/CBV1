@@ -193,6 +193,22 @@
       </article>
 
     </div>
+
+    <!-- A silent 10-second loop of the router (images/cnc-loop.*, 1280×720,
+         WebM first and MP4 for Safari; it fades through the page color where it
+         loops). It loads and plays only while on screen, has a pause button,
+         and doesn't autoplay for visitors who ask for reduced motion. -->
+    <figure class="machine-shot">
+      <video id="cnc-video" muted loop playsinline preload="none" width="1280" height="720"
+             poster="images/cnc-loop-poster.webp"
+             aria-label="Video: our CNC router's spindle moving over the machine bed">
+        <source src="images/cnc-loop.webm" type="video/webm">
+        <!-- The last source failing means nothing can play: hide the figure, like the photos. -->
+        <source src="images/cnc-loop.mp4" type="video/mp4" onerror="this.closest('figure').hidden = true">
+      </video>
+      <button type="button" class="video-toggle" id="cnc-video-toggle" aria-pressed="false">Pause</button>
+      <figcaption>Our CNC router at work</figcaption>
+    </figure>
   </section>
 
   <!-- ============================== PRICING ============================== -->
@@ -2614,6 +2630,35 @@
       }
     }
   });
+})();
+</script>
+
+<script>
+/* The router video in Parts: plays while it's on screen, pauses when it
+   isn't, and stays still for visitors who prefer reduced motion. The button
+   pauses or resumes it either way. */
+(function () {
+  var video = document.getElementById('cnc-video'), toggle = document.getElementById('cnc-video-toggle');
+  if (!video || !toggle) return;
+  var still = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var userPaused = still, onScreen = false;
+  function sync() {
+    var play = onScreen && !userPaused;
+    if (play && video.paused) video.play().catch(function () { /* autoplay refused: the poster stays */ });
+    if (!play && !video.paused) video.pause();
+    toggle.textContent = userPaused ? 'Play' : 'Pause';
+    toggle.setAttribute('aria-pressed', String(userPaused));
+  }
+  toggle.addEventListener('click', function () { userPaused = !userPaused; sync(); });
+  if ('IntersectionObserver' in window) {
+    new IntersectionObserver(function (entries) {
+      onScreen = entries[0].isIntersecting;
+      sync();
+    }, { threshold: 0.25 }).observe(video);
+  } else {
+    onScreen = true;
+    sync();
+  }
 })();
 </script>
 

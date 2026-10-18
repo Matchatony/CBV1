@@ -995,3 +995,42 @@ footer { padding-block: 48px 56px; border-top: 1px solid var(--line); }
 .claim-actions { display: flex; flex-wrap: wrap; gap: 12px; margin: 0 0 36px; }
 .claim-terms { margin: 0; padding: 18px 0 0; border-top: 1px solid var(--line); list-style: none; color: var(--muted); font-size: 14px; line-height: 1.6; }
 .claim-terms li + li { margin-top: 6px; }
+
+/* The router video under Parts (index.html). Same frame as the band photo. */
+.machine-shot { position: relative; margin: clamp(32px, 5vw, 56px) 0 0; }
+.machine-shot video {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 21 / 9;
+  object-fit: cover;
+  object-position: 50% 32%;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+}
+.machine-shot figcaption {
+  margin-top: 12px;
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.video-toggle {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  font: 500 12px/1 var(--mono);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--text);
+  background: rgba(20, 18, 26, .72);
+  border: 1px solid var(--line-firm);
+  padding: 8px 10px;
+  cursor: pointer;
+}
+.video-toggle:hover { border-color: var(--muted); }
+.video-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (max-width: 700px) {
+  .machine-shot video { aspect-ratio: 16 / 9; }
+}
