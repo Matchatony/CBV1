@@ -591,13 +591,19 @@ footer { padding-block: 48px 56px; border-top: 1px solid var(--line); }
 .hero-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr);
-  gap: clamp(32px, 5vw, 60px);
+  grid-template-areas: "top shot" "bottom shot";
+  column-gap: clamp(32px, 5vw, 60px);
+  row-gap: 0;
   align-items: center;
 }
-.hero-grid:has(figure[hidden]) { grid-template-columns: 1fr; }
+/* The text's two parts stay together, centered against the video. */
+.hero-top { grid-area: top; align-self: end; }
+.hero-bottom { grid-area: bottom; align-self: start; }
+.hero-grid:has(figure[hidden]) { grid-template-columns: 1fr; grid-template-areas: "top" "bottom"; }
 .hero-text .lede { margin-bottom: 32px; }
-.hero-shot { margin: 0; }
-.hero-shot img {
+.hero-shot { grid-area: shot; margin: 0; }
+.hero-shot img,
+.hero-shot video {
   display: block;
   width: 100%;
   height: auto;
@@ -606,8 +612,17 @@ footer { padding-block: 48px 56px; border-top: 1px solid var(--line); }
   border: 1px solid var(--line);
   border-radius: 0;
 }
+.hero-shot video { background: var(--bg-raised); }
 @media (max-width: 900px) {
-  .hero-grid { grid-template-columns: 1fr; gap: 36px; }
+  /* Stacked: the video goes between the headline and the paragraph, so it's
+     fully in view as the page opens. */
+  .hero-grid { grid-template-columns: 1fr; grid-template-areas: "top" "shot" "bottom"; }
+  .hero-shot { margin-bottom: 28px; }
+}
+/* Phones: less room above the logo, so the whole video fits on screen as the
+   page opens even on a small iPhone (375×667). */
+@media (max-width: 600px) {
+  .hero { padding-top: 28px; }
 }
 
 /* --------------------------------------------------------------- media --- */
@@ -996,32 +1011,12 @@ footer { padding-block: 48px 56px; border-top: 1px solid var(--line); }
 .claim-terms { margin: 0; padding: 18px 0 0; border-top: 1px solid var(--line); list-style: none; color: var(--muted); font-size: 14px; line-height: 1.6; }
 .claim-terms li + li { margin-top: 6px; }
 
-/* The router video under the hero (index.html). Same frame as the band photo.
-   .reveal: hidden until the page script adds .is-shown as it scrolls into view. */
-.machine-shot { margin: 0 auto; padding-block: clamp(8px, 2vw, 24px); }
+/* .reveal: hidden until the page script adds .is-shown (the hero video, which
+   fades in as the page opens). */
 .reveal { opacity: 0; transform: translateY(28px); transition: opacity 1s ease, transform 1s cubic-bezier(.2, .7, .2, 1); }
 .reveal.is-shown { opacity: 1; transform: none; }
 @media (prefers-reduced-motion: reduce) {
   .reveal { opacity: 1; transform: none; transition: none; }
 }
-.machine-shot video {
-  display: block;
-  width: 100%;
-  height: auto;
-  aspect-ratio: 21 / 9;
-  object-fit: cover;
-  object-position: 50% 32%;
-  background: var(--bg-raised);
-  border: 1px solid var(--line);
-}
-.machine-shot figcaption {
-  margin-top: 12px;
-  font-family: var(--mono);
-  font-size: 12px;
-  letter-spacing: .08em;
-  text-transform: uppercase;
-  color: var(--faint);
-}
-@media (max-width: 700px) {
-  .machine-shot video { aspect-ratio: 16 / 9; }
-}
+/* Runtime Terror's robot, in the band under the hero: crop to the robot. */
+.band-robot img { object-position: 50% 58%; }

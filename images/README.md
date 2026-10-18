@@ -5,9 +5,9 @@ name and the page picks it up with no code change.
 
 | File | Where it appears | Status |
 |---|---|---|
-| `DSC01324-3.webp` | Hero, right of the headline. Also the Discord link preview | in |
+| `DSC01324-3.webp` | The wide band right under the hero (Runtime Terror's robot; it was the hero photo before the router video) | in |
 | `DSC01319-3.webp` | The wide band shot between Parts and Pricing | in |
-| `cnc-loop.webm`, `cnc-loop.mp4`, `cnc-loop-poster.webp` | Right under the hero — silent loop of the CNC router that fades in and plays after a short scroll (MP4 listed first) (1280×720, made from `Timeline_1_V2.mov`) | in |
+| `cnc-loop.webm`, `cnc-loop.mp4`, `cnc-loop-poster.webp` | Hero, right of the headline (under it on phones) — silent loop of the CNC router that fades in and plays as the page opens, shown whole at 16:9 (MP4 listed first; 1280×720, made from `Timeline_1_V2.mov`) | in |
 | `robot-cad.png` | "About us" — Runtime Terror's 22105, CAD render | in |
 | `work-01.jpg` | "Photos" — wiring on a machined frame (Mech-a-Mind, FTC #23673) | in |
 | `work-02.jpg` | "Photos" — machined side plates on an intake (Mech-a-Mind) | in |

@@ -120,14 +120,40 @@
   <!-- ================================ HERO ================================ -->
   <header class="hero">
     <div class="wrap">
+     <!-- The text is in two parts so that on narrow screens, where everything
+          stacks, the video sits between the headline and the paragraph and is
+          fully in view when the page opens. Side by side, the video takes the
+          right column next to both parts. -->
      <div class="hero-grid">
-      <div class="hero-text">
+      <div class="hero-text hero-top">
       <a class="lockup" href="#top" aria-label="Crackbotics, addicted to precision">
         <span class="lockup-word"><span class="wordmark-crack">crack</span><span class="wordmark-botics">botics</span></span>
         <span class="lockup-tag">addicted to precision</span>
       </a>
       <p class="hero-badge">Built by world champions</p>
       <h1>Precision CNC parts for <em>FTC teams nationwide</em></h1>
+      </div>
+
+      <!-- A silent 10-second loop of the router (images/cnc-loop.*, 1280×720,
+           shown whole at 16:9; MP4 first since every browser plays it, then a
+           smaller WebM; it fades through the page color where it loops). It
+           uses the browser's own muted autoplay, the most reliable way to get a
+           video playing, iPhones included. The script at the end of the page
+           fades it in from the start as the page opens. If a phone refuses to
+           autoplay (an iPhone in Low Power Mode does), it starts on the
+           visitor's next tap. Without JavaScript it's simply shown (<noscript>
+           in head). -->
+      <figure class="hero-shot reveal">
+        <video id="cnc-video" autoplay muted loop playsinline preload="auto" width="1280" height="720"
+               poster="images/cnc-loop-poster.webp"
+               aria-label="Video: our CNC router's spindle moving over the machine bed">
+          <source src="images/cnc-loop.mp4" type="video/mp4">
+          <!-- The last source failing means nothing can play: hide the figure, like the photos. -->
+          <source src="images/cnc-loop.webm" type='video/webm; codecs="vp9"' onerror="this.closest('figure').hidden = true">
+        </video>
+      </figure>
+
+      <div class="hero-text hero-bottom">
       <p class="lede">
         CNC-machined plates and additively manufactured components, built to your
         drawings on an 8&nbsp;mm hole grid. Priced below major suppliers, with a
@@ -138,12 +164,6 @@
         <a class="btn btn-quiet" href="#parts">See what we make</a>
       </div>
       </div>
-
-      <figure class="hero-shot">
-        <img src="images/DSC01324-3.webp" width="2048" height="1152" fetchpriority="high"
-             alt="Runtime Terror's robot driving across the field"
-             onerror="this.closest('figure').hidden = true">
-      </figure>
      </div>
 
       <dl class="facts">
@@ -155,25 +175,12 @@
     </div>
   </header>
 
-  <!-- ============================ MACHINE VIDEO ============================ -->
-  <!-- A silent 10-second loop of the router (images/cnc-loop.*, 1280×720;
-       MP4 first since every browser plays it, then a smaller WebM; it fades
-       through the page color where it loops). It sits just under the hero so a
-       short scroll brings it in. It uses the browser's own muted autoplay (the
-       most reliable way to get a video playing, iPhones included); the script
-       at the end of the page keeps it invisible until it's partly on screen,
-       then rewinds it and fades it in. If a phone refuses to autoplay (an
-       iPhone in Low Power Mode does), it starts on the visitor's next tap.
-       Without JavaScript it's simply shown (<noscript> in head). -->
-  <figure class="machine-shot reveal wrap">
-    <video id="cnc-video" autoplay muted loop playsinline preload="auto" width="1280" height="720"
-           poster="images/cnc-loop-poster.webp"
-           aria-label="Video: our CNC router's spindle moving over the machine bed">
-      <source src="images/cnc-loop.mp4" type="video/mp4">
-      <!-- The last source failing means nothing can play: hide the figure, like the photos. -->
-      <source src="images/cnc-loop.webm" type='video/webm; codecs="vp9"' onerror="this.closest('figure').hidden = true">
-    </video>
-    <figcaption>Our CNC router at work</figcaption>
+  <!-- Runtime Terror's robot, which was the hero photo before the router video took that spot. -->
+  <figure class="band-shot band-robot wrap">
+    <img src="images/DSC01324-3.webp" width="2048" height="1152" loading="lazy" decoding="async"
+         alt="Runtime Terror's robot driving across the field"
+         onerror="this.closest('figure').hidden = true">
+    <figcaption>Runtime Terror · FTC #22105</figcaption>
   </figure>
 
   <!-- =============================== PARTS =============================== -->
@@ -2642,13 +2649,14 @@
 </script>
 
 <script>
-/* The router video under the hero. It autoplays on its own (muted, looped);
-   this keeps it invisible until a fifth of it is on screen, then rewinds it
-   to the start and fades it in. Browsers pause autoplaying videos that are
-   off screen and resume them on their own. If autoplay is refused (an iPhone
-   in Low Power Mode), the next tap, click or key starts it. */
+/* The router video in the hero. It autoplays on its own (muted, looped);
+   this keeps it invisible until a fifth of it is on screen (right away, as
+   the page opens), then rewinds it to the start and fades it in. Browsers
+   pause autoplaying videos that are off screen and resume them on their own.
+   If autoplay is refused (an iPhone in Low Power Mode), the next tap, click
+   or key starts it. */
 (function () {
-  var fig = document.querySelector('.machine-shot'), video = document.getElementById('cnc-video');
+  var fig = document.querySelector('.hero-shot'), video = document.getElementById('cnc-video');
   if (!fig || !video) return;
   video.muted = true; // some browsers only allow autoplay when muted is set on the element itself
   var shown = false;
