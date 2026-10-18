@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- The page behind crackbotics.com/discountFirst (rewrites in vercel.json).
+     It checks the FIRST5 code with api/discount.js, keeps it on this device
+     (localStorage cb-code) and sends people to the quote form with it filled
+     in. The once-per-team rule is enforced by the server when they order. -->
+<meta name="robots" content="noindex">
+<title>5% Off Your First Order | Crackbotics</title>
+<meta name="description" content="Claim 5% off your first Crackbotics order of custom CNC plates and 3D printed parts for FTC teams.">
+<meta name="theme-color" content="#14121A">
+<meta property="og:title" content="5% off your first Crackbotics order">
+<meta property="og:description" content="Custom CNC plates and 3D printed parts for FTC teams, shipped anywhere in the US. Open the link to claim your discount.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Crackbotics">
+<meta property="og:url" content="https://crackbotics.com/discountFirst">
+<meta property="og:image" content="https://crackbotics.com/images/og-image.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="/favicon.ico" sizes="48x48">
+<link rel="icon" href="/favicon-192.png" sizes="192x192" type="image/png">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="/styles.css">
+<!-- Vercel Web Analytics: anonymous, cookieless visit counts (see privacy.html#analytics). -->
+<script>window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };</script>
+<script defer src="/_vercel/insights/script.js"></script>
+</head>
+<body id="top">
+<nav class="nav" aria-label="Main">
+  <div class="nav-inner">
+    <a class="wordmark" href="/" aria-label="Crackbotics — addicted to precision">
+      <span class="wordmark-crack">crack</span><span class="wordmark-botics">botics</span>
+    </a>
+    <ul class="nav-links">
+      <li><a href="/#parts">Parts</a></li>
+      <li><a href="/#pricing">Pricing</a></li>
+      <li><a href="/#work">Photos</a></li>
+      <li><a href="/#team">About us</a></li>
+    </ul>
+    <a class="btn btn-sm" href="/?code=FIRST5#quote">Get a quote</a>
+  </div>
+</nav>
+
+<main>
+  <section class="wrap claim">
+    <div class="claim-card" aria-live="polite">
+      <!-- The claimed state is the default, so the page reads right at once
+           (and without JavaScript); the script switches to "used" or "ended"
+           if the server says so. -->
+      <p class="claim-kicker" id="kicker">First-order discount</p>
+      <h1 id="headline">You've claimed <em>5% off</em> your first order.</h1>
+      <p class="lede" id="lede">
+        It's saved on this device and already filled in on the quote form. Upload your
+        design files, send your request, and the discount comes off your parts.
+      </p>
+      <p class="claim-code" id="code-chip"><span>Your code</span> FIRST5</p>
+      <div class="claim-actions">
+        <a class="btn" id="go" href="/?code=FIRST5#quote">Start your quote</a>
+        <a class="btn btn-quiet" href="/#parts">See what we make</a>
+      </div>
+      <ul class="claim-terms" id="terms">
+        <li>One per team: we check your team number, email and device when you send your request.</li>
+        <li>Comes off the parts, not delivery or shipping. One discount code per order.</li>
+        <li>Works on every job. Anything we price by hand gets it taken off the price we email you.</li>
+      </ul>
+    </div>
+  </section>
+</main>
+
+<footer class="wrap">
+  <div class="footer-inner">
+    <span class="footer-lockup">
+      <span class="wordmark-crack">crack</span><span class="wordmark-botics">botics</span>
+      <span class="lockup-tag">addicted to precision</span>
+    </span>
+    <p class="footer-line">
+      Custom CNC parts for FTC teams nationwide · San Diego, CA ·
+      <a href="mailto:crackboticssandiego@gmail.com">crackboticssandiego@gmail.com</a>
+    </p>
+  </div>
+  <nav class="footer-links" aria-label="Legal">
+    <a href="/privacy.html">Privacy policy</a>
+    <a href="/privacy.html#cookies">Cookie policy</a>
+    <a href="/terms.html">Terms &amp; conditions</a>
+    <a href="/terms.html#refunds">Refunds &amp; cancellations</a>
+  </nav>
+  <p class="fine">
+    Crackbotics is an independent, unincorporated student-run business based in San Diego, CA
+    — not a registered company. Parts use 8&nbsp;mm grid spacing. Crackbotics is not
+    affiliated with, sponsored by or endorsed by goBILDA, REV Robotics, or
+    <i>FIRST</i>®. FIRST® Tech Challenge is a trademark of FIRST®.
+  </p>
+</footer>
+
+<script>
+(function () {
+  var CODE = 'FIRST5';
+  var $ = function (id) { return document.getElementById(id); };
+
+  // Same random device id and storage keys as the quote form (index.html).
+  function deviceId() {
+    try {
+      var id = localStorage.getItem('cb-device');
+      if (!/^[A-Za-z0-9_-]{16,64}$/.test(id || '')) {
+        var bytes = new Uint8Array(16);
+        crypto.getRandomValues(bytes);
+        id = Array.prototype.map.call(bytes, function (b) { return ('0' + b.toString(16)).slice(-2); }).join('');
+        localStorage.setItem('cb-device', id);
+      }
+      return id;
+    } catch (e) { return ''; }
+  }
+  function keep(code) {
+    try { if (code) localStorage.setItem('cb-code', code); else localStorage.removeItem('cb-code'); } catch (e) {}
+  }
+
+  // A state the server reports instead of "claimed": same layout, plain quote button.
+  function show(kicker, headline, lede) {
+    $('kicker').textContent = kicker;
+    $('headline').textContent = headline;
+    $('lede').textContent = lede;
+    $('code-chip').hidden = true;
+    $('terms').hidden = true;
+    $('go').textContent = 'Get a quote';
+    $('go').href = '/#quote';
+    document.querySelector('.nav .btn').href = '/#quote';
+    document.title = 'Get a Quote | Crackbotics';
+  }
+
+  keep(CODE);
+  fetch('/api/discount', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ code: CODE, device: deviceId() })
+  }).then(function (res) { return res.json(); }).then(function (out) {
+    if (out.valid) {
+      if (out.label) $('headline').querySelector('em').textContent = out.label; // in case the shop changed the amount
+      return;
+    }
+    keep('');
+    if (out.reason === 'used_before') {
+      show('Already used', 'You\'ve used your first-order discount.',
+        'It\'s one per team, and this device has used it already. You can still get an instant quote any time.');
+    } else if (out.reason) {
+      show('Offer ended', 'This offer has ended.',
+        'The first-order discount isn\'t available right now. You can still get an instant quote for CNC plates and 3D prints, shipped anywhere in the US.');
+    }
+    // No reason (rate-limited or an error): keep the claimed page; the quote form checks again.
+  }).catch(function () { /* offline or blocked: the quote form checks the code again */ });
+})();
+</script>
+</body>
+</html>

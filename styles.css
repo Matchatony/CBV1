@@ -958,3 +958,37 @@ footer { padding-block: 48px 56px; border-top: 1px solid var(--line); }
 .calc-breakdown .calc-discount dd { color: var(--accent); }
 /* Turnstile's box, when it needs a click. */
 .human-check { min-height: 65px; }
+
+/* Discount link: the note at the top of the quote form, and the landing page. */
+.claim-note {
+  margin: 0;
+  padding: 12px 16px;
+  border-left: 2px solid var(--accent);
+  background: rgba(var(--accent-rgb), .09);
+  color: var(--text);
+  font-size: 15px;
+}
+.claim { padding-block: clamp(56px, 10vw, 112px) clamp(48px, 8vw, 96px); }
+.claim-card { max-width: 640px; }
+.claim-kicker {
+  font: 500 12px/1 var(--mono);
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin: 0 0 18px;
+}
+.claim h1 { font-size: clamp(36px, 6vw, 60px); line-height: 1.05; margin: 0 0 20px; text-wrap: balance; }
+.claim h1 em { font-style: normal; color: var(--accent); white-space: nowrap; }
+.claim .lede { color: var(--muted); font-size: 18px; line-height: 1.6; margin: 0 0 28px; }
+.claim-code {
+  display: inline-flex; align-items: center; gap: 12px;
+  border: 1px dashed var(--accent);
+  padding: 12px 16px;
+  margin: 0 0 28px;
+  font: 500 15px/1 var(--mono);
+  letter-spacing: .08em;
+}
+.claim-code span { color: var(--muted); font-size: 12px; letter-spacing: .12em; text-transform: uppercase; }
+.claim-actions { display: flex; flex-wrap: wrap; gap: 12px; margin: 0 0 36px; }
+.claim-terms { margin: 0; padding: 18px 0 0; border-top: 1px solid var(--line); list-style: none; color: var(--muted); font-size: 14px; line-height: 1.6; }
+.claim-terms li + li { margin-top: 6px; }

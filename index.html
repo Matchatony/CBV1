@@ -387,6 +387,9 @@
       <input type="hidden" name="quote_summary" id="q-summary-field">
       <input type="hidden" name="design_file" id="q-file-url">
 
+      <!-- Shown when a discount link (crackbotics.com/discountFirst) filled in a code. -->
+      <p class="claim-note field-wide" id="q-claim" hidden></p>
+
       <div class="field">
         <label for="q-name">Name</label>
         <input id="q-name" name="name" type="text" autocomplete="name" required>
@@ -1591,8 +1594,34 @@
      form with a code typed in). A good code takes its percent or dollars off
      the priced parts, never delivery or shipping; api/order.js checks it again
      when the order comes in and counts the use. */
-  var discount = null;  // { code, kind, value, label } once the typed code checks out
-  var codeCheck = null; // the check in flight, as { code, promise }
+  var discount = null;  // { code, kind, value, label, once } once the typed code checks out
+  var discountKey = ''; // what that check covered: code, email and team
+  var codeCheck = null; // the check in flight, as { key, promise }
+  var codeProblem = '';  // why the last check said no (the server's reason)
+
+  // A random id this browser keeps, so a once-per-customer code (the
+  // /discountFirst link's FIRST5) can tell a device has used it. Same key as
+  // discount-first.html. No id if storage is blocked; the email and team
+  // number still count.
+  function deviceId() {
+    try {
+      var id = localStorage.getItem('cb-device');
+      if (!/^[A-Za-z0-9_-]{16,64}$/.test(id || '')) {
+        var bytes = new Uint8Array(16);
+        crypto.getRandomValues(bytes);
+        id = Array.prototype.map.call(bytes, function (b) { return ('0' + b.toString(16)).slice(-2); }).join('');
+        localStorage.setItem('cb-device', id);
+      }
+      return id;
+    } catch (e) { return ''; }
+  }
+  function storedCode(set) {
+    try {
+      if (set === undefined) return localStorage.getItem('cb-code') || '';
+      if (set) localStorage.setItem('cb-code', set); else localStorage.removeItem('cb-code');
+    } catch (e) { /* storage blocked: the link's ?code= still works */ }
+    return '';
+  }
 
   function codeSay(text, bad) {
     els.codeStatus.textContent = text;
@@ -1601,26 +1630,34 @@
   }
   function typedCode() { return els.code.value.trim().toUpperCase(); }
 
-  // Resolves true when the typed code is good (or the box is empty), false when it isn't.
-  function checkCode() {
+  // Resolves true when the typed code is good (or the box is empty), false when
+  // it isn't. A once-per-customer code is checked against the email and team
+  // number too; final (just before sending) also makes the team number required.
+  function checkCode(final) {
     var code = typedCode();
     if (!code) { discount = null; codeSay(''); return Promise.resolve(true); }
-    if (discount && discount.code === code) return Promise.resolve(true);
-    if (codeCheck && codeCheck.code === code) return codeCheck.promise;
+    var who = { email: value('email'), team: value('team') };
+    var key = [code, who.email.toLowerCase(), who.team, final ? 'final' : ''].join('|');
+    if (discount && discountKey === key) return Promise.resolve(true);
+    if (codeCheck && codeCheck.key === key) return codeCheck.promise;
     codeSay('Checking…');
     var promise = fetch('/api/discount', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ code: code })
+      body: JSON.stringify({ code: code, email: who.email, team: who.team, device: deviceId(), final: !!final })
     }).then(function (res) {
       return res.json().catch(function () { return {}; }).then(function (out) {
         if (typedCode() !== code) return false; // they changed it meanwhile
         if (out.valid) {
-          discount = { code: out.code, kind: out.kind, value: out.value, label: out.label };
-          codeSay(out.code + ': ' + out.label + ' your parts (not delivery or shipping).');
+          discount = { code: out.code, kind: out.kind, value: out.value, label: out.label, once: !!out.once };
+          discountKey = key;
+          codeSay(out.code + ': ' + out.label + ' your parts (not delivery or shipping).' +
+            (out.once ? ' One per team' + (who.team ? '.' : ': add your team number above.') : ''));
           return true;
         }
         discount = null;
+        codeProblem = out.reason || '';
+        if (out.reason === 'used_before' && storedCode() === code) storedCode(''); // stop filling it in
         codeSay(res.status === 429 ? 'Too many tries. Wait a few minutes and try again.'
           : out.message || 'We couldn\'t check that code. Try again in a moment.', true);
         return false;
@@ -1630,7 +1667,7 @@
       codeSay('We couldn\'t check that code. Check your connection and try again.', true);
       return false;
     });
-    codeCheck = { code: code, promise: promise };
+    codeCheck = { key: key, promise: promise };
     promise.then(function () { if (codeCheck && codeCheck.promise === promise) codeCheck = null; });
     return promise;
   }
@@ -1642,6 +1679,26 @@
     if (discount && discount.code !== typedCode()) discount = null;
     codeSay('');
   });
+
+  // A discount link (crackbotics.com/discountFirst → /?code=FIRST5#quote)
+  // fills the code in, and this device remembers it until it's used.
+  (function () {
+    var fromLink = '';
+    try { fromLink = (new URLSearchParams(location.search).get('code') || '').trim().toUpperCase().slice(0, 24); } catch (e) {}
+    if (fromLink) {
+      storedCode(fromLink);
+      try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) {}
+    }
+    var code = fromLink || storedCode();
+    if (!code || els.code.value) return;
+    els.code.value = code;
+    checkCode().then(function (ok) {
+      if (!ok || !discount) return;
+      var note = document.getElementById('q-claim');
+      note.textContent = 'Your discount is ready: ' + discount.code + ', ' + discount.label + ' your parts, is filled in below. It comes off when you send your request.';
+      note.hidden = false;
+    });
+  })();
 
   /* -------------------------- PRICING -------------------------- */
 
@@ -2376,7 +2433,7 @@
     els.files.disabled = true;
     els.button.textContent = 'Measuring your files…';
 
-    checkCode().then(function (ok) {
+    checkCode(true).then(function (ok) {
       if (!ok) { var bad = new Error('Discount code not valid'); bad.badCode = true; throw bad; }
       return whenMeasured();
     }).then(function () {
@@ -2430,8 +2487,13 @@
       els.button.disabled = false;
       els.button.textContent = label;
       if (err && err.badCode) {
-        say('Nothing was sent yet: fix or clear the discount code, then send again.', 'bad');
-        els.code.focus();
+        if (codeProblem === 'needs_team') {
+          say('Nothing was sent yet: ' + typedCode() + ' is one per team, so add your team number (or clear the code), then send again.', 'bad');
+          document.getElementById('q-team').focus();
+        } else {
+          say('Nothing was sent yet: fix or clear the discount code, then send again.', 'bad');
+          els.code.focus();
+        }
         return;
       }
       console.error('Preparing the request failed:', err);
@@ -2477,6 +2539,7 @@
           specs: orderSpecs(q),
           email_fields: emailFields,
           discount_code: discount ? discount.code : '',
+          device: discount ? deviceId() : '',
           pass: pass,
           _honey: value('_honey')
         })
@@ -2515,6 +2578,13 @@
         els.files.disabled = false;
         els.button.disabled = false;
         els.button.textContent = label;
+        // A once-per-customer code is spent now: stop filling it in.
+        if (ok && discount && discount.once) {
+          storedCode('');
+          els.code.value = '';
+          discount = null;
+          codeSay('');
+        }
         if (ok && !failed.length) {
           if (els.note) els.note.hidden = true;
           say('Sent — we\'ll confirm by email, usually the same day.', 'ok');

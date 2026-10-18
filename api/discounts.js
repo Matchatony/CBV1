@@ -1,9 +1,9 @@
 import { isAdmin } from './_lib/orders.js';
-import { readCodes, saveCodes, cleanCode, normalizeCode } from './_lib/discounts.js';
+import { readCodes, saveCodes, cleanCode, normalizeCode, forAdmin } from './_lib/discounts.js';
 
 // Admin API for discount codes (admin.html → Discounts). Every method needs
 // ADMIN_PASSWORD as a Bearer token. GET lists them; POST makes one
-// { code, kind: 'percent' | 'amount', value, expires?, max_uses?, note? };
+// { code, kind: 'percent' | 'amount', value, expires?, max_uses?, note?, once? };
 // PATCH { code, ...fields to change, active? } edits one; DELETE { code }.
 const denied = () => Response.json({ error: 'Wrong password' }, { status: 401 });
 const noStore = { 'cache-control': 'no-store' };
@@ -16,7 +16,7 @@ async function body(request) {
 export async function GET(request) {
   if (!(await isAdmin(request))) return denied();
   try {
-    return Response.json({ codes: await readCodes() }, { headers: noStore });
+    return Response.json({ codes: forAdmin(await readCodes()) }, { headers: noStore });
   } catch (err) {
     console.error('Reading discount codes failed:', err);
     return bad('Could not load the codes', 500);
@@ -34,7 +34,7 @@ export async function POST(request) {
   if (error) return bad(error);
   codes.push(code);
   await saveCodes(codes);
-  return Response.json({ codes }, { headers: noStore });
+  return Response.json({ codes: forAdmin(codes) }, { headers: noStore });
 }
 
 export async function PATCH(request) {
@@ -45,12 +45,12 @@ export async function PATCH(request) {
   const i = codes.findIndex((c) => c.code === normalizeCode(b.code));
   if (i === -1) return bad('No such code', 404);
   const changes = { ...b };
-  delete changes.code; delete changes.uses; delete changes.created;
+  delete changes.code; delete changes.uses; delete changes.created; delete changes.redeemed; delete changes.customers;
   const { code, error } = cleanCode(changes, codes[i]);
   if (error) return bad(error);
   codes[i] = code;
   await saveCodes(codes);
-  return Response.json({ codes }, { headers: noStore });
+  return Response.json({ codes: forAdmin(codes) }, { headers: noStore });
 }
 
 export async function DELETE(request) {
@@ -61,5 +61,5 @@ export async function DELETE(request) {
   const left = codes.filter((c) => c.code !== normalizeCode(b.code));
   if (left.length === codes.length) return bad('No such code', 404);
   await saveCodes(left);
-  return Response.json({ codes: left }, { headers: noStore });
+  return Response.json({ codes: forAdmin(left) }, { headers: noStore });
 }

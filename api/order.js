@@ -1,6 +1,6 @@
 import { newId, saveOrder } from './_lib/orders.js';
 import { passOk, rateLimited, tooMany } from './_lib/guard.js';
-import { readCodes, saveCodes, normalizeCode, problem, publicView, MESSAGES } from './_lib/discounts.js';
+import { readCodes, saveCodes, normalizeCode, problem, customerProblem, remember, publicView, MESSAGES } from './_lib/discounts.js';
 
 // The quote form's send: saves the request to the admin order log and emails
 // it through FormSubmit, from here rather than from the browser, so the
@@ -30,17 +30,20 @@ const MAIL_SITE = () => process.env.FORMSUBMIT_SITE || 'https://crackbotics.com'
 const FIELD_NAME = /^[a-z][a-z0-9_]{0,39}$/;
 
 // Checks the discount code again now that the order is in (it may have ended
-// or run out since the customer pressed Apply) and counts the use. Returns
-// what's saved on the order: the code's public details, or { code, invalid }.
-async function takeCode(raw) {
+// or run out since the customer pressed Apply, or, for a once-per-customer
+// code, this customer may have used it already), counts the use and, for a
+// once code, remembers the customer. Returns what's saved on the order: the
+// code's public details, or { code, invalid }.
+async function takeCode(raw, who) {
   const code = normalizeCode(raw);
   if (!code) return null;
   try {
     const codes = await readCodes();
     const found = codes.find((c) => c.code === code);
-    const why = problem(found);
+    const why = problem(found) || customerProblem(found, who, { final: true });
     if (why) return { code: code.slice(0, 24), invalid: why };
     found.uses = (found.uses || 0) + 1;
+    remember(found, who);
     // Counting is best effort: two orders at the same moment can count as one.
     await saveCodes(codes).catch((err) => console.error('Counting a discount use failed:', err));
     return publicView(found);
@@ -152,7 +155,7 @@ export async function POST(request) {
     .map((f) => ({ name: clip(f.name, 200), url: FILE_URL.test(clip(f.url, 600)) ? clip(f.url, 600) : '' }))
     .filter((f) => f.name || f.url);
   if (!order.files.length && (order.design_file || order.file_name)) order.files = [{ name: order.file_name, url: order.design_file }];
-  const discount = await takeCode(body.discount_code);
+  const discount = await takeCode(body.discount_code, { email: order.email, team: order.team, device: body.device });
   if (discount && order.specs) order.specs.discount = discount;
   const [saved, emailed] = await Promise.all([
     saveOrder(order).then(() => true, (err) => { console.error('Saving order failed:', err); return false; }),

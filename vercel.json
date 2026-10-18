@@ -4,5 +4,27 @@
       "includeFiles": "node_modules/occt-import-js/dist/occt-import-js.wasm",
       "maxDuration": 60
     }
-  }
+  },
+  "rewrites": [
+    {
+      "source": "/discountFirst",
+      "destination": "/discount-first.html"
+    },
+    {
+      "source": "/discountfirst",
+      "destination": "/discount-first.html"
+    },
+    {
+      "source": "/DiscountFirst",
+      "destination": "/discount-first.html"
+    },
+    {
+      "source": "/DISCOUNTFIRST",
+      "destination": "/discount-first.html"
+    },
+    {
+      "source": "/discount-first",
+      "destination": "/discount-first.html"
+    }
+  ]
 }

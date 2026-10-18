@@ -10,6 +10,7 @@ files in a browser and they work; drop the folder on a host and it's live.
 .
 ├── index.html      one-page site
 ├── styles.css      site styles (all colors are CSS variables at the top)
+├── discount-first.html  landing page for crackbotics.com/discountFirst
 ├── flyer.html      8.5 x 11 flyer, print-ready
 ├── flyer.pdf       the flyer, already exported — hand this to a print shop
 ├── flyer-copy.txt  flyer wording as plain text, for tweaking
@@ -55,6 +56,27 @@ used up stops the send until the customer fixes or clears it. `api/order.js`
 checks the code again when the order comes in, counts the use, and writes in the
 email's `discount_code` field whether it checked out. On a hand quote the code is
 recorded for you to take off the price you send.
+
+**The first-order link: crackbotics.com/discountFirst.** Give this link out for 5%
+off a team's first order. It opens `discount-first.html` (`vercel.json` rewrites
+`/discountFirst`, `/discountfirst`, `/DiscountFirst`, `/DISCOUNTFIRST` and
+`/discount-first` to it), which says the discount is claimed and saves the code
+`FIRST5` on the device. Its **Start your quote** button opens the quote form
+with the code filled in and a note at the top saying so. If the device has used
+it already, or the code is off, the page says that instead.
+
+`FIRST5` is created automatically the first time anything reads the codes, as a
+**one per team** code (edit, turn off or delete it like any other; deleting it
+doesn't bring it back). One per team, without accounts, works like this: when
+an order uses the code, the server remembers the customer's email (lowercased,
+with Gmail dots and `+tags` removed), team number and a random device id the
+browser keeps, as one-way hashes stored with the code. A later order that matches
+any of the three is refused, on the form and again by `api/order.js`. A one-per-team
+code needs a team number. Your own emails (`SHOP_EMAILS`, default
+anthonyhuynh980@gmail.com and crackboticssandiego@gmail.com) are never limited
+or remembered, so you can use it as often as you like. It's not airtight: someone
+with a new email, a different team number and cleared browser data gets it
+again, but it takes deliberate effort, and you see the team on every order.
 
 Sending a quote is three steps:
 
@@ -186,7 +208,8 @@ estimate still includes it). Shipped orders say **Plus shipping** there.
 its end date and status, and makes new ones: the code (3 to 24 letters, digits,
 `-` or `_`; customers can type it in any case), % or $ off, an optional end date
 (it works through that day, San Diego time), an optional use limit, and a
-private note. **Turn off** stops a code without losing its count. Codes are
+private note, and **One per team** (see the first-order link above). **Turn off**
+stops a code without losing its count. Codes are
 stored encrypted next to the orders (`settings/discounts/` in the Blob store,
 `api/discounts.js`, `api/_lib/discounts.js`). Use counts are best effort: two
 orders at the same instant can count as one.

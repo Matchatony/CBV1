@@ -175,8 +175,12 @@
   .code-form { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px 12px; align-items: end; margin-bottom: 18px; }
   .code-form label { display: block; font: 500 11px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
   .code-form label input, .code-form label select { margin-top: 5px; text-transform: none; letter-spacing: 0; }
-  .code-form .wide { grid-column: span 4; }
+  .code-form .wide { grid-column: span 3; }
+  .code-form label.once-box { display: flex; align-items: center; gap: 8px; align-self: center; text-transform: none; letter-spacing: 0; font: 400 14px var(--sans); color: var(--text); }
+  .code-form label.once-box input { margin: 0; }
   .code-form .row { grid-column: span 2; justify-content: flex-end; }
+  .codes-table .once { display: block; color: var(--muted); font-size: 12.5px; }
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
   #code-code { text-transform: uppercase; }
   .codes-table { width: 100%; border-collapse: collapse; font-size: 14px; }
   .codes-table th { text-align: left; font: 500 11px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); padding: 0 10px 6px 0; border-bottom: 1px solid var(--line-firm); }
@@ -276,7 +280,8 @@
         <label>Ends <input type="date" id="code-expires" aria-describedby="code-help"></label>
         <label>Use limit <input type="number" id="code-max" min="0" step="1" placeholder="No limit" aria-describedby="code-help"></label>
         <label>Note <input type="text" id="code-note" maxlength="200" placeholder="Who it's for"></label>
-        <p class="msg wide" id="code-help">Codes come off the parts, never delivery or shipping. A code works through its end date (San Diego time); leave Ends or Use limit empty for none. Customers never see the note or use count.</p>
+        <label class="once-box"><input type="checkbox" id="code-once"> One per team</label>
+        <p class="msg wide" id="code-help">Codes come off the parts, never delivery or shipping. A code works through its end date (San Diego time); leave Ends or Use limit empty for none. "One per team" lets each customer use it once (checked by team number, email and device; the team number becomes required) — your shop emails are never limited. Customers never see the note or use count.</p>
         <div class="row"><button type="submit" class="primary" id="code-add">Add code</button></div>
       </form>
       <p class="msg" id="codes-msg" role="status"></p>
@@ -381,7 +386,8 @@
 
   // What kind of job an order is. Orders from before specs were saved fall back to the part type text.
   var KINDS = { cnc: 'CNC', print: '3D print', other: 'Other' };
-  var CODE_PROBLEMS = { unknown: 'no such code', inactive: 'switched off', expired: 'expired', used_up: 'used up', unchecked: 'couldn\'t be checked' };
+  var CODE_PROBLEMS = { unknown: 'no such code', inactive: 'switched off', expired: 'expired', used_up: 'used up', unchecked: 'couldn\'t be checked',
+    used_before: 'this team, email or device had used it already', needs_team: 'no team number' };
   var OPTION_LABELS = { tapped: 'Tapped holes', tight_tolerances: 'Tight tolerances (±0.005″)', complex_geometry: 'Multiple setups / unusual geometry' };
   function kindOf(o) {
     if (o.specs && KINDS[o.specs.kind]) return o.specs.kind;
@@ -1247,7 +1253,8 @@
       return el('tr', { class: st === 'Active' ? '' : 'off' }, [
         el('td', { class: 'code', text: c.code }),
         el('td', { text: codeOff(c) }),
-        el('td', { text: (c.uses || 0) + (c.max_uses ? ' of ' + c.max_uses : '') + ' used' }),
+        el('td', {}, [(c.uses || 0) + (c.max_uses ? ' of ' + c.max_uses : '') + ' used',
+          c.once ? el('span', { class: 'once', text: 'One per team' }) : null]),
         el('td', { text: c.expires ? 'Ends ' + dayLabel(c.expires) : 'No end date' }),
         el('td', { text: st }),
         el('td', { text: c.note || '' }),
@@ -1255,7 +1262,7 @@
       ]);
     });
     box.appendChild(el('table', { class: 'codes-table' }, [
-      el('thead', {}, [el('tr', {}, ['Code', 'Discount', 'Uses', 'Ends', 'Status', 'Note', ''].map(function (h) { return el('th', { text: h }); }))]),
+      el('thead', {}, [el('tr', {}, ['Code', 'Discount', 'Uses', 'Ends', 'Status', 'Note', ''].map(function (h) { return h ? el('th', { text: h }) : el('th', {}, [el('span', { class: 'sr-only', text: 'Actions' })]); }))]),
       el('tbody', {}, rows)
     ]));
   }
@@ -1265,7 +1272,8 @@
     btn.disabled = true;
     codesApi('POST', {
       code: $('code-code').value, kind: $('code-kind').value, value: $('code-value').value,
-      expires: $('code-expires').value, max_uses: $('code-max').value || 0, note: $('code-note').value
+      expires: $('code-expires').value, max_uses: $('code-max').value || 0, note: $('code-note').value,
+      once: $('code-once').checked
     }).then(function () {
       say('codes-msg', 'Added.');
       $('code-form').reset();
