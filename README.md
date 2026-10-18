@@ -35,30 +35,44 @@ Both pages ship with placeholders. Search and replace:
 
 A request can carry up to 10 design files (10 MB each, 50 MB together). Each
 file gets its own row with a quantity, and the estimate prices each one on its
-own line: DXF plates and STL / 3MF / STEP prints are measured in the browser and
+own line: DXF plates and STL / 3MF prints are measured in the browser and
 priced; STEP plates and anything the page can't measure are listed as "priced by
 hand", and the total then reads "$X + hand quote". One delivery fee covers the
 whole order. Click a file's name to preview it.
 
-Sending a quote is two steps:
+Sending a quote is three steps:
 
-1. **The design files go to Vercel Blob.** The browser uploads them one at a time, straight
+1. **The bot check.** Cloudflare Turnstile runs on the form as it scrolls into
+   view, invisibly unless Cloudflare wants a click, and `api/human.js` trades
+   its token for a signed pass that lasts 20 minutes. See **Bot protection**
+   below; until its keys are set this step is skipped.
+2. **The design files go to Vercel Blob.** The browser uploads them one at a time, straight
    to the `crackbotics-uploads` Blob store on the Vercel project, using
    `vendor/blob-upload.js` (the `@vercel/blob` client, bundled). The small
-   function `api/upload.js` only hands out a short-lived upload token, and only
+   function `api/upload.js` only hands out a short-lived upload token, only to
+   a request carrying the pass, and only
    for `quotes/*.dxf|step|stp|stl|3mf|pdf|zip` files up to 10 MB, each given
    an unguessable random suffix. The store is connected to the project, which
    is what sets `BLOB_READ_WRITE_TOKEN`. Free on the Hobby plan within its
    Blob limits.
-2. **The details go to [FormSubmit](https://formsubmit.co)** at
-   `https://formsubmit.co/anthonyhuynh980@gmail.com`, with the first file's
-   download link in the `design_file` field and the rest in `design_file_2`,
-   `design_file_3` and so on. The quote PDF and the summary list every file
-   with its quantity, size and price. The `_cc` field copies every submission to
-   crackboticssandiego@gmail.com too (comma-separate to add more addresses). FormSubmit strips CAD attachments, which is
-   why the file travels as a link. It's a plain form post into a hidden iframe;
-   FormSubmit redirects the iframe to `sent.html` (the `_next` field), which is
-   how the page knows the send went through, so keep `sent.html` deployed.
+3. **`api/order.js` saves the order and emails it.** It checks the pass, saves
+   the order to the log (see **Order admin**) and sends the form's fields through
+   [FormSubmit](https://formsubmit.co)'s AJAX endpoint, from the server, to
+   `FORMSUBMIT_TO` (default anthonyhuynh980@gmail.com), copying
+   `FORMSUBMIT_CC` (default crackboticssandiego@gmail.com; comma-separate to add
+   more, set it empty for none). The first file's download link is in the
+   `design_file` field and the rest in `design_file_2`, `design_file_3` and so
+   on. The quote PDF and the summary list every file with its quantity, size and
+   price. FormSubmit strips CAD attachments, which is why files travel as links.
+   The control fields (`_subject`, `_template`, `_cc`) are set by the server, never
+   taken from the request.
+
+**If the server's email fails** (FormSubmit down, refusing Vercel, or wanting
+activation), `api/order.js` returns the FormSubmit URL and the page posts the
+form there itself, the old way: a plain form post into a hidden iframe, which
+FormSubmit redirects to `sent.html` (the `_next` field), which is how the page
+knows it went through, so keep `sent.html` deployed. The order is saved either
+way.
 
 If an upload fails, the details are still sent with that file's link saying
 UPLOAD FAILED, and the customer is asked to email the files that didn't make it
@@ -67,35 +81,67 @@ UPLOAD FAILED, and the customer is asked to email the files that didn't make it
 To browse or delete uploaded files: Vercel dashboard, then Storage, then
 `crackbotics-uploads`.
 
-**One-time activation.** The first submission to a new FormSubmit address
-triggers an **Activate Form** email to that Gmail instead of the quote. Click it
-once. Until then the site says it couldn't confirm the send.
+**Activation.** FormSubmit activates a form per website: the first submission
+from a new site triggers an **Activate Form** email to that Gmail instead of
+the quote. crackbotics.com and crackbotics.vercel.app are activated. The
+server names `FORMSUBMIT_SITE` (default https://crackbotics.com) as the site it
+sends from, so it uses that activation.
 
-To change where requests land, change the email at the end of the
-`<form action>` URL (and activate the new address the same way). After
-activating, FormSubmit also offers a random-string alias you can use in place
-of the email so the address isn't visible in the page source.
+To change where requests land, set `FORMSUBMIT_TO` in Vercel (and activate the
+new address the same way). After activating, FormSubmit also offers a
+random-string alias you can use in place of the email; since the address now
+lives only on the server, it never appears in the page.
 
 How it behaves:
 
-- The visitor stays on the page and gets an inline "sent" message. If
-  FormSubmit shows its own page instead (an error, or activation still
-  pending), the page says it couldn't confirm the send. The upload gives up
-  after 2 minutes and the send after 60 seconds, so the button never gets
-  stuck on "Sending…".
+- The visitor stays on the page and gets an inline "sent" message. If neither
+  the server's email nor the fallback post can be confirmed, the page says so.
+  The upload gives up after 2 minutes and the send after 60 seconds, so the
+  button never gets stuck on "Sending…".
 - The field named `email` becomes the **Reply-To**, so hitting reply in your
   inbox answers the team directly.
-- `_subject` titles the email, `_template` lays it out as a table,
-  `_captcha=false` skips FormSubmit's CAPTCHA page, `_next` is the redirect
-  back to `sent.html`, and `_honey` is a hidden honeypot that drops bot
-  submissions.
-- If the post fails (service down, ad blocker, visitor offline) the page
+- `_subject` titles the email, `_template` lays it out as a table, and `_honey`
+  is a hidden honeypot: a bot that fills it in is told "sent" and nothing is
+  saved or emailed. The page also refuses a form finished in under 3 seconds.
+- If the send fails (service down, ad blocker, visitor offline) the page
   explains why and offers to open their mail app with the same details
   pre-filled. The file has to be attached by hand there, since a mailto link
   can't carry it.
 - The page refuses files over 10 MB up front, matching the upload limit, plus
   an 11th file, more than 50 MB in all, a duplicate, or an unsupported type,
   saying which file and why.
+
+## Bot protection
+
+The quote form's three endpoints (`api/human.js`, `api/upload.js`,
+`api/order.js`) are public, so a bot can skip the page and call them directly.
+Three layers stop that:
+
+1. **Cloudflare Turnstile** (free). With it on, uploads and orders need the
+   pass from `api/human.js` (code in `api/_lib/guard.js`), which only a solved
+   Turnstile check gets. Real visitors almost never see a challenge. To turn it
+   on:
+   1. Sign in at dash.cloudflare.com (a free account is enough; the domain
+      doesn't need to be on Cloudflare), open **Turnstile**, and **Add widget**.
+   2. Name it Crackbotics, add the hostnames `crackbotics.com` and
+      `crackbotics.vercel.app`, and choose **Managed** mode.
+   3. In Vercel → Settings → Environment Variables, add `TURNSTILE_SITE_KEY`
+      and `TURNSTILE_SECRET_KEY` with the two keys it shows, for Production,
+      then redeploy.
+
+   Both must be set; with either missing the check is off and the form works
+   as before. The pass is signed with a key derived from `ORDERS_KEY`.
+2. **Rate limits per IP address**, in the functions: 8 orders, 20 bot checks
+   and 40 upload tokens per 10 minutes. They live in each function instance's
+   memory, so they stop bursts but reset when Vercel starts a fresh instance.
+3. **The Vercel Firewall**, in the dashboard under the project's **Firewall**
+   tab: turn on **Bot Protection** (it challenges known bad bots before they
+   reach the site), and keep **Attack Challenge Mode** in mind as the emergency
+   switch if the site is ever flooded. If your plan includes a rate-limit rule,
+   add one for paths starting with `/api/`.
+
+The admin panel and the Claude connector need their own long keys, so these
+layers don't apply to them.
 
 ## Order admin (admin.html)
 
@@ -138,7 +184,8 @@ environment variable (not in the page source, which is public) and is only sent
 to a signed-in admin; set `FAB_LATLON` to `lat,lon` to pin it exactly instead of
 looking it up. Scroll or pinch to zoom; "Show all" zooms back out to everything.
 
-- `api/order.js` saves a request (called by the quote form next to the email).
+- `api/order.js` saves a request and emails it (called by the quote form).
+- `api/human.js` and `api/_lib/guard.js` are the bot check and rate limits (see **Bot protection**).
 - `api/orders.js` lists / updates / deletes; every call needs the password.
   Its update rules live in `api/_lib/changes.js`, shared with the Claude connector.
 - `api/mcp/[key].js` is the Claude connector (see below).

@@ -104,7 +104,9 @@
         <p>
           The form is processed by <a href="https://formsubmit.co" target="_blank"
           rel="noopener">FormSubmit</a>, a third-party form backend that emails us your
-          submission, including the link to your design file. Your design file itself is
+          submission, including the links to your design files. To keep out spam bots, the
+          form may be checked by <a href="https://www.cloudflare.com/products/turnstile/" target="_blank"
+          rel="noopener">Cloudflare Turnstile</a> (see below). Your design file itself is
           stored with <a href="https://vercel.com" target="_blank" rel="noopener">Vercel</a>,
           which hosts this site, along with an encrypted copy of your request in our private
           order log, which only we can open. Vercel also provides our anonymous visit counts
@@ -163,6 +165,17 @@
           any web host, handles the basic request details (such as your IP address)
           needed to deliver the pages to you.
         </p>
+        <p>
+          To tell people from spam bots, the quote form may run
+          <a href="https://www.cloudflare.com/products/turnstile/" target="_blank" rel="noopener">Cloudflare
+          Turnstile</a>, loaded from <code>challenges.cloudflare.com</code>. It looks at
+          details your browser sends (such as your IP address and browser type) to decide
+          whether to let the form through, usually without asking you to do anything. It
+          doesn't see what you type into the form, and it isn't used for advertising. That
+          check is covered by
+          <a href="https://www.cloudflare.com/turnstile-privacy-policy/" target="_blank" rel="noopener">Cloudflare's
+          Turnstile privacy addendum</a>.
+        </p>
       </section>
 
       <section id="analytics">
@@ -194,8 +207,10 @@
         </p>
         <p>
           The third-party services above may behave differently under their own
-          policies: FormSubmit may set a cookie on its own domain when you submit the
-          form (only after you choose to submit it), and Google's font delivery is
+          policies: our server normally sends your request to FormSubmit, but if that fails
+          your browser sends it there directly, and FormSubmit may then set a cookie on its
+          own domain (only after you choose to submit the form); Cloudflare Turnstile may
+          store a small amount of data in your browser for the bot check; and Google's font delivery is
           documented as not using cookies for the font request itself. None of that is
           something we control or read.
         </p>

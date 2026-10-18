@@ -364,14 +364,17 @@
       </p>
     </div>
 
-    <!-- The design file is uploaded to Vercel Blob first (api/upload.js hands
-         out the upload token); its link goes in design_file. Then the form is
-         posted, without the file, to FormSubmit, which emails it to the address
-         in the URL (FormSubmit strips CAD attachments, hence the link). It's a
-         plain form post into a hidden iframe; FormSubmit redirects the iframe
-         to _next (sent.html on this site), which is how the page knows it went
-         through. -->
-    <form class="form" id="quote-form" action="https://formsubmit.co/anthonyhuynh980@gmail.com" method="POST" enctype="multipart/form-data" target="q-send-frame">
+    <!-- Sending: a Cloudflare Turnstile check (api/human.js) gives a pass, the
+         design files are uploaded to Vercel Blob with it (api/upload.js hands
+         out the upload tokens) and their links go in design_file, design_file_2
+         and so on. Then api/order.js saves the order and emails these fields
+         through FormSubmit (FormSubmit strips CAD attachments, hence the links).
+         Only if that email fails does the page post the form to FormSubmit
+         itself, into the hidden iframe, at the address api/order.js returns;
+         FormSubmit then redirects the iframe to _next (sent.html on this site),
+         which is how the page knows it went through. The _ fields below are
+         for that fallback; api/order.js sets its own. -->
+    <form class="form" id="quote-form" method="POST" enctype="multipart/form-data" target="q-send-frame">
       <input type="hidden" name="_subject" value="New quote request — Crackbotics">
       <input type="hidden" name="_template" value="table">
       <input type="hidden" name="_captcha" value="false">
@@ -502,6 +505,10 @@
           including how uploaded files are handled.
         </label>
       </div>
+
+      <!-- Cloudflare Turnstile draws its "verify you're human" box here, only
+           when it needs a click; most visitors never see it. -->
+      <div class="field-wide human-check" id="q-human" hidden></div>
 
       <div class="field-wide submit-row">
         <button class="btn" type="submit" id="q-submit">Get quote</button>
@@ -652,7 +659,8 @@
     result: document.getElementById('q-result'),
     status: document.getElementById('form-status'),
     button: document.getElementById('q-submit'),
-    note: document.getElementById('form-note')
+    note: document.getElementById('form-note'),
+    human: document.getElementById('q-human')
   };
 
   var ACCEPT = {
@@ -921,6 +929,7 @@
     libsWarm = true;
     loadThree().catch(function () {});
     loadJsPdf().catch(function () {});
+    loadHumanCheck().catch(function () {});
   }
   (function () {
     var quote = document.getElementById('quote');
@@ -2066,6 +2075,92 @@
     return doc;
   }
 
+  /* ------------------------- BOT CHECK ------------------------- */
+  /* Cloudflare Turnstile, when the site has keys for it (api/human.js says
+     which; with none set this is all skipped). The widget runs as the quote
+     form comes into view, invisibly unless Cloudflare wants a click. On submit
+     its token is traded for a pass from api/human.js, which the uploads and
+     the order carry. A pass lasts 20 minutes, so a retry doesn't need a new
+     check. */
+
+  var TURNSTILE_JS = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+  var human = { siteKey: undefined, widget: null, token: '', waiters: [], pass: '', passUntil: 0 };
+  var humanLoad; // no initial value: warmQuoteLibs can run before this line
+
+  function loadHumanCheck() {
+    if (!humanLoad) {
+      humanLoad = fetch('/api/human').then(function (res) {
+        if (!res.ok) throw new Error('Bot check settings: HTTP ' + res.status);
+        return res.json();
+      }).then(function (cfg) {
+        human.siteKey = cfg.siteKey || null;
+        if (human.siteKey) return loadScript(TURNSTILE_JS).then(renderHumanCheck);
+      });
+      humanLoad.catch(function () { humanLoad = null; }); // try again on submit
+    }
+    return humanLoad;
+  }
+
+  function humanGotToken(token) {
+    human.token = token || '';
+    var waiting = human.waiters;
+    human.waiters = [];
+    waiting.forEach(function (w) { w(); });
+  }
+
+  function renderHumanCheck() {
+    if (human.widget !== null) return;
+    human.widget = window.turnstile.render(els.human, {
+      sitekey: human.siteKey,
+      action: 'quote',
+      appearance: 'interaction-only',
+      callback: humanGotToken,
+      'expired-callback': function () { human.token = ''; },
+      'error-callback': function () { human.token = ''; },
+      'before-interactive-callback': function () { els.human.hidden = false; },
+      'after-interactive-callback': function () { els.human.hidden = true; }
+    });
+  }
+
+  // Resolves with a pass (or null while bot protection is off). A failure
+  // carries err.human so the form can say what went wrong.
+  function getPass() {
+    function fail(err) {
+      err = err instanceof Error ? err : new Error(String(err));
+      err.human = true;
+      throw err;
+    }
+    return loadHumanCheck().then(function () {
+      if (!human.siteKey) return null;
+      if (human.pass && Date.now() < human.passUntil) return human.pass;
+      return new Promise(function (resolve, reject) {
+        if (human.token) return resolve(human.token);
+        els.button.textContent = 'Checking you\'re human…';
+        var timer = setTimeout(function () { reject(new Error('No Turnstile token after 60 s')); }, 60000);
+        human.waiters.push(function () {
+          clearTimeout(timer);
+          if (human.token) resolve(human.token); else reject(new Error('Turnstile gave no token'));
+        });
+      }).then(function (token) {
+        // A token works once; get the next one ready.
+        human.token = '';
+        try { window.turnstile.reset(human.widget); } catch (e) { /* widget gone */ }
+        return fetch('/api/human', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ token: token })
+        });
+      }).then(function (res) {
+        if (!res.ok) throw new Error('Bot check refused: HTTP ' + res.status);
+        return res.json();
+      }).then(function (out) {
+        human.pass = out.pass || '';
+        human.passUntil = Date.now() + 18 * 60000; // a little inside the server's 20 minutes
+        return human.pass || null;
+      });
+    }).catch(fail);
+  }
+
   /* -------------------------- SUBMIT -------------------------- */
 
   function value(name) {
@@ -2089,7 +2184,7 @@
      (api/upload.js only hands out the token). Gives up once 20 seconds pass
      with no upload progress — a slow connection keeps going, but a dead
      service fails fast instead of retrying silently for minutes. */
-  function uploadDesignFile(file) {
+  function uploadDesignFile(file, pass) {
     if (!file) return Promise.reject(new Error('No file selected'));
     if (typeof window.crackboticsBlobUpload !== 'function') return Promise.reject(new Error('Upload library not loaded'));
     var safeName = file.name.replace(/[^A-Za-z0-9._-]+/g, '-').slice(-80);
@@ -2103,6 +2198,7 @@
     return window.crackboticsBlobUpload('quotes/' + safeName, file, {
       access: 'public',
       handleUploadUrl: '/api/upload',
+      clientPayload: pass || null,
       abortSignal: controller.signal,
       onUploadProgress: armStall
     }).then(function (blob) {
@@ -2117,13 +2213,13 @@
   // Uploads the files one after another (gentler on a slow connection than
   // all at once). A file that fails doesn't stop the others or the request:
   // it's flagged in the email and the visitor is asked to send it.
-  function uploadAll(list, onProgress) {
+  function uploadAll(list, pass, onProgress) {
     var results = [], i = 0;
     function next() {
       if (i >= list.length) return Promise.resolve(results);
       var item = list[i++];
       onProgress(i, list.length);
-      return uploadDesignFile(item.file).then(function (url) {
+      return uploadDesignFile(item.file, pass).then(function (url) {
         results.push({ name: item.name, url: url });
       }, function (err) {
         console.error('Design file upload failed (' + item.name + '):', err);
@@ -2190,9 +2286,14 @@
         els.result.appendChild(dlWrap);
       });
 
-      // Step 1: upload the design files to Vercel Blob and keep their links.
-      return uploadAll(list, function (n, total) {
-        els.button.textContent = total > 1 ? 'Uploading file ' + n + ' of ' + total + '…' : 'Uploading file…';
+      // Step 1: the bot check, then upload the design files to Vercel Blob
+      // and keep their links.
+      var pass;
+      return getPass().then(function (p) {
+        pass = p;
+        return uploadAll(list, pass, function (n, total) {
+          els.button.textContent = total > 1 ? 'Uploading file ' + n + ' of ' + total + '…' : 'Uploading file…';
+        });
       }).then(function (uploaded) {
         // One link per file in the email: design_file, then design_file_2, _3, …
         form.querySelectorAll('input[data-extra-file]').forEach(function (inp) { inp.remove(); });
@@ -2206,56 +2307,84 @@
           inp.setAttribute('data-extra-file', '');
           form.appendChild(inp);
         });
-        sendForm(q, summary, uploaded);
+        sendOrder(q, summary, uploaded, pass);
       });
     }).catch(function (err) {
       console.error('Preparing the request failed:', err);
       els.files.disabled = false;
       els.button.disabled = false;
       els.button.textContent = label;
-      say('Something went wrong preparing your request. Please try again, or email it to us at ' + EMAIL + '.', 'bad');
+      say(err && err.human
+        ? 'We couldn\'t confirm you\'re not a bot, so nothing was sent. Reload the page and try again, or email us at ' + EMAIL + '.'
+        : 'Something went wrong preparing your request. Please try again, or email it to us at ' + EMAIL + '.', 'bad');
     });
 
-    // Copy of the request for the admin order log (admin.html). Fire and
-    // forget: the email is the primary record, so a failure here is only
-    // logged, and keepalive lets it finish even if the page is left.
-    function logOrder(q, summary, uploaded) {
-      var files = uploaded.map(function (u) { return { name: u.name, url: u.failed ? failedText(u.name) : u.url }; });
-      try {
-        fetch('/api/order', {
-          method: 'POST',
-          keepalive: true,
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
-            name: data.name, team: data.team, email: data.email, part_type: data.part_type,
-            details: data.details, address: value('address'), delivery: q.delivery,
-            escalated: !!q.escalated,
-            price: q.escalated ? 'Hand quote' : money(q.total) + (q.partial ? ' + hand quote' : ''),
-            part: q.lines.map(function (l) { return l.qty + ' × ' + l.name + (l.priced ? '' : ' (by hand)'); }).join(', '),
-            quote_summary: summary,
-            files: files,
-            design_file: files[0] ? files[0].url : '', file_name: files[0] ? files[0].name : '',
-            specs: orderSpecs(q),
-            _honey: value('_honey')
-          })
-        }).catch(function (err) { console.error('Order log failed:', err); });
-      } catch (err) {
-        console.error('Order log failed:', err);
-      }
-    }
-
-    // Step 2: post the details (and file links) to FormSubmit. Success = the
-    // hidden iframe landing on our own sent.html via FormSubmit's _next
-    // redirect; anything else it lands on is FormSubmit's own page (an
-    // error, or the form needing activation), which is cross-origin and
-    // unreadable here.
-    function sendForm(q, summary, uploaded) {
+    // Step 2: api/order.js saves the request to the order log (admin.html)
+    // and emails it. If its email fails it says where to post the form
+    // instead, and the page does that: a plain post into the hidden iframe,
+    // where success is the iframe landing on our own sent.html via
+    // FormSubmit's _next redirect; anything else it lands on is FormSubmit's
+    // own page (an error, or the form needing activation), which is
+    // cross-origin and unreadable here.
+    function sendOrder(q, summary, uploaded, pass) {
       els.button.textContent = 'Sending…';
-      logOrder(q, summary, uploaded);
+      var files = uploaded.map(function (u) { return { name: u.name, url: u.failed ? failedText(u.name) : u.url }; });
       var failed = uploaded.filter(function (u) { return u.failed; }).map(function (u) { return u.name; });
+      // The email shows the form's own fields, in order, as the table.
+      var emailFields = {};
+      new FormData(form).forEach(function (v, k) {
+        if (typeof v === 'string' && k.charAt(0) !== '_') emailFields[k] = v;
+      });
       var frame = document.getElementById('q-send-frame');
-      document.getElementById('q-next').value = new URL('sent.html', window.location.href).href;
       var settled = false;
+      var controller = new AbortController();
+      var timer = setTimeout(function () { controller.abort(); finish(false, 'timeout'); }, 60000);
+
+      fetch('/api/order', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        signal: controller.signal,
+        body: JSON.stringify({
+          name: data.name, team: data.team, email: data.email, part_type: data.part_type,
+          details: data.details, address: value('address'), delivery: q.delivery,
+          escalated: !!q.escalated,
+          price: q.escalated ? 'Hand quote' : money(q.total) + (q.partial ? ' + hand quote' : ''),
+          part: q.lines.map(function (l) { return l.qty + ' × ' + l.name + (l.priced ? '' : ' (by hand)'); }).join(', '),
+          quote_summary: summary,
+          files: files,
+          design_file: files[0] ? files[0].url : '', file_name: files[0] ? files[0].name : '',
+          specs: orderSpecs(q),
+          email_fields: emailFields,
+          pass: pass,
+          _honey: value('_honey')
+        })
+      }).then(function (res) {
+        return res.json().catch(function () { return {}; }).then(function (out) {
+          if (out.emailed) return finish(true);
+          if (out.fallback) return postToFormSubmit(out.fallback);
+          if (res.status === 403) human.pass = ''; // expired: the next try gets a new one
+          finish(false, res.status === 403 ? 'human' : res.status === 429 ? 'busy' : 'unconfirmed');
+        });
+      }, function (err) {
+        if (!settled) console.error('Sending the order failed:', err);
+        finish(false, 'unconfirmed');
+      });
+
+      function postToFormSubmit(action) {
+        if (settled) return;
+        console.warn('Emailing from the server failed; posting to FormSubmit from the page instead.');
+        clearTimeout(timer);
+        timer = setTimeout(function () { finish(false, 'timeout'); }, 60000);
+        document.getElementById('q-next').value = new URL('sent.html', window.location.href).href;
+        frame.onload = function () {
+          var path = null;
+          try { path = frame.contentWindow.location.pathname; } catch (e) { /* cross-origin: FormSubmit's own page */ }
+          finish(!!path && /\/sent\.html$/.test(path), 'unconfirmed');
+        };
+        form.action = action;
+        form.submit();
+      }
+
       function finish(ok, reason) {
         if (settled) return;
         settled = true;
@@ -2278,7 +2407,11 @@
           console.error('Quote form submission failed:', reason);
           say(reason === 'timeout'
             ? 'The request didn\'t send — it timed out. Check your connection and try again, or email us the files.'
-            : 'We couldn\'t confirm the request went through. To be safe, email it to us with the files attached.', 'bad');
+            : reason === 'human'
+              ? 'We couldn\'t confirm you\'re not a bot, so the request didn\'t send. Reload the page and try again, or email it to us with the files attached.'
+              : reason === 'busy'
+                ? 'Too many requests from your network just now. Wait a few minutes and try again, or email it to us with the files attached.'
+                : 'We couldn\'t confirm the request went through. To be safe, email it to us with the files attached.', 'bad');
         }
         var retry = document.createElement('button');
         retry.type = 'button';
@@ -2287,13 +2420,6 @@
         retry.addEventListener('click', function () { openMailApp(summary); });
         els.status.appendChild(retry);
       }
-      var timer = setTimeout(function () { finish(false, 'timeout'); }, 60000);
-      frame.onload = function () {
-        var path = null;
-        try { path = frame.contentWindow.location.pathname; } catch (e) { /* cross-origin: FormSubmit's own page */ }
-        finish(!!path && /\/sent\.html$/.test(path), 'unconfirmed');
-      };
-      form.submit();
     }
   });
 })();
