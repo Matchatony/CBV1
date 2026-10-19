@@ -304,45 +304,52 @@ function measureSolid(tris, verts, rate) {
     return loops;
   };
 
+  const floorHeights = [...new Set(c.floors.map((x) => Math.round(x.h / c.tol)))].map((k) => c.floors.find((x) => Math.round(x.h / c.tol) === k).h);
+  return finishPlate({
+    topLoops: loopsOf(c.top),
+    floorLevels: floorHeights.map((h) => ({ h, loops: loopsOf(c.floors.filter((x) => Math.abs(x.h - h) < c.tol).map((x) => x.f)) })),
+    floorUnder, thickness, hi: c.hi, lo: c.lo, flat: c.sloped <= 1e-4 * area + 0.5, bottom: c.under.length > 0, area, volume: Math.abs(volume)
+  }, rate);
+}
+
+// The plate, from the loops (2D, seen from above) of its top face and of each
+// pocket floor level: { pts, length, area, circle? }, where a face's own outer
+// edge runs counterclockwise (positive area) and the openings in it clockwise,
+// so several pocket floors at one depth each keep their own outline.
+// floorUnder(p, h): the height of the highest floor or top under point p below
+// height h, or null when it's open all the way through.
+function finishPlate({ topLoops, floorLevels, floorUnder, thickness, hi, lo, flat, bottom, area, volume }, rate) {
   // Contours: the outline, then every opening in the top face or a pocket floor,
   // sorted into through holes, through cutouts and blind pockets by what lies under it.
   const contours = [];
-  const topLoops = loopsOf(c.top);
-  const outer = topLoops.reduce((x, y) => (Math.abs(y.area) > Math.abs(x.area) ? y : x), topLoops[0]);
+  const outer = topLoops.filter((l) => l.area > 0).reduce((x, y) => (!x || y.area > x.area ? y : x), null);
   if (outer) contours.push({ type: 'outline', length: outer.length, depth: thickness, pts: outer.pts });
-  const floorHeights = [...new Set(c.floors.map((x) => Math.round(x.h / c.tol)))].map((k) => c.floors.find((x) => Math.round(x.h / c.tol) === k).h);
-  const levelLoops = [{ h: c.hi, loops: topLoops.filter((l) => l !== outer) }];
-  for (const h of floorHeights) {
-    const fl = loopsOf(c.floors.filter((x) => Math.abs(x.h - h) < c.tol).map((x) => x.f));
-    const big = fl.reduce((x, y) => (Math.abs(y.area) > Math.abs(x.area) ? y : x), fl[0]);
-    levelLoops.push({ h, loops: fl.filter((l) => l !== big), outline: big });
-  }
+  const levelLoops = [{ h: hi, loops: topLoops.filter((l) => l.area < 0), outlines: [] }]
+    .concat(floorLevels.map(({ h, loops }) => ({ h, loops: loops.filter((l) => l.area < 0), outlines: loops.filter((l) => l.area > 0) })));
   for (const { h, loops } of levelLoops) for (const l of loops) {
-    const circle = fitCircle(l.pts);
+    const circle = l.circle || fitCircle(l.pts);
     const floor = floorUnder(pointInside(l.pts, circle), h);
     const through = floor === null;
     contours.push({
       type: through ? (circle ? 'hole' : 'cutout') : 'pocket',
       // A round opening's length is its true circumference, not the mesh's polygon.
-      length: circle ? 2 * Math.PI * circle.r : l.length, depth: through ? h - c.lo : h - floor,
-      diameter: circle ? 2 * circle.r : null, area: Math.abs(l.area), pts: l.pts, from: c.hi - h
+      length: circle ? 2 * Math.PI * circle.r : l.length, depth: through ? h - lo : h - floor,
+      diameter: circle ? 2 * circle.r : null, area: Math.abs(l.area), pts: l.pts, from: hi - h
     });
   }
 
   // Anything a plain flat plate wouldn't have, as { id, text }.
   const flags = [];
-  const flat = c.sloped <= 1e-4 * area + 0.5;
   if (!flat) flags.push({ id: 'sloped', text: 'Has sloped or curved faces (e.g. chamfers, fillets on top edges, or a 3D shape), so it isn\'t a plain 2D plate.' });
-  if (c.under.length) flags.push({ id: 'both_sides', text: 'Has features cut into the bottom face: needs flipping and a second setup.' });
+  if (bottom) flags.push({ id: 'both_sides', text: 'Has features cut into the bottom face: needs flipping and a second setup.' });
   if (!outer) flags.push({ id: 'no_outline', text: 'Couldn\'t find the top face\'s outline.' });
   // A pocket floor reaching past the top outline is a step around the outside
   // edge (a rabbet), which the cut length above doesn't include.
   const box = (pts) => pts.reduce((b, [x, y]) => [Math.min(b[0], x), Math.min(b[1], y), Math.max(b[2], x), Math.max(b[3], y)], [Infinity, Infinity, -Infinity, -Infinity]);
-  if (outer && levelLoops.slice(1).some(({ outline }) => {
-    if (!outline) return false;
+  if (outer && levelLoops.slice(1).some(({ outlines }) => outlines.some((outline) => {
     const [a0, a1, a2, a3] = box(outer.pts), [b0, b1, b2, b3] = box(outline.pts);
     return b0 < a0 - 0.01 || b1 < a1 - 0.01 || b2 > a2 + 0.01 || b3 > a3 + 0.01;
-  })) flags.push({ id: 'edge_step', text: 'Has a step cut around the outside edge: the cut length counts only the top outline, so check that step by hand.' });
+  }))) flags.push({ id: 'edge_step', text: 'Has a step cut around the outside edge: the cut length counts only the top outline, so check that step by hand.' });
   const minTool = rate.minToolDiaIn * MM_PER_IN;
   const tiny = contours.filter((x) => x.diameter !== null && x.diameter < minTool - 1e-3);
   if (tiny.length) {
@@ -354,11 +361,539 @@ function measureSolid(tris, verts, rate) {
 
   const rect = outer ? minRect(outer.pts) : { length: 0, width: 0, angle: 0 };
   return {
-    flat_plate: flat && !!outer, flags, contours, rect, area, volume: Math.abs(volume), thickness,
+    flat_plate: flat && !!outer, flags, contours, rect, area, volume, thickness,
     stock: stock ? stock[1] : 'nonstandard',
-    floors: levelLoops.slice(1).map(({ h, loops, outline }) => ({ depth: c.hi - h, loops: [outline, ...loops].filter(Boolean).map((l) => l.pts) })),
+    floors: levelLoops.slice(1).map(({ h, loops, outlines }) => ({ depth: hi - h, loops: [...outlines, ...loops].map((l) => l.pts) })),
     topLoops: topLoops.map((l) => l.pts)
   };
+}
+
+// ---- Reading a plate straight from the STEP file ----
+//
+// OpenCascade meshes the whole model first, and for a plate with hundreds of
+// holes (a typical FTC grid plate) that takes a minute or more. The file itself
+// already holds what a plate's price needs: its flat faces, and the lines,
+// circles and curves around them. measureStepText reads those directly, in well
+// under a second, into the same measurements as measureModel. Anything it
+// doesn't handle (instanced geometry, a split top face, unusual entities) makes
+// it return null, and the caller measures the mesh instead.
+
+class Unsupported extends Error {}
+
+// The DATA section's records by id, still unparsed, and their ids by type.
+function stepRecords(text) {
+  const start = text.indexOf('DATA;');
+  if (start < 0) return null;
+  const recs = new Map(), byType = new Map(), n = text.length;
+  let i = start + 5;
+  while (i < n) {
+    const c = text.charCodeAt(i);
+    if (c === 35) { // '#'
+      let j = i + 1;
+      while (j < n && text.charCodeAt(j) >= 48 && text.charCodeAt(j) <= 57) j++;
+      const eq = text.indexOf('=', j);
+      if (eq < 0) break;
+      let k = eq + 1, inString = false;
+      for (; k < n; k++) {
+        const d = text.charCodeAt(k);
+        if (d === 39) inString = !inString; // '
+        else if (d === 59 && !inString) break; // ;
+      }
+      const body = text.slice(eq + 1, k).trim();
+      const m = /^([A-Z0-9_]+)\s*\(/.exec(body);
+      const type = m ? m[1] : 'COMPLEX';
+      const id = Number(text.slice(i + 1, j));
+      recs.set(id, body);
+      (byType.get(type) || byType.set(type, []).get(type)).push(id);
+      i = k + 1;
+    } else if (c === 47 && text.charCodeAt(i + 1) === 42) { // a /* comment */
+      const e = text.indexOf('*/', i + 2);
+      i = e < 0 ? n : e + 2;
+    } else if (c === 69 && text.startsWith('ENDSEC', i)) {
+      break;
+    } else {
+      i++;
+    }
+  }
+  return { recs, byType };
+}
+
+// One record: { type, args } or, for a complex entity, { type: 'COMPLEX', parts }.
+// Values: numbers, strings, lists, { ref }, { enum }, { type, args } (typed), null.
+function parseRecord(s) {
+  let i = 0;
+  const skip = () => { while (i < s.length && s.charCodeAt(i) <= 32) i++; };
+  const word = () => {
+    const re = /[A-Z0-9_]+/y; re.lastIndex = i;
+    const m = re.exec(s);
+    if (!m) throw new Unsupported('unreadable record');
+    i += m[0].length;
+    return m[0];
+  };
+  const value = () => {
+    skip();
+    const c = s[i];
+    if (c === '(') {
+      i++;
+      const list = [];
+      skip();
+      if (s[i] === ')') { i++; return list; }
+      for (;;) {
+        list.push(value());
+        skip();
+        if (s[i] === ',') { i++; continue; }
+        if (s[i] === ')') { i++; return list; }
+        throw new Unsupported('unreadable record');
+      }
+    }
+    if (c === "'") {
+      let out = '';
+      i++;
+      for (;;) {
+        const q = s.indexOf("'", i);
+        if (q < 0) throw new Unsupported('unreadable record');
+        out += s.slice(i, q);
+        if (s[q + 1] === "'") { out += "'"; i = q + 2; } else { i = q + 1; return out; }
+      }
+    }
+    if (c === '#') {
+      const re = /#(\d+)/y; re.lastIndex = i;
+      const m = re.exec(s);
+      i += m[0].length;
+      return { ref: Number(m[1]) };
+    }
+    if (c === '$' || c === '*') { i++; return null; }
+    if (c === '.' && /[A-Z_]/.test(s[i + 1] || '')) {
+      const e = s.indexOf('.', i + 1);
+      const v = s.slice(i + 1, e);
+      i = e + 1;
+      return { enum: v };
+    }
+    if (c === '"') { const e = s.indexOf('"', i + 1); i = e + 1; return null; } // binary: never needed here
+    const re = /[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?/y; re.lastIndex = i;
+    const m = re.exec(s);
+    if (m && m[0]) { i += m[0].length; return Number(m[0]); }
+    const type = word(); // a typed value, e.g. LENGTH_MEASURE(25.4)
+    return { type, args: value() };
+  };
+  skip();
+  if (s[i] === '(') {
+    i++;
+    const parts = {};
+    for (;;) {
+      skip();
+      if (s[i] === ')' || i >= s.length) break;
+      const name = word();
+      parts[name] = value();
+    }
+    return { type: 'COMPLEX', parts };
+  }
+  const type = word();
+  return { type, args: value() };
+}
+
+function stepFile(text) {
+  const data = stepRecords(text);
+  if (!data) return null;
+  const cache = new Map();
+  const get = (ref) => {
+    const id = typeof ref === 'number' ? ref : ref && ref.ref;
+    let e = cache.get(id);
+    if (!e) {
+      const body = data.recs.get(id);
+      if (body === undefined) throw new Unsupported(`missing #${id}`);
+      e = parseRecord(body);
+      cache.set(id, e);
+    }
+    return e;
+  };
+  return { get, ids: (type) => data.byType.get(type) || [], has: (type) => data.byType.has(type) };
+}
+
+// Millimeters per unit of the length unit an entity names.
+const SI_PREFIX = { KILO: 1e3, HECTO: 1e2, DECA: 10, DECI: 0.1, CENTI: 0.01, MILLI: 1e-3, MICRO: 1e-6, NANO: 1e-9 };
+function unitMm(file, e) {
+  const p = e.type === 'COMPLEX' ? e.parts : { [e.type]: e.args };
+  if (p.SI_UNIT) {
+    const [prefix, name] = p.SI_UNIT.length > 2 ? p.SI_UNIT.slice(1) : p.SI_UNIT;
+    if (!name || name.enum !== 'METRE') throw new Unsupported('length unit');
+    if (prefix && !(prefix.enum in SI_PREFIX)) throw new Unsupported('length unit');
+    return 1000 * (prefix ? SI_PREFIX[prefix.enum] : 1);
+  }
+  if (p.CONVERSION_BASED_UNIT) {
+    const m = file.get(p.CONVERSION_BASED_UNIT[1]);
+    let v = m.args[0];
+    if (v && typeof v === 'object') v = v.args[0];
+    if (!(v > 0)) throw new Unsupported('length unit');
+    return v * unitMm(file, file.get(m.args[1]));
+  }
+  throw new Unsupported('length unit');
+}
+function lengthUnit(file, contextRef) {
+  const ctx = file.get(contextRef);
+  const units = ctx.type === 'COMPLEX' && ctx.parts.GLOBAL_UNIT_ASSIGNED_CONTEXT && ctx.parts.GLOBAL_UNIT_ASSIGNED_CONTEXT[0];
+  for (const u of units || []) {
+    const e = file.get(u);
+    if ((e.type === 'COMPLEX' && e.parts.LENGTH_UNIT) || e.type === 'LENGTH_UNIT') return unitMm(file, e);
+  }
+  throw new Unsupported('no length unit');
+}
+
+// A B-spline curve's point at parameter t (de Boor), rational or not.
+function splinePoint({ p, P, U, W }, t) {
+  const n = P.length - 1;
+  let span = n;
+  for (let j = p; j <= n; j++) if (t < U[j + 1]) { span = j; break; }
+  const d = [];
+  for (let j = 0; j <= p; j++) {
+    const i = span - p + j, w = W ? W[i] : 1;
+    d.push([P[i][0] * w, P[i][1] * w, P[i][2] * w, w]);
+  }
+  for (let r = 1; r <= p; r++) for (let j = p; j >= r; j--) {
+    const i = span - p + j, den = U[i + p - r + 1] - U[i], a = den ? (t - U[i]) / den : 0;
+    for (let c = 0; c < 4; c++) d[j][c] = (1 - a) * d[j - 1][c] + a * d[j][c];
+  }
+  const q = d[p];
+  return [q[0] / q[3], q[1] / q[3], q[2] / q[3]];
+}
+
+const dist = (a, b) => len(sub(a, b));
+const polyLength = (pts) => pts.reduce((s, q, i) => (i ? s + dist(pts[i - 1], q) : 0), 0);
+
+// The faces of the file's solids, read with lengths in millimeters (k per unit):
+// face(ref) gives { plane: { n, o } (n pointing out of the solid) or null,
+// loops: [{ pts, length, circle }] }, each loop a 3D polygon in order.
+function brepReader(file, k) {
+  const point = (ref) => {
+    const e = file.get(ref);
+    if (e.type !== 'CARTESIAN_POINT') throw new Unsupported('point');
+    const c = e.args[1];
+    return [c[0] * k, c[1] * k, (c[2] || 0) * k];
+  };
+  const direction = (ref) => {
+    if (!ref) return null;
+    const e = file.get(ref);
+    if (e.type !== 'DIRECTION') throw new Unsupported('direction');
+    const c = e.args[1];
+    return unit([c[0], c[1], c[2] || 0]);
+  };
+  const place = (ref) => {
+    const e = file.get(ref);
+    if (e.type !== 'AXIS2_PLACEMENT_3D') throw new Unsupported('placement');
+    const o = point(e.args[1]), z = direction(e.args[2]) || [0, 0, 1];
+    let x = direction(e.args[3]) || (Math.abs(z[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0]);
+    x = unit(sub(x, z.map((v) => v * dot(x, z))));
+    return { o, z, x, y: cross(z, x) };
+  };
+  const vertex = (ref) => {
+    const e = file.get(ref);
+    if (e.type !== 'VERTEX_POINT') throw new Unsupported('vertex');
+    return point(e.args[1]);
+  };
+  const spline = (p, cps, mults, knots, weights) => {
+    const U = [];
+    knots.forEach((u, i) => { for (let m = 0; m < mults[i]; m++) U.push(u); });
+    const P = cps.map(point);
+    if (U.length !== P.length + p + 1) throw new Unsupported('spline');
+    return { kind: 'spline', p, P, U, W: weights };
+  };
+  const curve = (ref) => {
+    const e = file.get(ref);
+    const a = e.args;
+    switch (e.type) {
+      case 'LINE': return { kind: 'line' };
+      case 'CIRCLE': return { kind: 'conic', ax: place(a[1]), a: a[2] * k, b: a[2] * k, circle: true };
+      case 'ELLIPSE': return { kind: 'conic', ax: place(a[1]), a: a[2] * k, b: a[3] * k };
+      case 'SURFACE_CURVE': case 'SEAM_CURVE': case 'BOUNDED_SURFACE_CURVE': case 'TRIMMED_CURVE': return curve(a[1]);
+      case 'POLYLINE': return { kind: 'polyline', pts: a[1].map(point) };
+      case 'B_SPLINE_CURVE_WITH_KNOTS': return spline(a[1], a[2], a[6], a[7], null);
+      case 'COMPLEX': {
+        const q = e.parts;
+        if (q.B_SPLINE_CURVE && q.B_SPLINE_CURVE_WITH_KNOTS) {
+          return spline(q.B_SPLINE_CURVE[0], q.B_SPLINE_CURVE[1], q.B_SPLINE_CURVE_WITH_KNOTS[0], q.B_SPLINE_CURVE_WITH_KNOTS[1],
+            q.RATIONAL_B_SPLINE_CURVE ? q.RATIONAL_B_SPLINE_CURVE[0] : null);
+        }
+      }
+    }
+    throw new Unsupported(`curve ${e.type}`);
+  };
+
+  // An edge as points from its start vertex to its end vertex, its length, and
+  // its circle when it's an arc of one.
+  const edges = new Map();
+  const edge = (ref) => {
+    if (edges.has(ref.ref)) return edges.get(ref.ref);
+    const e = file.get(ref);
+    if (e.type !== 'EDGE_CURVE') throw new Unsupported(`edge ${e.type}`);
+    const A = vertex(e.args[1]), B = vertex(e.args[2]), cv = curve(e.args[3]), forward = !e.args[4] || e.args[4].enum !== 'F';
+    const closed = dist(A, B) < 1e-6;
+    let out;
+    if (cv.kind === 'line') {
+      out = { pts: [A, B], length: dist(A, B) };
+    } else if (cv.kind === 'conic') {
+      // Counterclockwise about the axis is the curve's own direction.
+      const { ax } = cv, T = 2 * Math.PI;
+      const angle = (q) => { const d = sub(q, ax.o); return Math.atan2(dot(d, ax.y) / cv.b, dot(d, ax.x) / cv.a); };
+      const turn = (x) => { const m = ((x % T) + T) % T; return m < 1e-9 ? T : m; };
+      const t0 = angle(A), sweep = closed ? (forward ? T : -T) : forward ? turn(angle(B) - t0) : -turn(t0 - angle(B));
+      const at = (t) => ax.o.map((o, i) => o + ax.x[i] * cv.a * Math.cos(t) + ax.y[i] * cv.b * Math.sin(t));
+      const steps = Math.max(2, Math.ceil(Math.abs(sweep) / 0.1));
+      const pts = [];
+      for (let s = 0; s <= steps; s++) pts.push(at(t0 + (sweep * s) / steps));
+      pts[0] = A; pts[steps] = B;
+      let length = Math.abs(sweep) * cv.a;
+      if (!cv.circle) {
+        const fine = [];
+        const n = Math.max(8, Math.ceil(Math.abs(sweep) / 0.01));
+        for (let s = 0; s <= n; s++) fine.push(at(t0 + (sweep * s) / n));
+        length = polyLength(fine);
+      }
+      out = { pts, length, circle: cv.circle ? { c: ax.o, r: cv.a, z: ax.z } : null };
+    } else {
+      // A spline or polyline: sample it, then keep the stretch between the vertices.
+      let samples;
+      if (cv.kind === 'spline') {
+        const t0 = cv.U[cv.p], t1 = cv.U[cv.P.length], n = Math.max(32, 8 * (cv.P.length - cv.p));
+        samples = [];
+        for (let s = 0; s <= n; s++) samples.push(splinePoint(cv, t0 + ((t1 - t0) * s) / n));
+      } else {
+        samples = cv.pts;
+      }
+      const nearest = (q) => samples.reduce((best, x, i) => (dist(x, q) < dist(samples[best], q) ? i : best), 0);
+      let ia = nearest(A), ib = nearest(B);
+      if (!forward) { samples = samples.slice().reverse(); ia = samples.length - 1 - ia; ib = samples.length - 1 - ib; }
+      let pts;
+      if (closed) pts = samples.slice(ia).concat(samples.slice(1, ia + 1));
+      else if (ia <= ib) pts = samples.slice(ia, ib + 1);
+      else pts = samples.slice(ia).concat(samples.slice(1, ib + 1)); // a periodic curve, across its seam
+      pts = [A, ...pts.slice(1, -1), B];
+      out = { pts, length: polyLength(pts) };
+    }
+    edges.set(ref.ref, out);
+    return out;
+  };
+
+  // A face bound's loop, in order, with the circle all its edges lie on (a
+  // round hole), if they do.
+  const loop = (ref) => {
+    const e = file.get(ref);
+    if (e.type === 'VERTEX_LOOP') return null;
+    if (e.type === 'POLY_LOOP') {
+      const pts = e.args[1].map(point);
+      return { pts, length: polyLength(pts.concat([pts[0]])), circle: null };
+    }
+    if (e.type !== 'EDGE_LOOP') throw new Unsupported(`loop ${e.type}`);
+    const pts = [], circles = [];
+    let length = 0;
+    for (const r of e.args[1]) {
+      const oe = file.get(r);
+      if (oe.type !== 'ORIENTED_EDGE') throw new Unsupported('oriented edge');
+      const ed = edge(oe.args[3]);
+      const seq = oe.args[4] && oe.args[4].enum === 'F' ? ed.pts.slice().reverse() : ed.pts;
+      for (let i = pts.length ? 1 : 0; i < seq.length; i++) pts.push(seq[i]);
+      length += ed.length;
+      circles.push(ed.circle);
+    }
+    if (pts.length > 1 && dist(pts[0], pts[pts.length - 1]) < 1e-6) pts.pop();
+    const c0 = circles[0];
+    const round = c0 && circles.every((c) => c && dist(c.c, c0.c) < 1e-3 && Math.abs(c.r - c0.r) < 1e-3);
+    return { pts, length, circle: round ? c0 : null };
+  };
+
+  const face = (ref) => {
+    const e = file.get(ref);
+    if (e.type !== 'ADVANCED_FACE' && e.type !== 'FACE_SURFACE') throw new Unsupported(`face ${e.type}`);
+    const surface = file.get(e.args[2]), same = !e.args[3] || e.args[3].enum !== 'F';
+    let plane = null;
+    if (surface.type === 'PLANE') {
+      const ax = place(surface.args[1]);
+      plane = { n: same ? ax.z : ax.z.map((v) => -v), o: ax.o };
+    }
+    const loops = [];
+    for (const b of e.args[1]) {
+      const fb = file.get(b);
+      if (fb.type !== 'FACE_BOUND' && fb.type !== 'FACE_OUTER_BOUND') throw new Unsupported('face bound');
+      const l = loop(fb.args[1]);
+      if (!l) continue;
+      if (fb.args[2] && fb.args[2].enum === 'F') l.pts = l.pts.slice().reverse();
+      loops.push(l);
+    }
+    return { plane, loops };
+  };
+  return { face };
+}
+
+// Area vector of a closed 3D polygon (Newell's method).
+function areaVector(pts) {
+  let x = 0, y = 0, z = 0;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const [ax, ay, az] = pts[j], [bx, by, bz] = pts[i];
+    x += (ay - by) * (az + bz); y += (az - bz) * (ax + bx); z += (ax - bx) * (ay + by);
+  }
+  return [x / 2, y / 2, z / 2];
+}
+
+// One solid's faces (brepReader) measured as a plate, like measureSolid.
+function measureFaces(faces, rate) {
+  for (const f of faces) for (const l of f.loops) l.vec = areaVector(l.pts);
+  // A flat face's area: its outer loop's, less its openings'.
+  for (const f of faces) {
+    if (!f.plane) continue;
+    const a = f.loops.map((l) => Math.abs(dot(l.vec, f.plane.n)));
+    const big = Math.max(0, ...a);
+    f.area = 2 * big - a.reduce((x, y) => x + y, 0);
+  }
+  const FLAT = 1 - 1e-6;
+  const dirs = [];
+  for (const f of faces) {
+    if (!f.plane) continue;
+    const d = dirs.find((x) => Math.abs(dot(x.n, f.plane.n)) > FLAT);
+    if (d) d.area += f.area; else dirs.push({ n: f.plane.n, area: f.area });
+  }
+  const flatArea = faces.reduce((s, f) => s + (f.area || 0), 0);
+  if (!dirs.length) return { flat_plate: false, area: flatArea, volume: 0 };
+  let n = dirs.reduce((x, y) => (y.area > x.area ? y : x)).n;
+
+  const corners = faces.flatMap((f) => f.loops.flatMap((l) => l.pts));
+  const classify = (n) => {
+    let lo = Infinity, hi = -Infinity;
+    for (const q of corners) { const h = dot(n, q); if (h < lo) lo = h; if (h > hi) hi = h; }
+    const tol = Math.max(0.005, 1e-5 * (hi - lo));
+    const out = { lo, hi, tol, top: [], bottom: [], floors: [], under: [], sloped: 0 };
+    for (const f of faces) {
+      const along = f.plane ? dot(f.plane.n, n) : 0;
+      if (f.plane && Math.abs(along) > FLAT) {
+        const h = dot(n, f.plane.o);
+        if (along > 0 && Math.abs(h - hi) < tol) out.top.push(f);
+        else if (along < 0 && Math.abs(h - lo) < tol) out.bottom.push(f);
+        else if (along > 0) out.floors.push({ f, h });
+        else out.under.push({ f, h });
+      } else {
+        // A side wall (flat or round) seen from above covers no area. Anything
+        // that does (chamfers, fillets, 3D shapes) isn't a plain 2D plate.
+        out.sloped += Math.abs(f.loops.reduce((s, l) => s + dot(l.vec, n), 0));
+      }
+    }
+    return out;
+  };
+  let c = classify(n);
+  // Cut from the side that has the pockets: flip if more of them face down.
+  const sum = (list) => list.reduce((s, x) => s + x.f.area, 0);
+  if (sum(c.under) > sum(c.floors)) { n = n.map((x) => -x); c = classify(n); }
+  if (c.top.length > 1) throw new Unsupported('top face in pieces');
+
+  // The same 2D view from above as measureSolid.
+  const axis = Math.abs(n[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0];
+  const u = unit(sub(axis, n.map((x) => x * dot(axis, n)))), v = cross(n, u);
+  const to2d = (q) => [dot(q, u), dot(q, v)];
+  const thickness = c.hi - c.lo;
+  // A face's loops in 2D: its outer edge with positive area, openings negative.
+  const flatLoops = (f) => {
+    if (f.loops2d) return f.loops2d;
+    const ls = f.loops.map((l) => ({ pts: l.pts.map(to2d), length: l.length, circle: l.circle && Math.abs(dot(l.circle.z, n)) > FLAT ? { center: to2d(l.circle.c), r: l.circle.r } : null }));
+    for (const l of ls) l.area = Math.abs(signedArea(l.pts));
+    const outer = ls.reduce((x, y) => (y.area > x.area ? y : x), ls[0]);
+    for (const l of ls) if (l !== outer) l.area = -l.area;
+    for (const l of ls) if (l.area > 0 && signedArea(l.pts) < 0) l.pts.reverse();
+    return (f.loops2d = ls);
+  };
+  const regions = [...c.floors, ...c.top.map((f) => ({ f, h: c.hi }))].map(({ f, h }) => {
+    const ls = flatLoops(f);
+    return { h, outer: ls.find((l) => l.area > 0), holes: ls.filter((l) => l.area < 0) };
+  });
+  const floorUnder = (p, below) => {
+    let best = null;
+    for (const r of regions) {
+      if (r.h >= below - c.tol || (best !== null && r.h <= best) || !r.outer) continue;
+      if (insidePolygon(p, r.outer.pts) && !r.holes.some((hl) => insidePolygon(p, hl.pts))) best = r.h;
+    }
+    return best;
+  };
+  const floorHeights = [...new Set(c.floors.map((x) => Math.round(x.h / c.tol)))].map((key) => c.floors.find((x) => Math.round(x.h / c.tol) === key).h);
+  // Volume from the flat faces: each up-facing one stands on its height above
+  // the bottom, each down-facing one takes its height away.
+  const volume = [...c.top.map((f) => ({ f, h: c.hi })), ...c.floors].reduce((s, { f, h }) => s + f.area * (h - c.lo), 0) -
+    c.under.reduce((s, { f, h }) => s + f.area * (h - c.lo), 0);
+  const m = finishPlate({
+    topLoops: c.top.length ? flatLoops(c.top[0]) : [],
+    floorLevels: floorHeights.map((h) => ({ h, loops: c.floors.filter((x) => Math.abs(x.h - h) < c.tol).flatMap((x) => flatLoops(x.f)) })),
+    floorUnder, thickness, hi: c.hi, lo: c.lo, flat: c.sloped <= 1e-4 * flatArea + 0.5, bottom: c.under.length > 0,
+    area: 0, volume
+  }, rate);
+  // Surface area: the flat faces plus the walls around every contour.
+  m.area = [...c.top, ...c.bottom].reduce((s, f) => s + f.area, 0) + [...c.floors, ...c.under].reduce((s, x) => s + x.f.area, 0) +
+    m.contours.reduce((s, x) => s + x.length * x.depth, 0);
+  return m;
+}
+
+// How many times each product is used: once on its own, or as often as the
+// assemblies above it use it.
+function instanceCounter(file) {
+  const pdsOfRep = new Map(), linked = new Map(), usedBy = new Map(), memo = new Map();
+  for (const id of file.ids('SHAPE_DEFINITION_REPRESENTATION')) {
+    const a = file.get(id).args;
+    if (a[0] && a[1]) pdsOfRep.set(a[1].ref, a[0].ref);
+  }
+  for (const id of file.ids('SHAPE_REPRESENTATION_RELATIONSHIP')) {
+    const a = file.get(id).args;
+    if (!a[2] || !a[3]) continue;
+    (linked.get(a[2].ref) || linked.set(a[2].ref, []).get(a[2].ref)).push(a[3].ref);
+    (linked.get(a[3].ref) || linked.set(a[3].ref, []).get(a[3].ref)).push(a[2].ref);
+  }
+  for (const id of file.ids('NEXT_ASSEMBLY_USAGE_OCCURRENCE')) {
+    const a = file.get(id).args;
+    if (a[3] && a[4]) (usedBy.get(a[4].ref) || usedBy.set(a[4].ref, []).get(a[4].ref)).push(a[3].ref);
+  }
+  const productOf = (rep) => {
+    const pds = pdsOfRep.get(rep) ?? (linked.get(rep) || []).map((r) => pdsOfRep.get(r)).find((x) => x !== undefined);
+    if (pds === undefined) return null;
+    const e = file.get(pds);
+    return e.type === 'PRODUCT_DEFINITION_SHAPE' && e.args[2] ? e.args[2].ref : null;
+  };
+  const count = (pd, depth = 0) => {
+    if (depth > 20) throw new Unsupported('assembly loop');
+    if (memo.has(pd)) return memo.get(pd);
+    const parents = usedBy.get(pd);
+    const n = parents ? parents.reduce((s, p) => s + count(p, depth + 1), 0) : 1;
+    memo.set(pd, n);
+    return n;
+  };
+  return (rep) => { const pd = productOf(rep); return pd === null ? 1 : count(pd); };
+}
+
+// Every solid in the file, measured straight from its geometry, with
+// identical solids grouped like measureModel: { solids, groups }, or null when
+// the file needs OpenCascade instead.
+export function measureStepText(text, rate) {
+  const file = stepFile(text);
+  if (!file || file.has('MAPPED_ITEM') || file.has('BREP_WITH_VOIDS')) return null;
+  const breps = file.ids('MANIFOLD_SOLID_BREP');
+  if (!breps.length) return null;
+  try {
+    const owner = new Map();
+    for (const type of ['ADVANCED_BREP_SHAPE_REPRESENTATION', 'SHAPE_REPRESENTATION', 'MANIFOLD_SURFACE_SHAPE_REPRESENTATION']) {
+      for (const id of file.ids(type)) for (const item of file.get(id).args[1] || []) if (item) owner.set(item.ref, id);
+    }
+    const copiesOf = instanceCounter(file), readers = new Map(), groups = [];
+    let solids = 0;
+    for (const id of breps) {
+      const rep = owner.get(id);
+      if (rep === undefined) throw new Unsupported('solid outside a representation');
+      const k = lengthUnit(file, file.get(rep).args[2]);
+      const reader = readers.get(k) || readers.set(k, brepReader(file, k)).get(k);
+      const shell = file.get(file.get(id).args[1]);
+      if (shell.type !== 'CLOSED_SHELL') throw new Unsupported('open shell');
+      const m = measureFaces(shell.args[1].map(reader.face), rate);
+      const copies = copiesOf(rep);
+      solids += copies;
+      const g = groups.find((x) => sameShape(x.m, m));
+      if (g) g.copies += copies; else groups.push({ m, copies });
+    }
+    return { solids, groups };
+  } catch (err) {
+    if (err instanceof Unsupported) return null;
+    throw err;
+  }
 }
 
 // ---- Whole model ----
@@ -371,14 +906,19 @@ export const cutLength = (m) => (m.contours || []).reduce((s, x) => s + x.length
 export function measureModel(meshes, rate) {
   const mesh = weld(meshes);
   const measured = solids(mesh).map((tris) => measureSolid(tris, mesh.verts, rate));
-  const close = (a, b) => Math.abs(a - b) <= 0.005 * Math.max(Math.abs(a), Math.abs(b), 1e-9);
   const groups = [];
   for (const m of measured) {
-    const g = groups.find((x) => close(x.m.volume, m.volume) && close(x.m.thickness || 0, m.thickness || 0) &&
-      close(x.m.rect?.length || 0, m.rect?.length || 0) && close(x.m.rect?.width || 0, m.rect?.width || 0) && close(cutLength(x.m), cutLength(m)));
+    const g = groups.find((x) => sameShape(x.m, m));
     if (g) g.copies++; else groups.push({ m, copies: 1 });
   }
   return { solids: measured.length, groups };
+}
+
+// Two measured solids that are copies of one part.
+function sameShape(a, b) {
+  const close = (x, y) => Math.abs(x - y) <= 0.005 * Math.max(Math.abs(x), Math.abs(y), 1e-9);
+  return close(a.volume, b.volume) && close(a.thickness || 0, b.thickness || 0) && close(a.rect?.length || 0, b.rect?.length || 0) &&
+    close(a.rect?.width || 0, b.rect?.width || 0) && close(cutLength(a), cutLength(b));
 }
 
 // Machine time for one part, in minutes: each contour cut in depth passes,

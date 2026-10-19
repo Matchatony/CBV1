@@ -1048,9 +1048,10 @@
      become one flat triangle list drawn with Three.js in an isometric-ish
      view. DXF: a small parser (lines, arcs, circles, polylines, splines,
      ellipses) drawn straight on
-     the canvas. The STEP and 3MF libraries are only downloaded when someone
-     actually picks one of those files — the STEP one is ~7.6 MB. A STEP
-     file's plates are also measured, for its price, by step-measure.js. Three.js and
+     the canvas. A STEP plate is measured straight from the file by
+     step-measure.js and drawn as a top view; only a STEP file it can't read
+     that way goes through OpenCascade (~7.6 MB, downloaded then) and gets the
+     3D view. The 3MF library is also only downloaded when needed. Three.js and
      jsPDF (~1 MB together) load once someone nears or starts the quote form,
      so the rest of the page stays light. */
 
@@ -1084,7 +1085,7 @@
     }
     return occtReady;
   }
-  // step-measure.js measures a STEP model's plates (the shop's own STEP tool,
+  // step-measure.js measures a STEP file's plates (the shop's own STEP tool,
   // api/_lib/step.js, uses the same file), so they can be priced like a DXF.
   var stepMeasureReady = null;
   function loadStepMeasure() {
@@ -1451,6 +1452,53 @@
     return true;
   }
 
+  // A top view of each different plate in a STEP file (step-measure.js loops,
+  // in mm, seen from above), side by side with the longest side across: the
+  // plate tinted, its holes and cutouts open, pocket floors shaded.
+  function renderPlanPreview(plan) {
+    var canvas = els.previewCanvas;
+    var ctx = canvas.getContext('2d');
+    var w = canvas.width, h = canvas.height;
+    ctx.fillStyle = '#14121a';
+    ctx.fillRect(0, 0, w, h);
+    var parts = plan.map(function (m) {
+      var c = Math.cos(-m.rect.angle), sn = Math.sin(-m.rect.angle);
+      function turn(loops) { return loops.map(function (l) { return l.map(function (q) { return [q[0] * c - q[1] * sn, q[0] * sn + q[1] * c]; }); }); }
+      var top = turn(m.topLoops), b = [Infinity, Infinity, -Infinity, -Infinity];
+      top.forEach(function (l) { l.forEach(function (q) { b = [Math.min(b[0], q[0]), Math.min(b[1], q[1]), Math.max(b[2], q[0]), Math.max(b[3], q[1])]; }); });
+      return { top: top, floors: m.floors.map(function (f) { return turn(f.loops); }), b: b };
+    }).filter(function (p) { return isFinite(p.b[0]); });
+    if (!parts.length) return false;
+    var gap = 0.08 * Math.max.apply(null, parts.map(function (p) { return p.b[2] - p.b[0]; }));
+    var across = parts.reduce(function (t, p) { return t + p.b[2] - p.b[0]; }, 0) + gap * (parts.length - 1);
+    var tall = Math.max.apply(null, parts.map(function (p) { return p.b[3] - p.b[1]; }));
+    var pad = 24, scale = Math.min((w - pad * 2) / (across || 1), (h - pad * 2) / (tall || 1));
+    var x = (w - across * scale) / 2;
+    parts.forEach(function (p) {
+      var ox = x - p.b[0] * scale, oy = h / 2 + ((p.b[1] + p.b[3]) / 2) * scale; // y up, like the CAD top view
+      function path(loops) {
+        ctx.beginPath();
+        loops.forEach(function (l) {
+          l.forEach(function (q, i) { if (i) ctx.lineTo(ox + q[0] * scale, oy - q[1] * scale); else ctx.moveTo(ox + q[0] * scale, oy - q[1] * scale); });
+          ctx.closePath();
+        });
+      }
+      path(p.top);
+      ctx.fillStyle = 'rgba(233, 168, 201, 0.16)';
+      ctx.fill('evenodd');
+      p.floors.forEach(function (loops) {
+        path(loops);
+        ctx.fillStyle = 'rgba(159, 183, 255, 0.35)';
+        ctx.fill('evenodd');
+      });
+      path(p.top);
+      ctx.strokeStyle = '#e9a8c9';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      x += (p.b[2] - p.b[0] + gap) * scale;
+    });
+    return true;
+  }
   function showPreviewFallback(msg) {
     var ctx = els.previewCanvas.getContext('2d');
     ctx.clearRect(0, 0, els.previewCanvas.width, els.previewCanvas.height);
@@ -1595,17 +1643,35 @@
     } else if (ext === '3mf') {
       job = Promise.all([file.arrayBuffer(), load3mf()]).then(function (r) { item.positions = new Float32Array(threeMfToPositions(r[0])); });
     } else if (isStep(ext)) {
-      // Read once for the preview and the measuring. If step-measure.js doesn't
-      // load, the preview still works and the file is priced by hand.
-      job = Promise.all([file.arrayBuffer(), loadOcct(), loadStepMeasure().catch(function () { return null; })]).then(function (r) {
-        var sm = r[2], result = r[1].ReadStepFile(new Uint8Array(r[0]), sm ? sm.READ_OPTIONS : null);
-        item.positions = new Float32Array(stepToPositions(result));
-        if (!sm || !result || !result.success) return;
-        try {
-          item.step = stepGeom(sm.measureModel(result.meshes || [], RATE), sm);
-        } catch (err) {
-          console.error('Couldn\'t measure ' + item.name + ':', err);
+      // Most plates are measured straight from the file's own geometry, in under
+      // a second even with hundreds of holes, and previewed as a top view.
+      // Anything else goes through OpenCascade, which reads any model and shows
+      // it in 3D but takes a minute on a big plate. If step-measure.js doesn't
+      // load, there's still the 3D preview, and the file is priced by hand.
+      job = Promise.all([file.text(), loadStepMeasure().catch(function () { return null; })]).then(function (r) {
+        var sm = r[1], model = null;
+        if (sm) {
+          try {
+            model = sm.measureStepText(r[0], RATE);
+          } catch (err) {
+            console.error('Couldn\'t read ' + item.name + ' directly:', err);
+          }
         }
+        if (model) {
+          item.step = stepGeom(model, sm);
+          item.plan = model.groups.filter(function (g) { return g.m.contours && g.m.rect.length; }).map(function (g) { return g.m; });
+          if (item.plan.length) return;
+        }
+        return Promise.all([file.arrayBuffer(), loadOcct()]).then(function (r2) {
+          var result = r2[1].ReadStepFile(new Uint8Array(r2[0]), sm ? sm.READ_OPTIONS : null);
+          item.positions = new Float32Array(stepToPositions(result));
+          if (item.step || !sm || !result || !result.success) return;
+          try {
+            item.step = stepGeom(sm.measureModel(result.meshes || [], RATE), sm);
+          } catch (err) {
+            console.error('Couldn\'t measure ' + item.name + ':', err);
+          }
+        });
       });
     } else {
       job = Promise.resolve();
@@ -1647,7 +1713,7 @@
 
   // The line under a file's name: what it measured, or why it's priced by hand.
   function itemNote(item) {
-    if (item.status === 'measuring') return { text: isStep(item.ext) ? 'Reading the STEP file — the first one takes a few seconds…' : 'Measuring…' };
+    if (item.status === 'measuring') return { text: isStep(item.ext) ? 'Reading the STEP file…' : 'Measuring…' };
     var reason = handReason(item);
     if (reason) return { text: reason, hand: true };
     if (els.type.value === 'plate') {
@@ -1789,12 +1855,21 @@
     els.previewWrap.hidden = false;
     resetPreviewCanvas();
     if (item.status === 'measuring') {
-      els.previewNote.textContent = isStep(item.ext) ? 'Loading the STEP viewer — the first STEP file takes a few seconds…' : 'Rendering preview…';
+      els.previewNote.textContent = isStep(item.ext) ? 'Reading the STEP file…' : 'Rendering preview…';
       return;
     }
     if (item.dxf) {
       if (renderDxfPreview(item.dxf.entities)) els.previewNote.textContent = '2D preview from your DXF geometry.';
       else showPreviewFallback('Couldn\'t find drawable geometry in this DXF — we\'ll open it on our end.');
+      return;
+    }
+    if (item.plan && item.plan.length) {
+      if (renderPlanPreview(item.plan)) {
+        els.previewNote.textContent = 'Top view of ' + (item.plan.length > 1 ? 'each different part' : 'the part') + ' in your STEP file' +
+          (item.plan.some(function (m) { return m.floors.length; }) ? '. Shaded areas are pockets.' : '.');
+      } else {
+        showPreviewFallback('Couldn\'t draw this STEP file — we\'ll open it on our end.');
+      }
       return;
     }
     if (item.positions && item.positions.length) {

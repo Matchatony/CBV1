@@ -3,15 +3,16 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import occtimportjs from 'occt-import-js';
-import { READ_OPTIONS, MM_PER_IN, cutLength, machineMinutes, measureModel, passesFor } from '../../step-measure.js';
+import { READ_OPTIONS, MM_PER_IN, cutLength, machineMinutes, measureModel, measureStepText, passesFor } from '../../step-measure.js';
 
 // STEP file analysis for the Claude connector's analyze_part_file tool.
-// OpenCascade (occt-import-js, the same WebAssembly build the quote page uses)
-// turns the file into triangles grouped by the CAD model's faces, and
 // step-measure.js (which the quote page prices STEP plates with) measures each
 // solid as a CNC plate: thickness, plate size, the length of every contour the
-// router follows, holes, pockets and flags. This adds an estimate of machine
-// time and electricity, and draws a top view of each distinct part.
+// router follows, holes, pockets and flags, straight from the file's geometry,
+// or, for a file it can't read that way, from OpenCascade's mesh of it
+// (occt-import-js, the same WebAssembly build the quote page uses). This adds
+// an estimate of machine time and electricity, and draws a top view of each
+// distinct part.
 
 // Shop constants. The first block copies RATE in index.html (keep them in sync);
 // the rest are only used here. All time and cost figures are estimates.
@@ -34,9 +35,9 @@ export const SHOP = {
 };
 
 export const MAX_FILE_BYTES = 10 * 1024 * 1024; // same cap as uploads (api/upload.js)
-// Meshing time grows faster than the face count (about 4 s at 200 faces, 9 s at
-// 400, a minute at 1,800), so bigger models are turned away instead of running
-// into the function's time limit.
+// OpenCascade's meshing time grows faster than the face count (about 4 s at 200
+// faces, 9 s at 400, a minute at 1,800), so a bigger model that can't be read
+// directly is turned away instead of running into the function's time limit.
 const MAX_FACES = 1000;
 const MAX_PICTURES = 6;
 
@@ -156,13 +157,24 @@ export async function analyzeStep(bytes) {
   const head = Buffer.from(bytes.buffer, bytes.byteOffset, Math.min(bytes.length, 200)).toString('latin1');
   if (!head.includes('ISO-10303-21')) throw new UserError('This isn\'t a STEP file (no ISO-10303-21 header).');
   const text = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.length).toString('latin1');
-  const faceCount = (text.match(/\b(ADVANCED_FACE|FACE_SURFACE)\s*\(/g) || []).length;
-  if (faceCount > MAX_FACES) throw new UserError(`This model has ${faceCount} faces, over the ${MAX_FACES} this tool can measure in time. Quote it by hand, or ask for the plates as separate files.`);
-  const lib = await occt();
-  const result = lib.ReadStepFile(bytes, READ_OPTIONS);
-  if (!result || !result.success) throw new UserError('The file couldn\'t be read as a STEP model.');
-  if (!result.meshes || !result.meshes.length) throw new UserError('The file has no solid geometry in it. It may be an assembly that only points to other part files: ask the customer for the parts themselves, or one STEP export with everything in it.');
-  const { solids, groups } = measureModel(result.meshes, SHOP);
+  // Most plates are read straight from the file, quickly at any size; anything
+  // else goes through OpenCascade.
+  let model = null;
+  try {
+    model = measureStepText(text, SHOP);
+  } catch (err) {
+    console.error('Reading the STEP geometry directly failed:', err);
+  }
+  if (!model) {
+    const faceCount = (text.match(/\b(ADVANCED_FACE|FACE_SURFACE)\s*\(/g) || []).length;
+    if (faceCount > MAX_FACES) throw new UserError(`This model has ${faceCount} faces, over the ${MAX_FACES} this tool can measure in time. Quote it by hand, or ask for the plates as separate files.`);
+    const lib = await occt();
+    const result = lib.ReadStepFile(bytes, READ_OPTIONS);
+    if (!result || !result.success) throw new UserError('The file couldn\'t be read as a STEP model.');
+    if (!result.meshes || !result.meshes.length) throw new UserError('The file has no solid geometry in it. It may be an assembly that only points to other part files: ask the customer for the parts themselves, or one STEP export with everything in it.');
+    model = measureModel(result.meshes, SHOP);
+  }
+  const { solids, groups } = model;
 
   const pictures = [];
   const parts = groups.map(({ m, copies }, i) => {

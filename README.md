@@ -46,7 +46,11 @@ Click a file's name to preview it.
 
 **STEP plates.** `step-measure.js` (the same code the Claude connector's
 `analyze_part_file` uses) reads each solid in the model: plate size, thickness,
-cut length, holes and pockets. Each plate is priced like a DXF plate, with
+cut length, holes and pockets. It reads them straight from the file's faces,
+lines and circles, so even an FTC grid plate with 900 holes takes well under a
+second, and the preview is a top view of the plate. Only a file it can't read
+that way (instanced assembly parts, say) goes through OpenCascade instead: a
+7.6 MB download, a 3D preview, and up to a minute for a big plate. Each plate is priced like a DXF plate, with
 material for its real thickness (a 1/4 in. plate costs twice the 1/8 in.
 material) and machine time that includes clearing its pockets. A file with
 several plates is priced as a set. Something unusual is still priced, but the
@@ -388,9 +392,12 @@ shop's Shapeoko 5 Pro 2x2 with the Carbide Compact Router at rated draw (router
 about 6.5 A at 120 V, ~780 W; machine rated 4 A, ~440 W; 1.2 kW together, an upper
 bound, since real cuts draw less) and SDG&E's 2026 blended residential rate,
 about $0.49/kWh. To use a measured figure (a plug-in power meter on the
-machine's outlet strip) or add a shop vac, set those two env vars in Vercel. Files over 1,000 CAD faces are turned away (meshing them takes too
-long for the function's 60 s limit, set in `vercel.json`), as are DXF and other
-file types: DXFs are already priced by the quote page.
+machine's outlet strip) or add a shop vac, set those two env vars in Vercel.
+Most files are read straight from their geometry, quickly at any size; a file
+that has to go through OpenCascade instead is turned away if it has over 1,000
+CAD faces (meshing it would take too long for the function's 60 s limit, set in
+`vercel.json`). DXF and other file types are turned away too: DXFs are already
+priced by the quote page.
 
 **Set it up**
 
