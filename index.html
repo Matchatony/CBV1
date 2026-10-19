@@ -182,7 +182,7 @@
   <section id="parts" class="wrap section">
     <div class="section-head">
       <h2>Parts</h2>
-      <p class="section-note">Submit a DXF or STEP file for a same-day quote.</p>
+      <p class="section-note">Submit a DXF or STEP file for an instant quote.</p>
     </div>
 
     <div class="specs">
@@ -369,7 +369,7 @@
     <div class="faq">
       <details>
         <summary>What files can I send?</summary>
-        <p>For plates, a DXF or STEP file of each part: DXFs are priced instantly, STEP files by hand.
+        <p>For plates, a DXF or STEP file of each part: both are priced instantly.
           For 3D prints, an STL or 3MF file, priced instantly. Anything else (a PDF drawing, a ZIP)
           goes under "Something else" and we'll price it by email. Up to 10 files per request, 10&nbsp;MB each.</p>
       </details>
@@ -566,7 +566,7 @@
       <div class="field field-wide">
         <label for="q-files">Design files <span class="opt">one file per part, up to 10</span></label>
         <input id="q-files" type="file" multiple accept=".dxf,.step,.stp" aria-describedby="q-file-hint">
-        <p class="hint" id="q-file-hint">DXF or STEP for a CNC plate. A DXF gets measured and priced automatically; a STEP file is quoted by hand. 10&nbsp;MB max each.</p>
+        <p class="hint" id="q-file-hint">DXF or STEP for a CNC plate. Each one gets measured and priced automatically. 10&nbsp;MB max each.</p>
         <p class="hint"><a class="guide-link" href="file-guide.html" target="_blank" rel="noopener">How to export your file from Onshape or Fusion 360</a></p>
         <p class="hint file-problem" id="q-file-problem" role="alert" hidden></p>
         <ul class="file-list" id="q-file-list" aria-label="Your files" hidden></ul>
@@ -716,6 +716,7 @@
     cncPasses: 3,
     cncPerHoleMin: 0.25,     // plunge, lead-in and retract for each hole
     minToolDiaIn: 0.125,     // 1/16 in. min tool radius, per the Parts spec
+    pocketStepoverIn: 0.05,  // sideways step clearing a STEP part's pockets (40% of a 1/8 in. tool)
     printMachineFlat: 3,     // per printed part, regardless of print time
     // Prints past either limit get a hand quote instead of a flat price.
     printMaxHours: 12,       // estimated from grams / gramsPerHour
@@ -760,6 +761,7 @@
   var SHIP_PAD_IN = 0.25;   // packing on every side of the parts
   var SHIP_MAX_LB = 70;     // USPS flat rate weight limit
   var PLATE_THICK_IN = 0.125;
+  var STEP_MAX_THICK_IN = 0.5; // thicker STEP parts aren't plate stock: priced by hand
   var PLATE_LB_PER_CU_IN = { aluminum: 0.0975, poly: 0.043, 'other-mat': 0.0975 };
 
   /* Keyless public endpoint: Nominatim turns the typed address into a list
@@ -812,7 +814,7 @@
   };
 
   var ACCEPT = {
-    plate: { ext: '.dxf,.step,.stp', hint: 'A DXF or STEP per plate. DXFs get measured and priced automatically; STEP files are quoted by hand. Pick several at once or add more later. 10 MB max each.' },
+    plate: { ext: '.dxf,.step,.stp', hint: 'A DXF or STEP per plate. Each one gets measured and priced automatically. Pick several at once or add more later. 10 MB max each.' },
     print: { ext: '.stl,.3mf', hint: 'An STL or 3MF per printed part, read as millimeters (if yours are in inches, say so in the details). Pick several at once or add more later. 10 MB max each.' },
     other: { ext: '.dxf,.step,.stp,.stl,.3mf,.pdf,.zip', hint: 'Whatever helps us understand the parts. 10 MB max each.' }
   };
@@ -1047,7 +1049,8 @@
      view. DXF: a small parser (lines, arcs, circles, polylines, splines,
      ellipses) drawn straight on
      the canvas. The STEP and 3MF libraries are only downloaded when someone
-     actually picks one of those files — the STEP one is ~7.6 MB. Three.js and
+     actually picks one of those files — the STEP one is ~7.6 MB. A STEP
+     file's plates are also measured, for its price, by step-measure.js. Three.js and
      jsPDF (~1 MB together) load once someone nears or starts the quote form,
      so the rest of the page stays light. */
 
@@ -1081,6 +1084,16 @@
     }
     return occtReady;
   }
+  // step-measure.js measures a STEP model's plates (the shop's own STEP tool,
+  // api/_lib/step.js, uses the same file), so they can be priced like a DXF.
+  var stepMeasureReady = null;
+  function loadStepMeasure() {
+    if (!stepMeasureReady) {
+      stepMeasureReady = import('./step-measure.js');
+      stepMeasureReady.catch(function () { stepMeasureReady = null; });
+    }
+    return stepMeasureReady;
+  }
   function loadThree() { return loadScript(LIB.three); }
   function loadJsPdf() { return loadScript(LIB.jspdf); }
   function load3mf() {
@@ -1110,8 +1123,7 @@
     }
   })();
 
-  function stepToPositions(buffer, occt) {
-    var result = occt.ReadStepFile(new Uint8Array(buffer), null);
+  function stepToPositions(result) {
     if (!result || !result.success) return [];
     var positions = [];
     result.meshes.forEach(function (m) {
@@ -1473,6 +1485,54 @@
     };
   }
 
+  /* What a STEP file's plates measured (step-measure.js, from the model), in
+     inches: one entry per distinct part, with how many copies of it the file
+     has, its machine minutes and flags. Or { problem } when there's no flat
+     plate in it to price. */
+  function stepGeom(model, sm) {
+    var MM = sm.MM_PER_IN, parts = [], problem = '';
+    if (!model.groups.length) return { problem: 'We couldn\'t find a solid part in this STEP file, so it\'s priced by hand.' };
+    model.groups.forEach(function (g) {
+      var m = g.m;
+      if (problem) return;
+      if (!m.contours || !m.rect.length) {
+        problem = (model.groups.length > 1 ? 'Part of this model' : 'This model') + ' isn\'t a flat plate, so it\'s priced by hand.';
+        return;
+      }
+      var thick = m.thickness / MM;
+      if (thick > STEP_MAX_THICK_IN + 0.004) {
+        problem = 'It\'s ' + thick.toFixed(2) + '″ thick, more than the 1/2″ plate we cut, so it\'s priced by hand.';
+        return;
+      }
+      parts.push({
+        copies: g.copies, length: m.rect.length / MM, width: m.rect.width / MM, thick: thick, stock: m.stock,
+        cutLength: sm.cutLength(m) / MM,
+        holes: m.contours.filter(function (c) { return c.type === 'hole'; }).map(function (c) { return c.diameter / MM; }),
+        pockets: m.contours.filter(function (c) { return c.type === 'pocket'; }).length,
+        minutes: sm.machineMinutes(m, RATE),
+        flags: m.flags
+      });
+    });
+    return problem ? { problem: problem } : { parts: parts };
+  }
+
+  // A STEP file's plates in a few words: "4.7″ × 2.4″ (11.1 sq in), 1/8 in.
+  // thick, 20.2″ cut path, 4 holes". bold: the size in bold, for the file list.
+  function stepSize(step, bold) {
+    var parts = step.parts, count = 0, area = 0, cut = 0, holes = 0, pockets = 0, thick = [];
+    parts.forEach(function (p) {
+      count += p.copies; area += p.length * p.width * p.copies; cut += p.cutLength * p.copies;
+      holes += p.holes.length * p.copies; pockets += p.pockets * p.copies;
+      var t = p.stock !== 'nonstandard' ? p.stock : p.thick.toFixed(3) + '″';
+      if (thick.indexOf(t) === -1) thick.push(t);
+    });
+    var dims = parts[0].length.toFixed(1) + '″ × ' + parts[0].width.toFixed(1) + '″';
+    var what = count === 1 ? dims : count + ' plates' + (parts.length === 1 ? ', ' + dims + ' each' : count > parts.length ? ' (' + parts.length + ' different)' : '');
+    return (bold ? '<b>' + what + '</b>' : what) + ' (' + area.toFixed(1) + ' sq in' + (count > 1 ? ' in all' : '') + '), ' +
+      thick.join(' and ') + ' thick, ' + cut.toFixed(1) + '″ ' + (bold ? 'of ' : '') + 'cut path, ' +
+      holes + (holes === 1 ? ' hole' : ' holes') + (pockets ? ', ' + pockets + (pockets === 1 ? ' pocket' : ' pockets') : '');
+  }
+
   /* Volume, surface area and size of a triangle mesh (flat xyz list, mm).
      Volume is the signed-tetrahedron sum, so it's only meaningful for a
      closed mesh — which every printable STL/3MF should be. */
@@ -1535,7 +1595,18 @@
     } else if (ext === '3mf') {
       job = Promise.all([file.arrayBuffer(), load3mf()]).then(function (r) { item.positions = new Float32Array(threeMfToPositions(r[0])); });
     } else if (isStep(ext)) {
-      job = Promise.all([file.arrayBuffer(), loadOcct()]).then(function (r) { item.positions = new Float32Array(stepToPositions(r[0], r[1])); });
+      // Read once for the preview and the measuring. If step-measure.js doesn't
+      // load, the preview still works and the file is priced by hand.
+      job = Promise.all([file.arrayBuffer(), loadOcct(), loadStepMeasure().catch(function () { return null; })]).then(function (r) {
+        var sm = r[2], result = r[1].ReadStepFile(new Uint8Array(r[0]), sm ? sm.READ_OPTIONS : null);
+        item.positions = new Float32Array(stepToPositions(result));
+        if (!sm || !result || !result.success) return;
+        try {
+          item.step = stepGeom(sm.measureModel(result.meshes || [], RATE), sm);
+        } catch (err) {
+          console.error('Couldn\'t measure ' + item.name + ':', err);
+        }
+      });
     } else {
       job = Promise.resolve();
     }
@@ -1558,9 +1629,14 @@
     if (item.status === 'failed') return 'We couldn\'t read this file, so it\'s priced by hand.';
     if (type === 'other') return '"Something else" is priced by hand.';
     if (type === 'plate') {
-      if (isStep(ext)) return 'STEP files are priced by hand from your model.';
-      if (ext !== 'dxf') return 'Not a plate file (DXF or STEP), so it\'s priced by hand.';
-      if (item.status === 'ready' && !item.geom) return 'We couldn\'t find measurable geometry in this DXF, so it\'s priced by hand.';
+      if (isStep(ext)) {
+        if (item.status === 'ready' && !item.step) return 'We couldn\'t measure this STEP file, so it\'s priced by hand.';
+        if (item.step && item.step.problem) return item.step.problem;
+      } else if (ext !== 'dxf') {
+        return 'Not a plate file (DXF or STEP), so it\'s priced by hand.';
+      } else if (item.status === 'ready' && !item.geom) {
+        return 'We couldn\'t find measurable geometry in this DXF, so it\'s priced by hand.';
+      }
       if (els.material.value === 'other-mat') return 'Materials outside 6061 aluminum and polycarbonate are priced by hand.';
       return '';
     }
@@ -1575,6 +1651,7 @@
     var reason = handReason(item);
     if (reason) return { text: reason, hand: true };
     if (els.type.value === 'plate') {
+      if (item.step) return { html: stepSize(item.step, true) };
       var g = item.geom;
       return { html: '<b>' + g.width.toFixed(1) + '″ × ' + g.height.toFixed(1) + '″</b>, ' + g.cutLength.toFixed(1) + '″ of cut path, ' +
         g.holes.length + (g.holes.length === 1 ? ' hole' : ' holes') +
@@ -1859,28 +1936,24 @@
      file that can't be priced automatically comes back with the reason. */
   function priceLine(item) {
     var type = els.type.value, qty = item.qty;
-    var line = { name: item.name, ext: item.ext, qty: qty, priced: false, reason: handReason(item), size: '', notes: [] };
+    var line = { name: item.name, ext: item.ext, qty: qty, priced: false, reason: handReason(item), size: '', notes: [], checks: [] };
     if (!line.reason && item.status !== 'ready') line.reason = 'We couldn\'t finish reading this file in time, so it\'s priced by hand.';
     if (line.reason) return line;
 
-    var material, machine, labor, surcharge = 0;
-    if (type === 'plate') {
+    // The parts one of this file makes (a STEP file can have several), each
+    // { count, material, machine, labor, surcharge } per part.
+    var parts;
+    if (type === 'plate' && item.step) {
+      parts = stepParts(item.step, line);
+    } else if (type === 'plate') {
       var g = item.geom, area = g.width * g.height;
-      material = area * (RATE.materialPerSqIn[els.material.value] || RATE.materialPerSqIn.aluminum);
       var cncMin = RATE.cncSetupMin + (g.cutLength * RATE.cncPasses) / RATE.cncFeedIpm + g.holes.length * RATE.cncPerHoleMin;
-      machine = cncMin * RATE.cncPerMin;
-      labor = (Math.min(RATE.laborMaxPlateMin, RATE.laborMinPlate + area * RATE.laborMinPlateAreaFactor) / 60) * RATE.laborPerHour;
-      if (els.tapped.checked) surcharge += RATE.surchargeTapped;
-      if (els.tol.checked) surcharge += RATE.surchargeTolerance;
-      if (els.complex.checked) surcharge += RATE.surchargeComplex;
+      parts = [platePart(area, PLATE_THICK_IN, cncMin, 0)];
       line.ship = { flat: [g.width, g.height], lb: area * PLATE_THICK_IN * (PLATE_LB_PER_CU_IN[els.material.value] || 0.0975) };
       line.size = g.width.toFixed(1) + '″ × ' + g.height.toFixed(1) + '″ (' + area.toFixed(1) + ' sq in), ' +
         g.cutLength.toFixed(1) + '″ cut path, ' + g.holes.length + (g.holes.length === 1 ? ' hole' : ' holes');
       var tooSmall = g.holes.filter(function (d) { return d < RATE.minToolDiaIn - 1e-6; }).length;
-      if (tooSmall) {
-        line.notes.push(tooSmall + (tooSmall === 1 ? ' hole is' : ' holes are') + ' under our ' + RATE.minToolDiaIn +
-          '″ minimum tool diameter — we\'ll confirm those with you before cutting.');
-      }
+      if (tooSmall) line.notes.push(smallHolesNote(tooSmall));
     } else {
       var grams = printedGrams(item.mesh, infillPct(), wallCount());
       var hours = grams / RATE.gramsPerHour;
@@ -1888,9 +1961,10 @@
         line.reason = 'A big print (about ' + Math.round(grams) + ' g, roughly ' + Math.round(hours) + ' hours) is priced by hand.';
         return line;
       }
-      material = grams * (els.printMaterial.value === 'premium' ? RATE.premiumFilamentPerGram : RATE.filamentPerGram);
-      machine = RATE.printMachineFlat;
-      labor = RATE.printLaborFlat;
+      parts = [{
+        count: 1, machine: RATE.printMachineFlat, labor: RATE.printLaborFlat, surcharge: 0,
+        material: grams * (els.printMaterial.value === 'premium' ? RATE.premiumFilamentPerGram : RATE.filamentPerGram)
+      }];
       line.ship = { box: item.mesh.dims.map(function (d) { return d / 25.4; }), lb: grams / 453.6 };
       line.size = item.mesh.dims.map(function (d) { return d.toFixed(0); }).join(' × ') + ' mm, ~' + Math.round(grams) + ' g at ' +
         infillPct() + '% infill, ' + wallCount() + (wallCount() === 1 ? ' wall' : ' walls');
@@ -1899,16 +1973,105 @@
       line.notes.push('Over ' + RATE.escalateQty + ' of one part gets a final check on batch capacity before we confirm.');
     }
 
-    var discounted = qty >= RATE.qtyDiscountThreshold;
-    var materialEach = discounted ? material * (1 - RATE.qtyDiscountRate) : material;
-    var subtotal = materialEach + machine + labor + surcharge;
+    // The 5+ discount (on material) and the minimum are per part.
+    var each = { material: 0, machine: 0, labor: 0, flags: 0, minimum: 0 }, perPart = 0;
+    line.discounted = false;
+    parts.forEach(function (p) {
+      var discounted = qty * p.count >= RATE.qtyDiscountThreshold;
+      var material = discounted ? p.material * (1 - RATE.qtyDiscountRate) : p.material;
+      var subtotal = material + p.machine + p.labor + p.surcharge;
+      each.material += material * p.count;
+      each.machine += p.machine * p.count;
+      each.labor += p.labor * p.count;
+      each.flags += p.surcharge * p.count;
+      each.minimum += Math.max(0, RATE.minPartPrice - subtotal) * p.count;
+      perPart += Math.max(RATE.minPartPrice, subtotal) * p.count;
+      if (discounted) line.discounted = true;
+    });
     line.priced = true;
-    line.discounted = discounted;
-    line.each = { material: materialEach, machine: machine, labor: labor, flags: surcharge, minimum: Math.max(0, RATE.minPartPrice - subtotal) };
+    line.each = each;
     // Rounded to the cent first, so "6 × $10.45" always adds up to the line total shown.
-    line.perPart = Math.round(Math.max(RATE.minPartPrice, subtotal) * 100) / 100;
+    line.perPart = Math.round(perPart * 100) / 100;
     line.total = line.perPart * qty;
     return line;
+  }
+
+  function smallHolesNote(n) {
+    return n + (n === 1 ? ' hole is' : ' holes are') + ' under our ' + RATE.minToolDiaIn +
+      '″ minimum tool diameter — we\'ll confirm those with you before cutting.';
+  }
+
+  // One plate before the 5+ discount and the minimum: material for its stock
+  // area and thickness, machine time, labor by size, the CNC options picked,
+  // plus any extra add-on.
+  function platePart(area, thickIn, cncMin, extra) {
+    var surcharge = extra;
+    if (els.tapped.checked) surcharge += RATE.surchargeTapped;
+    if (els.tol.checked) surcharge += RATE.surchargeTolerance;
+    if (els.complex.checked) surcharge += RATE.surchargeComplex;
+    return {
+      count: 1,
+      material: area * (RATE.materialPerSqIn[els.material.value] || RATE.materialPerSqIn.aluminum) * (thickIn / PLATE_THICK_IN),
+      machine: cncMin * RATE.cncPerMin,
+      labor: (Math.min(RATE.laborMaxPlateMin, RATE.laborMinPlate + area * RATE.laborMinPlateAreaFactor) / 60) * RATE.laborPerHour,
+      surcharge: surcharge
+    };
+  }
+
+  /* A STEP file's plates, priced like a DXF plate but from the model: material
+     for each plate's real thickness, machine time including its pockets
+     (step-measure.js), and the multiple setups / unusual geometry add-on when
+     the model needs it (sloped faces, or features on both faces). Anything
+     unusual is still priced, and it goes in line.notes, for the customer, and
+     line.checks, which flag the order for the shop to look over. */
+  function stepParts(step, line) {
+    var found = {}, lb = 0, stack = 0, flat = [0, 0];
+    var parts = step.parts.map(function (p) {
+      var area = p.length * p.width, ids = p.flags.map(function (f) { return f.id; });
+      p.flags.forEach(function (f) { (found[f.id] = found[f.id] || []).push({ flag: f, copies: p.copies }); });
+      lb += area * p.thick * (PLATE_LB_PER_CU_IN[els.material.value] || 0.0975) * p.copies;
+      stack += p.thick * p.copies;
+      flat = [Math.max(flat[0], p.length), Math.max(flat[1], p.width)];
+      var setups = ids.indexOf('sloped') !== -1 || ids.indexOf('both_sides') !== -1;
+      var part = platePart(area, p.thick, p.minutes, setups && !els.complex.checked ? RATE.surchargeComplex : 0);
+      part.count = p.copies;
+      return part;
+    });
+    line.ship = { flat: flat, lb: lb, stack: stack };
+    line.size = stepSize(step);
+
+    if (found.sloped) {
+      line.notes.push('It has chamfers, rounded edges or other sloped faces: priced with the unusual-geometry add-on, and we\'ll double-check it.');
+      line.checks.push('Sloped or curved faces (chamfers, fillets or a 3D shape): priced as a flat plate plus the unusual-geometry add-on.');
+    }
+    if (found.both_sides) {
+      line.notes.push('It has features on both faces, so it needs a second setup: priced with the multiple-setups add-on.');
+      line.checks.push('Features cut into both faces: needs flipping and a second setup (priced with the multiple-setups add-on).');
+    }
+    if (found.edge_step) {
+      line.notes.push('It has a step cut around the outside edge: we\'ll confirm the price for that.');
+      line.checks.push('A step cut around the outside edge, which the price doesn\'t include.');
+    }
+    if (found.small_holes) {
+      var small = 0, smallest = Infinity;
+      found.small_holes.forEach(function (x) { small += x.flag.count * x.copies; smallest = Math.min(smallest, x.flag.smallest_mm); });
+      line.notes.push(smallHolesNote(small));
+      line.checks.push(small + (small === 1 ? ' round feature' : ' round features') + ' under the ' + RATE.minToolDiaIn + '″ tool (smallest ' + smallest + ' mm across).');
+    }
+    // Both materials on the form are 1/8 in. plate.
+    var thick = [], odd = false;
+    step.parts.forEach(function (p) {
+      if (p.stock === '1/8 in.') return;
+      var t = p.stock !== 'nonstandard' ? p.stock : p.thick.toFixed(3) + '″';
+      if (thick.indexOf(t) === -1) thick.push(t);
+      if (p.stock === 'nonstandard') odd = true;
+    });
+    if (thick.length) {
+      line.notes.push('It\'s ' + thick.join(' and ') + ' thick' + (odd ? ', not a stock size,' : ',') + ' so it\'s priced for that thickness instead of 1/8 in. We\'ll confirm the material with you.');
+      line.checks.push('Thickness ' + thick.join(' and ') + (odd ? ' (not a stock size)' : '') + ', but the material on the order is 1/8 in.: priced at that thickness.');
+    }
+    if (step.parts.length > 1) line.checks.push(step.parts.length + ' different parts in one file, priced together: check they\'re all plates.');
+    return parts;
   }
 
   // The material/color line that applies to every file in the request.
@@ -1934,7 +2097,7 @@
         // Try each face of the box as the floor; the plates stack up the rest.
         return [[0, 1, 2], [0, 2, 1], [1, 2, 0]].some(function (o) {
           var floor = [inside[o[0]], inside[o[1]]].sort(desc), height = inside[o[2]];
-          var stack = lines.reduce(function (t, l) { return t + l.qty * PLATE_THICK_IN; }, 0);
+          var stack = lines.reduce(function (t, l) { return t + l.qty * (l.ship.stack || PLATE_THICK_IN); }, 0);
           return stack <= height && lines.every(function (l) {
             var f = l.ship.flat.slice().sort(desc);
             return f[0] <= floor[0] && f[1] <= floor[1];
@@ -2026,7 +2189,7 @@
         '<span class="cl-price">' + (l.priced ? money(l.total) : 'by hand') + '</span>' +
         '<span class="cl-detail">' + (l.priced ? l.qty + ' × ' + escapeHtml(l.size) : 'Qty ' + l.qty + ' · ' + escapeHtml(l.reason)) +
         (l.priced && l.qty > 1 ? ' · ' + money(l.perPart) + ' each' : '') +
-        (l.notes.length ? ' ' + escapeHtml(l.notes.join(' ')) : '') + '</span>' +
+        (l.notes.length ? '. ' + escapeHtml(l.notes.join(' ')) : '') + '</span>' +
         '</li>';
     }).join('') + '</ul>';
   }
@@ -2107,6 +2270,7 @@
       if (l.priced) {
         it.price = { material: l.each.material * l.qty, machine: l.each.machine * l.qty, labor: l.each.labor * l.qty,
           flags: l.each.flags * l.qty, minimum: l.each.minimum * l.qty, per_part: l.perPart, total: l.total, discount: l.discounted };
+        if (l.checks.length) it.checks = l.checks; // a STEP file with something unusual (see stepParts)
       } else {
         it.reason = l.reason;
       }
@@ -2161,6 +2325,9 @@
       var flags = q.notes.slice();
       q.lines.forEach(function (l) { flags.push.apply(flags, l.notes); });
       if (flags.length) lines.push('Flags: ' + flags.join(' | '));
+      var checks = [];
+      q.priced.forEach(function (l) { l.checks.forEach(function (c) { checks.push(l.name + ': ' + c); }); });
+      if (checks.length) lines.push('CHECK BEFORE CONFIRMING: ' + checks.join(' | '));
       lines.push('ESTIMATED TOTAL: ' + money(q.total) +
         (q.partial ? ' for the priced files — plus ' + q.hand.length + (q.hand.length === 1 ? ' file' : ' files') + ' to price by hand' : '') +
         (q.delivery === 'ship' && !q.shipBox ? ' — plus shipping, to quote' : ''));
@@ -2352,7 +2519,7 @@
       doc.setFontSize(10);
       doc.setTextColor(120, 113, 128);
       block((l.priced ? l.size + (l.qty > 1 ? ' · ' + money(l.perPart) + ' each' : '') : l.reason) +
-        (l.notes.length ? ' ' + l.notes.join(' ') : ''), 13);
+        (l.notes.length ? '. ' + l.notes.join(' ') : ''), 13);
       y += 4;
     });
 

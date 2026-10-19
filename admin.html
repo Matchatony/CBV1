@@ -38,6 +38,7 @@
   .kind.k-print { background: #8fd6a8; }
   .kind.k-other { background: #c9c3d3; }
   .kind.rush { background: #f0a4b0; }
+  .kind.check { background: #ffd27a; }
   .kind.code-tag { background: #f3c2da; }
   .kind.code-tag.bad { background: #c9c3d3; text-decoration: line-through; }
   .who .tags { display: inline-flex; gap: 5px; margin-right: 7px; vertical-align: 1px; }
@@ -53,6 +54,8 @@
   .price-table td:last-child { text-align: right; font-family: var(--mono); }
   .price-table tr.total td { border-top: 1px solid var(--line-firm); padding-top: 7px; font-weight: 600; }
   .price-table + .hand-reason { margin-top: 10px; }
+  .check-note { margin: 10px 0 0; padding: 10px 12px; border: 1px solid rgba(255, 210, 122, .5); border-radius: 6px; background: rgba(255, 210, 122, .08); font-size: 14px; }
+  .check-note ul { margin: 6px 0 0; padding-left: 18px; }
   .file-links { margin: 0; padding: 0; list-style: none; }
   .file-links li + li { margin-top: 3px; }
   .items-table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 13.5px; table-layout: fixed; }
@@ -82,6 +85,11 @@
   @media (prefers-reduced-motion: reduce) { .view-leave, .view-enter { transition: none; animation: none; } }
   .admin .tabs button.tab[aria-pressed="true"] { color: var(--text); border-bottom-color: var(--accent); }
   .tabs #refresh { margin: 0 0 8px auto; }
+  /* Phones: tighter tabs, and they wrap rather than run off the side. */
+  @media (max-width: 560px) {
+    .tabs { flex-wrap: wrap; }
+    .admin .tabs button.tab { padding: 10px 8px; }
+  }
   .admin button.sm { font-size: 13px; padding: 5px 10px; }
   .admin a.btn-link { font-size: 13px; font-weight: 500; padding: 5px 10px; border: 1px solid var(--line-firm); border-radius: 6px; color: var(--text); text-decoration: none; white-space: nowrap; }
   .deliv-bar { margin-bottom: 18px; color: var(--muted); font-size: 14px; }
@@ -437,10 +445,16 @@
     if (o.specs && KINDS[o.specs.kind]) return o.specs.kind;
     return /cnc|plate/i.test(o.part_type || '') ? 'cnc' : /print/i.test(o.part_type || '') ? 'print' : 'other';
   }
+  // Files the quote page priced even though something about them was unusual
+  // (a STEP file with chamfers, features on both faces, ...), each with its checks.
+  function checkedItems(o) {
+    return ((o.specs && o.specs.items) || []).filter(function (it) { return it.checks && it.checks.length; });
+  }
   function kindTags(o) {
     return el('span', { class: 'tags' }, [
       el('span', { class: 'kind k-' + kindOf(o), text: KINDS[kindOf(o)] }),
       o.specs && o.specs.rush ? el('span', { class: 'kind rush', text: 'Rush' }) : null,
+      checkedItems(o).length ? el('span', { class: 'kind check', title: 'Priced automatically: check it before confirming the price', text: 'Check' }) : null,
       // The discount code, on the collapsed row too (struck through if it wasn't valid).
       o.specs && o.specs.discount ? el('span', { class: 'kind code-tag' + (o.specs.discount.invalid ? ' bad' : ''),
         title: o.specs.discount.invalid ? 'Code not valid when the order came in' : o.specs.discount.label, text: o.specs.discount.code }) : null
@@ -622,6 +636,15 @@
     } else {
       price = el('p', { text: o.price || '—' });
     }
+    var checked = checkedItems(o);
+    if (checked.length) {
+      price = el('div', {}, [price, el('div', { class: 'check-note' }, [
+        el('b', { text: 'Check before confirming the price.' }), ' The quote page priced ' + (checked.length > 1 ? 'these files' : 'this file') + ' anyway:',
+        el('ul', {}, checked.reduce(function (list, it) {
+          return list.concat(it.checks.map(function (c) { return el('li', { text: (sp.items.length > 1 ? it.file + ': ' : '') + c }); }));
+        }, []))
+      ])]);
+    }
     // The discount code, as checked when the order came in.
     if (sp && sp.discount) {
       var d = sp.discount;
@@ -674,6 +697,8 @@
     });
     var rush = openOrders.filter(function (o) { return o.specs && o.specs.rush; }).length;
     if (rush) box.appendChild(el('span', { class: 'chip' }, [el('b', { text: String(rush) }), ' rush']));
+    var check = state.orders.filter(function (o) { return o.status === 'new' && checkedItems(o).length; }).length;
+    if (check) box.appendChild(el('span', { class: 'chip' }, [el('b', { text: String(check) }), ' new to check']));
     state.statuses.forEach(function (s) {
       if (counts[s]) box.appendChild(el('span', { class: 'chip' }, [el('b', { text: String(counts[s]) }), ' ' + (LABELS[s] || s).toLowerCase()]));
     });

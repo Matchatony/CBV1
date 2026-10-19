@@ -14,6 +14,7 @@ files in a browser and they work; drop the folder on a host and it's live.
 ├── status.html     customer order status lookup
 ├── sponsor.html    Sponsored Team Program application
 ├── file-guide.html how to export DXF / STEP / STL / 3MF from Onshape and Fusion 360
+├── step-measure.js measures STEP plates (quote page and Claude connector share it)
 ├── flyer.html      8.5 x 11 flyer, print-ready
 ├── flyer.pdf       the flyer, already exported — hand this to a print shop
 ├── flyer-copy.txt  flyer wording as plain text, for tweaking
@@ -38,10 +39,32 @@ Still to set up (each is explained in its section below):
 
 A request can carry up to 10 design files (10 MB each, 50 MB together). Each
 file gets its own row with a quantity, and the estimate prices each one on its
-own line: DXF plates and STL / 3MF prints are measured in the browser and
-priced; STEP plates and anything the page can't measure are listed as "priced by
-hand", and the total then reads "$X + hand quote". One delivery fee covers the
-whole order. Click a file's name to preview it.
+own line: DXF and STEP plates and STL / 3MF prints are measured in the browser
+and priced; anything the page can't measure is listed as "priced by hand", and
+the total then reads "$X + hand quote". One delivery fee covers the whole order.
+Click a file's name to preview it.
+
+**STEP plates.** `step-measure.js` (the same code the Claude connector's
+`analyze_part_file` uses) reads each solid in the model: plate size, thickness,
+cut length, holes and pockets. Each plate is priced like a DXF plate, with
+material for its real thickness (a 1/4 in. plate costs twice the 1/8 in.
+material) and machine time that includes clearing its pockets. A file with
+several plates is priced as a set. Something unusual is still priced, but the
+quote tells the customer, and the order gets **checks** for you
+(`specs.items[].checks`):
+
+- sloped or curved faces (chamfers, fillets, a 3D shape), or features cut into
+  both faces: the multiple setups / unusual geometry add-on (+$8 a part) is
+  added, unless the customer already ticked it
+- a step cut around the outside edge (not in the price)
+- holes smaller than the 1/8 in. tool
+- a thickness other than the 1/8 in. on the order
+- several different parts in one file
+
+Such an order arrives with "(check before confirming)" in the email subject and
+a `check_before_confirming` field at the top, and shows a **Check** tag and the
+list in `admin.html`. Only a model with no flat plate in it, or one thicker than
+1/2 in., goes to a hand quote.
 
 **Getting it to them.** Three choices: free pickup in San Diego, local delivery
 in the San Diego area for a flat $15.99, or **Ship it** anywhere in the US by USPS
@@ -342,17 +365,17 @@ order and shown under **History** when you open the order in `admin.html`.
 (only the order's own files, from this project's Blob store; all of them, or one
 with `file: N`) and measures each part with
 OpenCascade (`occt-import-js`, the same WebAssembly build the quote page uses for
-its 3D preview), in `api/_lib/step.js`. Per part it reports:
+its 3D preview) and `step-measure.js` (the same measuring the quote page prices
+STEP plates with), in `api/_lib/step.js`. Per part it reports:
 
 - thickness and the matching stock size (1/8 to 1/2 in.)
 - plate size and stock area
 - total cut length
 - round holes by diameter, other cutouts, and pockets (area and depth)
 - identical copies, grouped
-- flags for anything that needs a hand quote: sloped or curved faces
-  (chamfers, fillets, 3D shapes), features on the bottom face, holes smaller
-  than the 1/8 in. tool, and a thickness that doesn't match the stock on the
-  order
+- flags for anything a plain flat plate wouldn't have: sloped or curved faces
+  (chamfers, fillets, 3D shapes), features on both faces, a step around the
+  outside edge, and holes smaller than the 1/8 in. tool
 - estimated machine minutes, kWh and electricity cost, per part, for the
   quantity ordered of that file, and for all the order's files together
 - a top-view picture (gray plate, blue pocket floors, grid every 10 mm)

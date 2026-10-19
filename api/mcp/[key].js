@@ -65,6 +65,7 @@ function summary(o) {
     total: total(o), ...(sp.price && sp.price.partial ? { plus_hand_quote: true } : {}),
     ...(o.delivery === 'ship' && !(sp.price && sp.price.delivery) ? { plus_shipping: true } : {}),
     ...(sp.shipping_box ? { shipping_box: sp.shipping_box } : {}),
+    ...((sp.items || []).some((it) => it.checks && it.checks.length) ? { check: true } : {}),
     ...(sp.discount ? { discount_code: sp.discount.code + (sp.discount.invalid ? ' (not valid: ' + sp.discount.invalid + ')' : ' (' + sp.discount.label + ')') } : {})
   };
 }
@@ -128,7 +129,7 @@ const READ = { readOnlyHint: true, openWorldHint: false };
 const EDIT = { readOnlyHint: false, destructiveHint: false, openWorldHint: false };
 
 function buildServer() {
-  const server = new McpServer({ name: 'crackbotics-orders', version: '1.3.0' }, {
+  const server = new McpServer({ name: 'crackbotics-orders', version: '1.4.0' }, {
     instructions: 'Crackbotics is a student-run CNC and 3D-print shop for FTC robotics teams. These tools read and update its order log. ' +
       'An order moves new → quoted → paid → in-progress → ready → done (or cancelled). Paid, in-progress and ready delivery orders go on a delivery day. ' +
       'An order is picked up in San Diego (delivery "pickup"), delivered locally for a flat $15.99 ("delivery"), or shipped anywhere in the US ("ship"); ' +
@@ -136,14 +137,18 @@ function buildServer() {
       'its dollar amount is already taken off the total (specs.price.code_discount), or, for a hand quote, still has to be. ' +
       'Every change you make is saved in the order\'s history, which the shop\'s admins can see. Orders can\'t be deleted from here. ' +
       'An order can have several design files, one per part, each with its own quantity (get_order: files, and specs.items for each file\'s line). ' +
-      'STEP files are quoted by hand: analyze_part_file measures them (plate size, thickness, cut length, holes, pockets) and estimates machine time and electricity.'
+      'The quote page prices DXF and STEP plates itself. A STEP file with something unusual (sloped faces, features on both faces, a step around the edge, ' +
+      'holes under the 1/8 in. tool, a thickness other than the 1/8 in. on the order, several different parts) is still priced, and its specs.items entry ' +
+      'lists checks for the shop to look over before confirming the price. analyze_part_file measures STEP files the same way the quote page does ' +
+      '(plate size, thickness, cut length, holes, pockets) and adds machine time, electricity and a picture.'
   });
 
   server.registerTool('list_orders', {
     title: 'List orders',
     description: 'List orders, newest first, as a short summary each: id, created date, name, team, kind (cnc/print/other), quantity, material, ' +
       'status, delivery type (pickup, delivery or ship), delivery date and stop number, delivered time, number of design files, and total in dollars (or "hand quote" when it needs pricing by hand; ' +
-      'plus_hand_quote: true when some of its files still need pricing by hand, plus_shipping: true when shipping still has to be added, discount_code when it used one). ' +
+      'plus_hand_quote: true when some of its files still need pricing by hand, plus_shipping: true when shipping still has to be added, discount_code when it used one, ' +
+      'check: true when a file was priced automatically but flagged for a look before confirming). ' +
       'Use get_order for the full details of one order.',
     inputSchema: fromJsonSchema({
       type: 'object',
@@ -172,7 +177,8 @@ function buildServer() {
     description: 'Everything about one order: what was ordered (specs: kind, material, quantity, color, infill, walls, CNC options, rush, measured size, file type), ' +
       'the price breakdown (or the reason it needs a hand quote), customer name, email and team, pickup or delivery with address, date, time window, ' +
       'stop number and delivered time, status, private notes, the design files (files: name and download URL of each, in order; specs.items has each ' +
-      'file\'s quantity, measurements and price or hand-quote reason), the original quote text, and the history of changes made through this connector.',
+      'file\'s quantity, measurements and price or hand-quote reason, plus checks: what to look over before confirming that file\'s price), the original ' +
+      'quote text, and the history of changes made through this connector.',
     inputSchema: fromJsonSchema({ type: 'object', properties: { id: ID }, required: ['id'], additionalProperties: false }),
     annotations: READ
   }, ({ id }) => {
@@ -241,13 +247,13 @@ function buildServer() {
   server.registerTool('analyze_part_file', {
     title: 'Measure an order\'s STEP files',
     description: 'Download the order\'s STEP (.step/.stp) design files and measure every part in each as a CNC plate: thickness and the matching ' +
-      'stock size, plate size and stock area, total cut length, round holes by diameter, other cutouts, pockets (area and depth), parts with sloped ' +
-      'or bottom-side features that need a hand quote, holes smaller than the shop\'s 1/8 in. tool, and identical copies grouped. Also estimates ' +
+      'stock size, plate size and stock area, total cut length, round holes by diameter, other cutouts, pockets (area and depth), flags for parts with sloped ' +
+      'faces, features on both faces or a step around the edge, holes smaller than the shop\'s 1/8 in. tool, and identical copies grouped. Also estimates ' +
       'machine minutes, kWh and electricity cost per part, per file (times how many of that file were ordered) and for the whole order, from the ' +
       'shop\'s cutting constants (an estimate, not a CAM toolpath), and returns a top-view picture of each distinct part. An order can have up to ' +
       '10 files: by default every STEP file is measured, or give file (its number, 1 = first, as listed by get_order\'s files) for just one. ' +
-      'The material isn\'t in the files: take it from get_order. Only works on the order\'s own uploaded files; DXF files are already priced by ' +
-      'the quote page. Takes a few seconds per file, up to about 30 for a big one; if time runs out, the reply says which files to ask for next.',
+      'The material isn\'t in the files: take it from get_order. Only works on the order\'s own uploaded files. The quote page already priced ' +
+      'DXF files and most STEP files with these same measurements: use this to check a flagged one or to quote one by hand. Takes a few seconds per file, up to about 30 for a big one; if time runs out, the reply says which files to ask for next.',
     inputSchema: fromJsonSchema({
       type: 'object',
       properties: {

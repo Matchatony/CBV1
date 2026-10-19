@@ -68,7 +68,14 @@ function mailFields(fields, order) {
   if (order.specs && order.specs.discount) out.discount_code = codeText(order.specs.discount);
   else delete out.discount_code;
   if (!out.quote_summary && order.quote_summary) out.quote_summary = order.quote_summary;
-  return { ...out, _subject: 'New quote request — Crackbotics', _template: 'table', ...(MAIL_CC() ? { _cc: MAIL_CC() } : {}) };
+  // Files priced automatically but flagged for a look: first in the email, and in the subject.
+  delete out.check_before_confirming;
+  const checks = ((order.specs && order.specs.items) || []).flatMap((it) => (it.checks || []).map((c) => `${it.file}: ${c}`));
+  return {
+    ...(checks.length ? { check_before_confirming: checks.join('\n') } : {}), ...out,
+    _subject: checks.length ? 'New quote request (check before confirming) — Crackbotics' : 'New quote request — Crackbotics',
+    _template: 'table', ...(MAIL_CC() ? { _cc: MAIL_CC() } : {})
+  };
 }
 
 function cleanPrice(p) {
@@ -104,6 +111,10 @@ function cleanSpecs(s) {
         size: clip(it.size, 200), reason: clip(it.reason, 400) };
       const p = cleanPrice(it.price);
       if (p) item.price = p;
+      // What's unusual about a STEP file the quote page priced anyway (index.html
+      // stepParts), for the shop to check before confirming the price.
+      const checks = Array.isArray(it.checks) ? it.checks.map((c) => clip(c, 300)).filter(Boolean).slice(0, 8) : [];
+      if (p && checks.length) item.checks = checks;
       return item;
     });
   }
