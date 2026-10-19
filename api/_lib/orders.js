@@ -152,3 +152,41 @@ export async function writeDoc(name, doc) {
   });
   if (old.length) await del(old.map((b) => b.url));
 }
+
+// Other records kept exactly like orders (encrypted, one version per save,
+// newest wins), each kind under its own prefix: sponsors/ holds the sponsored
+// team applications (api/sponsor.js, api/sponsors.js). Ids come from newId().
+export function recordStore(prefix) {
+  const save = (rec) => put(`${prefix}${rec.id}/${String(Date.now()).padStart(15, '0')}.json`, encrypt(rec), {
+    access: 'public', addRandomSuffix: false, contentType: 'application/json'
+  });
+  async function get(id) {
+    const entry = latestById(await listVersions(`${prefix}${id}/`)).get(id);
+    return entry ? { rec: await readBlob(entry.latest.url), versions: entry.all.map((b) => b.url) } : null;
+  }
+  return {
+    save,
+    async list() {
+      const entries = [...latestById(await listVersions(prefix)).values()];
+      const out = [];
+      for (let i = 0; i < entries.length; i += 10) {
+        out.push(...(await Promise.all(entries.slice(i, i + 10).map((e) => readBlob(e.latest.url).catch(() => null)))).filter(Boolean));
+      }
+      return out.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+    },
+    async update(id, changes) {
+      const found = await get(id);
+      if (!found) return null;
+      const rec = { ...found.rec, ...changes, updatedAt: new Date().toISOString() };
+      await save(rec);
+      await del(found.versions);
+      return rec;
+    },
+    async remove(id) {
+      const found = await get(id);
+      if (!found) return false;
+      await del(found.versions);
+      return true;
+    }
+  };
+}

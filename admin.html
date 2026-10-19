@@ -180,6 +180,17 @@
   .code-form label.once-box input { margin: 0; }
   .code-form .row { grid-column: span 2; justify-content: flex-end; }
   .codes-table .once { display: block; color: var(--muted); font-size: 12.5px; }
+  /* Sponsors tab */
+  .app { padding: 18px 20px; margin-bottom: 14px; }
+  .app-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; flex-wrap: wrap; }
+  .app-head b { font-size: 17px; }
+  .app-head .status-select { width: auto; }
+  .app-answers { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 28px; margin-top: 6px; }
+  .app-field h2 { margin: 14px 0 4px; font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); }
+  .app-answer { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14.5px; line-height: 1.5; }
+  .app-answer a { color: var(--accent); }
+  .app-notes { margin-top: 16px; display: grid; gap: 8px; }
+  @media (max-width: 720px) { .app-answers { grid-template-columns: 1fr; } }
   .track-row { margin-top: 8px; flex-wrap: nowrap; max-width: 360px; }
   .track-row input { flex: 1 1 auto; min-width: 0; }
   .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
@@ -242,6 +253,7 @@
       <button type="button" class="tab" id="tab-orders" aria-pressed="true">Orders</button>
       <button type="button" class="tab" id="tab-deliv" aria-pressed="false">Deliveries</button>
       <button type="button" class="tab" id="tab-codes" aria-pressed="false">Discounts</button>
+      <button type="button" class="tab" id="tab-sponsors" aria-pressed="false">Sponsors</button>
       <button type="button" id="refresh">Refresh</button>
     </div>
     <p class="msg" id="app-msg" role="status"></p>
@@ -272,6 +284,20 @@
         <p class="msg" id="map-msg" role="status"></p>
       </div>
       <div id="deliv"></div>
+    </div>
+    <div id="view-sponsors" hidden>
+      <div class="row deliv-bar">
+        <label>Show <select id="sponsor-filter" aria-label="Filter applications by status">
+          <option value="">All applications</option>
+          <option value="new">New</option>
+          <option value="reviewing">Reviewing</option>
+          <option value="accepted">Accepted</option>
+          <option value="declined">Declined</option>
+        </select></label>
+        <span class="auto-note">Sponsored Team Program applications from sponsor.html, newest first. Applicants are told selected teams hear back by email.</span>
+      </div>
+      <p class="msg" id="sponsors-msg" role="status"></p>
+      <div id="sponsors"></div>
     </div>
     <div id="view-codes" hidden>
       <form class="card code-form" id="code-form">
@@ -361,6 +387,7 @@
     $('app').hidden = true; $('signout').hidden = true; $('login').hidden = false;
     $('orders').textContent = '';
     codes = null; $('codes').textContent = '';
+    sponsorApps = null; $('sponsors').textContent = '';
     say('login-msg', message || '', !!message);
   }
 
@@ -375,6 +402,7 @@
       say('app-msg', '');
       render();
       if (!$('view-codes').hidden) loadCodes();
+      loadSponsors(); // also keeps the tab's "new" count current
     }).catch(function (err) {
       if (err.message !== 'unauthorized') say(state.orders.length ? 'app-msg' : 'login-msg', 'Couldn\'t load orders: ' + err.message, true);
     }).then(function () { $('refresh').disabled = false; });
@@ -1224,13 +1252,87 @@
   }
 
   function showTab(which) {
-    ['orders', 'deliv', 'codes'].forEach(function (t) {
+    ['orders', 'deliv', 'codes', 'sponsors'].forEach(function (t) {
       $('view-' + t).hidden = t !== which;
       $('tab-' + t).setAttribute('aria-pressed', String(t === which));
     });
     try { sessionStorage.setItem('cb-admin-tab', which); } catch (e) {}
     if (which === 'deliv') updateMap();
     if (which === 'codes' && state.pw && !$('app').hidden) loadCodes();
+    if (which === 'sponsors' && state.pw && !$('app').hidden) loadSponsors();
+  }
+
+  // ---- Sponsored Team Program applications (api/sponsors.js; the form is sponsor.html). ----
+  var sponsorApps = null;
+  var APP_LABELS = { 'new': 'New', reviewing: 'Reviewing', accepted: 'Accepted', declined: 'Declined' };
+  var APP_FIELDS = [['results', 'Competition results'], ['community', 'Community involvement'], ['sharing', 'How they share their work'],
+    ['links', 'Links'], ['why', 'Why CrackBotics'], ['parts', 'Parts needed this season']];
+  function sponsorsApi(method, body) { return api(method, body, '/api/sponsors'); }
+  function loadSponsors() {
+    if (sponsorApps === null) say('sponsors-msg', 'Loading…');
+    return sponsorsApi('GET').then(function (j) { sponsorApps = j.applications || []; say('sponsors-msg', ''); renderSponsors(); },
+      function (err) { if (err.message !== 'unauthorized') say('sponsors-msg', 'Couldn\'t load the applications: ' + err.message, true); });
+  }
+  // Text with any http(s) links made clickable (built as nodes, never innerHTML).
+  function linkify(text) {
+    var out = el('p', { class: 'app-answer' });
+    String(text).split(/(https?:\/\/[^\s<>"']+)/).forEach(function (part, i) {
+      out.appendChild(i % 2 ? el('a', { href: part, target: '_blank', rel: 'noopener noreferrer', text: part }) : document.createTextNode(part));
+    });
+    return out;
+  }
+  function renderSponsors() {
+    var box = $('sponsors');
+    if (!box || sponsorApps === null) return;
+    var fresh = sponsorApps.filter(function (a) { return a.status === 'new'; }).length;
+    $('tab-sponsors').textContent = 'Sponsors' + (fresh ? ' (' + fresh + ' new)' : '');
+    var f = $('sponsor-filter').value;
+    var list = sponsorApps.filter(function (a) { return !f || a.status === f; });
+    box.textContent = '';
+    if (!list.length) { box.appendChild(el('p', { class: 'empty', text: sponsorApps.length ? 'No applications with that status.' : 'No applications yet. They show up here from crackbotics.com/sponsor.html.' })); return; }
+    list.forEach(function (a) {
+      var sel = el('select', { class: 'status-select', 'aria-label': 'Status for team ' + a.team_number });
+      Object.keys(APP_LABELS).forEach(function (k) { sel.appendChild(el('option', { value: k, text: APP_LABELS[k] })); });
+      sel.value = a.status;
+      sel.addEventListener('change', function () {
+        sel.disabled = true;
+        sponsorsApi('PATCH', { id: a.id, status: sel.value }).then(function (j) { Object.assign(a, j.application); sel.disabled = false; renderSponsors(); },
+          function (err) { sel.disabled = false; sel.value = a.status; failed('change the status')(err); });
+      });
+      var notes = el('textarea', { 'aria-label': 'Private notes on team ' + a.team_number, placeholder: 'Private notes (only you see these)…' });
+      notes.value = a.notes || '';
+      var saveNotes = el('button', { type: 'button', class: 'sm', text: 'Save notes' });
+      saveNotes.addEventListener('click', function () {
+        saveNotes.disabled = true;
+        sponsorsApi('PATCH', { id: a.id, notes: notes.value }).then(function (j) { Object.assign(a, j.application); saveNotes.disabled = false; say('sponsors-msg', 'Notes saved.'); },
+          function (err) { saveNotes.disabled = false; failed('save the notes')(err); });
+      });
+      var drop = el('button', { type: 'button', class: 'sm danger', text: 'Delete' });
+      drop.addEventListener('click', function () {
+        if (!confirm('Delete the application from FTC ' + a.team_number + ' ' + a.team_name + '? This can\'t be undone.')) return;
+        drop.disabled = true;
+        sponsorsApi('DELETE', { id: a.id }).then(function () { sponsorApps = sponsorApps.filter(function (x) { return x !== a; }); renderSponsors(); },
+          function (err) { drop.disabled = false; failed('delete it')(err); });
+      });
+      var reply = mailto(a.contact_email) + '?subject=' + encodeURIComponent('Your CrackBotics Sponsored Team application — FTC ' + a.team_number);
+      var answers = APP_FIELDS.filter(function (fld) { return a[fld[0]]; }).map(function (fld) {
+        return el('div', { class: 'app-field' }, [el('h2', { text: fld[1] }), linkify(a[fld[0]])]);
+      });
+      box.appendChild(el('article', { class: 'order app s-' + a.status }, [
+        el('div', { class: 'app-head' }, [
+          el('div', {}, [el('b', { text: 'FTC ' + a.team_number + ' · ' + a.team_name }),
+            el('div', { class: 'meta', text: [a.location, new Date(a.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })].filter(Boolean).join(' · ') })]),
+          sel
+        ]),
+        el('dl', { class: 'facts' }, [].concat(
+          fact('Contact', a.contact_name + (a.role ? ' (' + a.role + ')' : '')),
+          fact('Email', el('a', { href: reply, text: a.contact_email })),
+          a.mentor_email ? fact('Coach / mentor', el('a', { href: mailto(a.mentor_email), text: a.mentor_email })) : []
+        )),
+        el('div', { class: 'app-answers' }, answers),
+        el('div', { class: 'app-notes' }, [notes, el('div', { class: 'row' }, [saveNotes, drop])])
+      ]));
+    });
   }
 
   // ---- Discount codes (api/discounts.js). The quote form checks them with
@@ -1434,8 +1536,10 @@
   $('tab-orders').addEventListener('click', function () { showTab('orders'); });
   $('tab-deliv').addEventListener('click', function () { showTab('deliv'); });
   $('tab-codes').addEventListener('click', function () { showTab('codes'); });
+  $('tab-sponsors').addEventListener('click', function () { showTab('sponsors'); });
+  $('sponsor-filter').addEventListener('change', renderSponsors);
   $('with-pickups').addEventListener('change', renderDeliveries);
-  try { var lastTab = sessionStorage.getItem('cb-admin-tab'); if (lastTab === 'deliv' || lastTab === 'codes') showTab(lastTab); } catch (e) {}
+  try { var lastTab = sessionStorage.getItem('cb-admin-tab'); if (['deliv', 'codes', 'sponsors'].indexOf(lastTab) !== -1) showTab(lastTab); } catch (e) {}
   $('q').addEventListener('input', render);
   $('filter').addEventListener('change', render);
   $('kind-filter').addEventListener('change', render);

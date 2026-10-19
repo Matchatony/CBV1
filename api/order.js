@@ -1,6 +1,7 @@
 import { newId, saveOrder } from './_lib/orders.js';
 import { passOk, rateLimited, tooMany } from './_lib/guard.js';
 import { sendConfirmation } from './_lib/confirm.js';
+import { sendMail, MAIL_CC, formsubmitUrl } from './_lib/mail.js';
 import { readCodes, saveCodes, normalizeCode, problem, customerProblem, remember, publicView, MESSAGES } from './_lib/discounts.js';
 
 // The quote form's send: saves the request to the admin order log and emails
@@ -21,13 +22,6 @@ const MAX_FILES = 10;
 // else (a failed upload) is kept only as the "UPLOAD FAILED" note.
 const FILE_URL = /^(https:\/\/[a-z0-9]+\.public\.blob\.vercel-storage\.com\/|UPLOAD FAILED)/;
 
-// Where the email goes. FORMSUBMIT_TO can be the random-string alias FormSubmit
-// offers after activation, to keep the real address private. FormSubmit
-// activates a form per website, so the request names crackbotics.com as its
-// origin (activated already).
-const MAIL_TO = () => process.env.FORMSUBMIT_TO || 'anthonyhuynh980@gmail.com';
-const MAIL_CC = () => process.env.FORMSUBMIT_CC ?? 'crackboticssandiego@gmail.com';
-const MAIL_SITE = () => process.env.FORMSUBMIT_SITE || 'https://crackbotics.com';
 const FIELD_NAME = /^[a-z][a-z0-9_]{0,39}$/;
 
 // Checks the discount code again now that the order is in (it may have ended
@@ -75,23 +69,6 @@ function mailFields(fields, order) {
   else delete out.discount_code;
   if (!out.quote_summary && order.quote_summary) out.quote_summary = order.quote_summary;
   return { ...out, _subject: 'New quote request — Crackbotics', _template: 'table', ...(MAIL_CC() ? { _cc: MAIL_CC() } : {}) };
-}
-
-async function sendMail(fields) {
-  try {
-    const res = await fetch('https://formsubmit.co/ajax/' + encodeURIComponent(MAIL_TO()), {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', accept: 'application/json', origin: MAIL_SITE(), referer: MAIL_SITE() + '/' },
-      body: JSON.stringify(fields),
-      signal: AbortSignal.timeout(20_000)
-    });
-    const out = await res.json().catch(() => ({}));
-    if (res.ok && String(out.success) === 'true') return true;
-    console.error('FormSubmit refused the email:', res.status, out.message || '');
-  } catch (err) {
-    console.error('FormSubmit send failed:', err);
-  }
-  return false;
 }
 
 function cleanPrice(p) {
@@ -166,7 +143,7 @@ export async function POST(request) {
   ]);
   // If the email didn't go, the page posts the form to FormSubmit itself (the
   // way it used to), so the request still reaches the inbox.
-  const fallback = emailed ? undefined : 'https://formsubmit.co/' + encodeURIComponent(MAIL_TO());
+  const fallback = emailed ? undefined : formsubmitUrl();
   if (!saved && !emailed) return Response.json({ error: 'Could not save or send', fallback }, { status: 502 });
   // The customer's confirmation (api/_lib/confirm.js; off until Gmail is set
   // up). Only for a saved order, since it links to the order's status page.

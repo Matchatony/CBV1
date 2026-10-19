@@ -12,6 +12,7 @@ files in a browser and they work; drop the folder on a host and it's live.
 ├── styles.css      site styles (all colors are CSS variables at the top)
 ├── discount-first.html  landing page for crackbotics.com/discountFirst
 ├── status.html     customer order status lookup
+├── sponsor.html    Sponsored Team Program application
 ├── file-guide.html how to export DXF / STEP / STL / 3MF from Onshape and Fusion 360
 ├── flyer.html      8.5 x 11 flyer, print-ready
 ├── flyer.pdf       the flyer, already exported — hand this to a print shop
@@ -145,6 +146,19 @@ private (no notes, files or address), and is rate-limited. The quote form's
 shipped order's USPS tracking number in the admin panel's **To ship** list (or
 with the Claude connector's `update_order`), and it shows on the status page
 with a link to USPS tracking.
+
+**Sponsored Team Program.** `sponsor.html` (**Sponsorships** in the top menu,
+in the accent color) is the 2026–2027 application for the ~10 sponsored teams:
+team number and name, city and state, the contact's name, role and email (plus a
+coach's email for students), and their competition results, community
+involvement, how they share their work, links, why CrackBotics, and parts
+they'll need. `api/sponsor.js` checks it (same Turnstile pass, honeypot and
+per-IP limit as the quote form), saves it encrypted under `sponsors/` in the Blob
+store, and emails it to the shop through FormSubmit with the applicant as
+Reply-To. Review them in the admin panel's **Sponsors** tab (`api/sponsors.js`):
+filter by status (New, Reviewing, Accepted, Declined), keep private notes, reply
+by email, or delete. Questions and limits live in `api/_lib/sponsors.js`
+(`FIELDS`) and the form in `sponsor.html`; change both together.
 
 **FAQ and file guide.** The home page has an FAQ (`#faq`), and
 `file-guide.html` explains exporting DXF, STEP, STL and 3MF from Onshape and
@@ -294,6 +308,7 @@ looking it up. Scroll or pinch to zoom; "Show all" zooms back out to everything.
 - `api/human.js` and `api/_lib/guard.js` are the bot check and rate limits (see **Bot protection**).
 - `api/discount.js` checks a code for the quote form; `api/discounts.js` (password) makes and edits them.
 - `api/status.js` answers the customer status page; `api/_lib/confirm.js` writes and sends the confirmation email.
+- `api/sponsor.js` takes sponsorship applications; `api/sponsors.js` (password) lists and updates them; `api/_lib/mail.js` sends the shop's FormSubmit emails.
 - `api/orders.js` lists / updates / deletes; every call needs the password.
   Its update rules live in `api/_lib/changes.js`, shared with the Claude connector.
 - `api/mcp/[key].js` is the Claude connector (see below).

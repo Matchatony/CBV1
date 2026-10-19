@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- The Sponsored Team Program application. The form posts to api/sponsor.js,
+     which saves it (admin.html → Sponsors) and emails it to the shop. -->
+<title>Sponsored Team Program | Crackbotics</title>
+<meta name="description" content="Apply to be a CrackBotics sponsored FTC team for the 2026–2027 season. We're partnering with about 10 teams that win, give back, and share their work.">
+<meta name="theme-color" content="#14121A">
+<meta property="og:title" content="CrackBotics Sponsored Team Program, 2026–2027">
+<meta property="og:description" content="We're partnering with about 10 FTC teams that demonstrate competitive success, community involvement, and a passion for sharing their work. Apply now.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Crackbotics">
+<meta property="og:url" content="https://crackbotics.com/sponsor.html">
+<meta property="og:image" content="https://crackbotics.com/images/og-image.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="/favicon.ico" sizes="48x48">
+<link rel="icon" href="/favicon-192.png" sizes="192x192" type="image/png">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="/styles.css">
+<!-- Vercel Web Analytics: anonymous, cookieless visit counts (see privacy.html#analytics). -->
+<script>window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };</script>
+<script defer src="/_vercel/insights/script.js"></script>
+</head>
+<body id="top">
+<nav class="nav" aria-label="Main">
+  <div class="nav-inner">
+    <a class="wordmark" href="/" aria-label="Crackbotics — addicted to precision">
+      <span class="wordmark-crack">crack</span><span class="wordmark-botics">botics</span>
+    </a>
+    <ul class="nav-links">
+      <li><a href="/#parts">Parts</a></li>
+      <li><a href="/#pricing">Pricing</a></li>
+      <li><a href="/#faq">FAQ</a></li>
+      <li><a class="nav-sponsor" href="/sponsor.html" aria-current="page">Sponsorships</a></li>
+    </ul>
+    <a class="btn btn-sm" href="/#quote">Get a quote</a>
+  </div>
+</nav>
+
+<main>
+  <article class="wrap claim sponsor-page">
+    <p class="claim-kicker">Sponsored Team Program · 2026–2027 season</p>
+    <h1>Get your team <em>sponsored by CrackBotics</em></h1>
+    <p class="lede">
+      CrackBotics is excited to support FTC teams that are making an impact both on and off the field!
+      We're looking to partner with approximately 10 FTC teams that demonstrate competitive success,
+      community involvement, and a passion for sharing their work with others.
+    </p>
+
+    <section class="sponsor-looks" aria-labelledby="looks-head">
+      <h2 id="looks-head">What we look for</h2>
+      <ul class="terms">
+        <li><span>Competitive success</span> Results on the field: awards, rankings, advancing.</li>
+        <li><span>Community involvement</span> Outreach, events, helping other teams and new students.</li>
+        <li><span>Sharing your work</span> Posting builds, CAD, code or how-tos so others can learn.</li>
+      </ul>
+      <p class="hint">Selected teams hear from us by email with the program details.</p>
+    </section>
+
+    <section aria-labelledby="apply-head">
+      <h2 id="apply-head">Apply</h2>
+      <form class="form sponsor-form" id="apply" novalidate>
+        <!-- Honeypot: bots fill this in, people never see it. -->
+        <input type="text" name="_honey" tabindex="-1" autocomplete="off" hidden>
+
+        <div class="field">
+          <label for="a-team">Team number</label>
+          <input id="a-team" name="team_number" type="text" inputmode="numeric" maxlength="8" required placeholder="21239">
+        </div>
+        <div class="field">
+          <label for="a-name">Team name</label>
+          <input id="a-name" name="team_name" type="text" maxlength="120" required>
+        </div>
+        <div class="field">
+          <label for="a-loc">City and state</label>
+          <input id="a-loc" name="location" type="text" maxlength="120" required placeholder="San Diego, CA">
+        </div>
+        <div class="field">
+          <label for="a-role">Your role on the team</label>
+          <select id="a-role" name="role" required>
+            <option value="">Pick one</option>
+            <option>Student</option>
+            <option>Coach or mentor</option>
+            <option>Parent</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="a-contact">Your name</label>
+          <input id="a-contact" name="contact_name" type="text" maxlength="120" autocomplete="name" required>
+        </div>
+        <div class="field">
+          <label for="a-email">Your email</label>
+          <input id="a-email" name="contact_email" type="email" maxlength="200" autocomplete="email" required>
+        </div>
+        <div class="field field-wide">
+          <label for="a-mentor">Coach or mentor email <span class="opt">if you're a student</span></label>
+          <input id="a-mentor" name="mentor_email" type="email" maxlength="200">
+        </div>
+
+        <div class="field field-wide">
+          <label for="a-results">Competition results</label>
+          <textarea id="a-results" name="results" rows="4" maxlength="2000" required
+                    placeholder="Last season's awards, rankings and how far you advanced."></textarea>
+        </div>
+        <div class="field field-wide">
+          <label for="a-community">Community involvement</label>
+          <textarea id="a-community" name="community" rows="4" maxlength="2000" required
+                    placeholder="Outreach, events, mentoring other teams or younger students."></textarea>
+        </div>
+        <div class="field field-wide">
+          <label for="a-sharing">How your team shares its work</label>
+          <textarea id="a-sharing" name="sharing" rows="4" maxlength="2000" required
+                    placeholder="Social media, YouTube, CAD or code releases, your portfolio, a website."></textarea>
+        </div>
+        <div class="field field-wide">
+          <label for="a-links">Links <span class="opt">optional</span></label>
+          <textarea id="a-links" name="links" rows="2" maxlength="1000"
+                    placeholder="Instagram, YouTube, website, CAD release…"></textarea>
+        </div>
+        <div class="field field-wide">
+          <label for="a-why">Why do you want to be a CrackBotics sponsored team?</label>
+          <textarea id="a-why" name="why" rows="4" maxlength="2000" required></textarea>
+        </div>
+        <div class="field field-wide">
+          <label for="a-parts">What parts do you expect to need this season? <span class="opt">optional</span></label>
+          <textarea id="a-parts" name="parts" rows="3" maxlength="1000"
+                    placeholder="Side plates, gearbox plates, printed mounts…"></textarea>
+        </div>
+
+        <div class="field field-wide consent">
+          <input id="a-consent" name="consent" type="checkbox" required>
+          <label for="a-consent">
+            I agree to the <a href="privacy.html" target="_blank" rel="noopener">Privacy policy</a>
+            and <a href="terms.html" target="_blank" rel="noopener">Terms &amp; conditions</a>.
+          </label>
+        </div>
+        <p class="hint field-wide consent-note">Under 13? Have a parent, coach or team mentor apply for your team.</p>
+
+        <!-- Cloudflare Turnstile's "verify you're human" box, only when it needs a click. -->
+        <div class="field-wide human-check" id="a-human" hidden></div>
+
+        <div class="field-wide submit-row">
+          <button class="btn" type="submit" id="a-send">Send application</button>
+        </div>
+        <p class="form-status field-wide" id="a-msg" role="status" aria-live="polite" hidden></p>
+      </form>
+    </section>
+  </article>
+</main>
+
+<footer class="wrap">
+  <div class="footer-inner">
+    <span class="footer-lockup">
+      <span class="wordmark-crack">crack</span><span class="wordmark-botics">botics</span>
+      <span class="lockup-tag">addicted to precision</span>
+    </span>
+    <p class="footer-line">
+      Custom CNC parts for FTC teams nationwide · San Diego, CA ·
+      <a href="mailto:crackboticssandiego@gmail.com">crackboticssandiego@gmail.com</a>
+    </p>
+  </div>
+  <nav class="footer-links" aria-label="Legal">
+    <a href="/privacy.html">Privacy policy</a>
+    <a href="/privacy.html#cookies">Cookie policy</a>
+    <a href="/terms.html">Terms &amp; conditions</a>
+    <a href="/terms.html#refunds">Refunds &amp; cancellations</a>
+  </nav>
+  <p class="fine">
+    Crackbotics is an independent, unincorporated student-run business based in San Diego, CA
+    — not a registered company. Parts use 8&nbsp;mm grid spacing. Crackbotics is not
+    affiliated with, sponsored by or endorsed by goBILDA, REV Robotics, or
+    <i>FIRST</i>®. FIRST® Tech Challenge is a trademark of FIRST®.
+  </p>
+</footer>
+
+<script>
+(function () {
+  var form = document.getElementById('apply'), btn = document.getElementById('a-send'), msg = document.getElementById('a-msg');
+  var LOADED_AT = Date.now();
+  function say(text, bad) {
+    msg.textContent = text;
+    msg.className = 'form-status field-wide is-' + (bad ? 'bad' : 'ok');
+    msg.hidden = !text;
+  }
+
+  /* Bot check: the same Cloudflare Turnstile pass as the quote form
+     (api/human.js says whether it's on; with no keys set it's skipped). */
+  var human = { siteKey: undefined, widget: null, token: '', waiting: null };
+  var humanLoad = fetch('/api/human').then(function (r) { return r.ok ? r.json() : {}; }).then(function (cfg) {
+    human.siteKey = cfg.siteKey || null;
+    if (!human.siteKey) return;
+    return new Promise(function (resolve, reject) {
+      var s = document.createElement('script');
+      s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+      s.onload = resolve; s.onerror = reject;
+      document.head.appendChild(s);
+    }).then(function () {
+      var box = document.getElementById('a-human');
+      human.widget = window.turnstile.render(box, {
+        sitekey: human.siteKey, action: 'quote', appearance: 'interaction-only',
+        callback: function (t) { human.token = t; if (human.waiting) human.waiting(); },
+        'expired-callback': function () { human.token = ''; },
+        'before-interactive-callback': function () { box.hidden = false; },
+        'after-interactive-callback': function () { box.hidden = true; }
+      });
+    });
+  }).catch(function () { human.siteKey = null; });
+
+  function getPass() {
+    return humanLoad.then(function () {
+      if (!human.siteKey) return null;
+      return new Promise(function (resolve, reject) {
+        if (human.token) return resolve(human.token);
+        var t = setTimeout(function () { reject(new Error('no token')); }, 60000);
+        human.waiting = function () { clearTimeout(t); human.waiting = null; resolve(human.token); };
+      }).then(function (token) {
+        human.token = '';
+        try { window.turnstile.reset(human.widget); } catch (e) {}
+        return fetch('/api/human', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token: token }) });
+      }).then(function (r) { if (!r.ok) throw new Error('refused'); return r.json(); }).then(function (o) { return o.pass; });
+    });
+  }
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    if (!form.checkValidity()) { form.reportValidity(); return; }
+    if (form.elements._honey.value) { say('Thanks! We got your application.'); form.reset(); return; }
+    if (Date.now() - LOADED_AT < 3000) { say('That went through a little too fast. Give it a second and try again.', true); return; }
+    var data = {};
+    Array.prototype.forEach.call(form.elements, function (el) {
+      if (el.name && el.name !== 'consent' && el.type !== 'submit') data[el.name] = el.value;
+    });
+    btn.disabled = true;
+    btn.textContent = 'Sending…';
+    say('');
+    getPass().then(function (pass) {
+      data.pass = pass;
+      return fetch('/api/sponsor', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(data) });
+    }).then(function (res) {
+      return res.json().catch(function () { return {}; }).then(function (out) {
+        if (res.ok && out.ok) {
+          form.hidden = true;
+          say('Thanks, ' + (data.team_name || 'team') + '! We got your application and we\'ll email ' + data.contact_email + ' with what\'s next.');
+          form.parentNode.insertBefore(msg, form);
+          return;
+        }
+        say(res.status === 429 ? 'Too many tries from your network. Wait a few minutes and try again.' : out.error || 'Something went wrong. Please try again.', true);
+      });
+    }).catch(function () {
+      say('We couldn\'t send that. Check your connection and try again, or email crackboticssandiego@gmail.com.', true);
+    }).then(function () { btn.disabled = false; btn.textContent = 'Send application'; });
+  });
+})();
+</script>
+</body>
+</html>
