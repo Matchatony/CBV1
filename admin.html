@@ -38,6 +38,8 @@
   .kind.k-print { background: #8fd6a8; }
   .kind.k-other { background: #c9c3d3; }
   .kind.rush { background: #f0a4b0; }
+  .kind.code-tag { background: #f3c2da; }
+  .kind.code-tag.bad { background: #c9c3d3; text-decoration: line-through; }
   .who .tags { display: inline-flex; gap: 5px; margin-right: 7px; vertical-align: 1px; }
   .who .tags .kind, .meta .kind { color: #14121a; font-size: 11px; }
   .meta .tags { display: inline-flex; gap: 5px; margin-right: 7px; }
@@ -70,7 +72,14 @@
   .history details summary { cursor: pointer; }
   .history details pre { margin-top: 6px; }
   .tabs { display: flex; align-items: flex-end; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 18px; }
-  .admin .tabs button.tab { border: 0; border-bottom: 2px solid transparent; border-radius: 0; padding: 10px 14px; color: var(--muted); }
+  .admin .tabs button.tab { border: 0; border-bottom: 2px solid transparent; border-radius: 0; padding: 10px 14px; color: var(--muted);
+    transition: color .2s ease, border-color .25s ease; }
+  .admin .tabs button.tab:hover { color: var(--text); }
+  /* Tab views fade out and in (showTab). */
+  .view-leave { opacity: 0; transform: translateY(6px); transition: opacity .17s ease, transform .17s ease; }
+  .view-enter { animation: view-in .28s ease both; }
+  @keyframes view-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) { .view-leave, .view-enter { transition: none; animation: none; } }
   .admin .tabs button.tab[aria-pressed="true"] { color: var(--text); border-bottom-color: var(--accent); }
   .tabs #refresh { margin: 0 0 8px auto; }
   .admin button.sm { font-size: 13px; padding: 5px 10px; }
@@ -201,6 +210,11 @@
   .codes-table td.code { font-family: var(--mono); font-weight: 500; }
   .codes-table td.acts { text-align: right; white-space: nowrap; }
   .codes-table tr.off td { color: var(--muted); }
+  .codes-table tr.code-edit > td { padding: 0 0 16px; border-bottom: 1px solid var(--line-firm); }
+  .code-edit-form { margin: 0; padding: 14px; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; }
+  .code-edit-form .note-field { grid-column: span 2; }
+  .code-edit-form .edit-actions { grid-column: span 4; justify-content: flex-end; }
+  @media (max-width: 720px) { .code-edit-form .note-field, .code-edit-form .edit-actions { grid-column: 1 / -1; } }
   @media (max-width: 720px) {
     .code-form { grid-template-columns: 1fr 1fr; }
     .code-form .wide, .code-form .row { grid-column: 1 / -1; }
@@ -426,8 +440,19 @@
   function kindTags(o) {
     return el('span', { class: 'tags' }, [
       el('span', { class: 'kind k-' + kindOf(o), text: KINDS[kindOf(o)] }),
-      o.specs && o.specs.rush ? el('span', { class: 'kind rush', text: 'Rush' }) : null
+      o.specs && o.specs.rush ? el('span', { class: 'kind rush', text: 'Rush' }) : null,
+      // The discount code, on the collapsed row too (struck through if it wasn't valid).
+      o.specs && o.specs.discount ? el('span', { class: 'kind code-tag' + (o.specs.discount.invalid ? ' bad' : ''),
+        title: o.specs.discount.invalid ? 'Code not valid when the order came in' : o.specs.discount.label, text: o.specs.discount.code }) : null
     ]);
+  }
+  // "FIRST5 — 5% off, −$0.40 taken off", for the Job section's Discount code row.
+  function codeFact(o) {
+    var d = o.specs && o.specs.discount;
+    if (!d) return 'None';
+    if (d.invalid) return el('span', { class: 'warn', text: d.code + ' — not valid when the order came in (' + (CODE_PROBLEMS[d.invalid] || d.invalid) + ')' });
+    var off = o.specs.price && o.specs.price.code_discount;
+    return d.code + ' — ' + d.label + (off ? ', −' + money(off) + ' taken off' : ', to take off the hand quote');
   }
   // Every design file on an order as { name, url } (url is the "UPLOAD FAILED" note
   // when that upload didn't make it). Orders from before multi-file quotes have one.
@@ -560,6 +585,7 @@
       kind === 'print' && sp ? fact('Color', sp.color || 'Not specified') : [],
       kind === 'print' && sp ? fact('Infill / walls', sp.infill + '% infill, ' + sp.walls + (sp.walls === 1 ? ' wall' : ' walls')) : [],
       kind === 'cnc' && sp ? fact('Options', sp.options.length ? sp.options.map(function (x) { return OPTION_LABELS[x] || x; }).join(', ') : 'None') : [],
+      sp ? fact('Discount code', codeFact(o)) : [],
       sp ? fact('Rush', sp.rush ? el('span', { class: 'warn', text: 'Yes — skip the normal batch' }) : 'No') : [],
       fact('Measured', sp && sp.size),
       sp ? [] : fact('Part', o.part),
@@ -1251,15 +1277,39 @@
     })();
   }
 
+  // Switching tabs: the open view fades out (.view-leave), then the new one
+  // fades in (.view-enter). A click during the fade goes straight to the newest
+  // choice. With reduced motion it just swaps.
+  var VIEWS = ['orders', 'deliv', 'codes', 'sponsors'], tabTimer = null;
+  var calm = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
   function showTab(which) {
-    ['orders', 'deliv', 'codes', 'sponsors'].forEach(function (t) {
-      $('view-' + t).hidden = t !== which;
-      $('tab-' + t).setAttribute('aria-pressed', String(t === which));
-    });
+    VIEWS.forEach(function (t) { $('tab-' + t).setAttribute('aria-pressed', String(t === which)); });
     try { sessionStorage.setItem('cb-admin-tab', which); } catch (e) {}
-    if (which === 'deliv') updateMap();
-    if (which === 'codes' && state.pw && !$('app').hidden) loadCodes();
-    if (which === 'sponsors' && state.pw && !$('app').hidden) loadSponsors();
+    var next = $('view-' + which);
+    var leaving = VIEWS.map(function (t) { return $('view-' + t); }).filter(function (v) { return v !== next && !v.hidden; });
+    clearTimeout(tabTimer);
+    function enter() {
+      VIEWS.forEach(function (t) {
+        var v = $('view-' + t);
+        v.classList.remove('view-leave');
+        if (v !== next) v.hidden = true;
+      });
+      if (next.hidden && !calm) {
+        next.classList.remove('view-enter');
+        void next.offsetWidth; // restart the animation
+        next.classList.add('view-enter');
+      }
+      next.hidden = false;
+      if (which === 'deliv') updateMap(); // after it's visible, so the map can size itself
+      if (which === 'codes' && state.pw && !$('app').hidden) loadCodes();
+      if (which === 'sponsors' && state.pw && !$('app').hidden) loadSponsors();
+    }
+    if (leaving.length && !calm) {
+      leaving.forEach(function (v) { v.classList.add('view-leave'); });
+      tabTimer = setTimeout(enter, 170);
+    } else {
+      enter();
+    }
   }
 
   // ---- Sponsored Team Program applications (api/sponsors.js; the form is sponsor.html). ----
@@ -1354,11 +1404,47 @@
     return codesApi('GET').then(function () { say('codes-msg', ''); },
       function (err) { if (err.message !== 'unauthorized') say('codes-msg', 'Couldn\'t load the codes: ' + err.message, true); });
   }
+  // A code's settings, edited in place under its row (Edit): type, amount, end
+  // date, use limit, note, one per team. The use count and the code itself stay.
+  function codeEditor(c) {
+    var kind = el('select', { 'aria-label': 'Type for ' + c.code }, [el('option', { value: 'percent', text: '% off' }), el('option', { value: 'amount', text: '$ off' })]);
+    kind.value = c.kind;
+    var value = el('input', { type: 'number', min: '0.01', step: '0.01', 'aria-label': 'Amount for ' + c.code });
+    value.value = c.value;
+    var ends = el('input', { type: 'date', 'aria-label': 'End date for ' + c.code });
+    ends.value = c.expires || '';
+    var noEnd = el('button', { type: 'button', class: 'sm', text: 'Clear end date', onclick: function () { ends.value = ''; ends.focus(); } });
+    var max = el('input', { type: 'number', min: '0', step: '1', placeholder: 'No limit', 'aria-label': 'Use limit for ' + c.code });
+    max.value = c.max_uses || '';
+    var note = el('input', { type: 'text', maxlength: '200', placeholder: 'Who it\'s for', 'aria-label': 'Note for ' + c.code });
+    note.value = c.note || '';
+    var once = el('input', { type: 'checkbox' });
+    once.checked = !!c.once;
+    var save = el('button', { type: 'button', class: 'primary sm', text: 'Save changes' });
+    var tr = el('tr', { class: 'code-edit', hidden: '' }, [el('td', { colspan: '7' }, [el('div', { class: 'code-form code-edit-form' }, [
+      el('label', {}, ['Type', kind]),
+      el('label', {}, ['Amount', value]),
+      el('label', {}, ['Ends', ends]),
+      el('label', {}, ['Use limit', max]),
+      el('label', { class: 'note-field' }, ['Note', note]),
+      el('label', { class: 'once-box' }, [once, ' One per team']),
+      el('div', { class: 'row edit-actions' }, [noEnd, save, el('button', { type: 'button', class: 'sm', text: 'Cancel', onclick: function () { renderCodes(); } })])
+    ])])]);
+    save.addEventListener('click', function () {
+      save.disabled = true;
+      codesApi('PATCH', { code: c.code, kind: kind.value, value: value.value, expires: ends.value, max_uses: max.value || 0, note: note.value, once: once.checked })
+        .then(function () { say('codes-msg', c.code + ' saved.'); },
+          function (err) { save.disabled = false; if (err.message !== 'unauthorized') say('codes-msg', 'Couldn\'t save ' + c.code + ': ' + err.message, true); });
+    });
+    return tr;
+  }
+
   function renderCodes() {
     var box = $('codes');
     box.textContent = '';
     if (!codes.length) { box.appendChild(el('p', { class: 'empty', text: 'No discount codes yet. Add one above.' })); return; }
-    var rows = codes.slice().sort(function (a, b) { return a.created < b.created ? 1 : -1; }).map(function (c) {
+    var rows = [];
+    codes.slice().sort(function (a, b) { return a.created < b.created ? 1 : -1; }).forEach(function (c) {
       var st = codeState(c);
       var flip = el('button', { type: 'button', class: 'sm', text: c.active ? 'Turn off' : 'Turn on' });
       flip.addEventListener('click', function () {
@@ -1371,7 +1457,15 @@
         drop.disabled = true;
         codesApi('DELETE', { code: c.code }).catch(function (err) { drop.disabled = false; say('codes-msg', 'Couldn\'t delete ' + c.code + ': ' + err.message, true); });
       });
-      return el('tr', { class: st === 'Active' ? '' : 'off' }, [
+      var editor = codeEditor(c);
+      var edit = el('button', { type: 'button', class: 'sm', text: 'Edit', 'aria-expanded': 'false' });
+      edit.addEventListener('click', function () {
+        var open = editor.hidden;
+        editor.hidden = !open;
+        edit.setAttribute('aria-expanded', String(open));
+        if (open) editor.querySelector('select').focus();
+      });
+      rows.push(el('tr', { class: st === 'Active' ? '' : 'off' }, [
         el('td', { class: 'code', text: c.code }),
         el('td', { text: codeOff(c) }),
         el('td', {}, [(c.uses || 0) + (c.max_uses ? ' of ' + c.max_uses : '') + ' used',
@@ -1379,8 +1473,8 @@
         el('td', { text: c.expires ? 'Ends ' + dayLabel(c.expires) : 'No end date' }),
         el('td', { text: st }),
         el('td', { text: c.note || '' }),
-        el('td', { class: 'acts' }, [flip, ' ', drop])
-      ]);
+        el('td', { class: 'acts' }, [edit, ' ', flip, ' ', drop])
+      ]), editor);
     });
     box.appendChild(el('table', { class: 'codes-table' }, [
       el('thead', {}, [el('tr', {}, ['Code', 'Discount', 'Uses', 'Ends', 'Status', 'Note', ''].map(function (h) { return h ? el('th', { text: h }) : el('th', {}, [el('span', { class: 'sr-only', text: 'Actions' })]); }))]),

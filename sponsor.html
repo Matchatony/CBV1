@@ -6,13 +6,14 @@
 <!-- The Sponsored Team Program application. The form posts to api/sponsor.js,
      which saves it (admin.html → Sponsors) and emails it to the shop. -->
 <title>Sponsored Team Program | Crackbotics</title>
-<meta name="description" content="Apply to be a CrackBotics sponsored FTC team for the 2026–2027 season. We're partnering with about 10 teams that win, give back, and share their work.">
+<meta name="description" content="Each season CrackBotics sponsors a select ten FTC teams that win, give back, and share their work. Applications for 2026–2027 close October 25.">
 <meta name="theme-color" content="#14121A">
+<link rel="canonical" href="https://crackbotics.com/sponsorships">
 <meta property="og:title" content="CrackBotics Sponsored Team Program, 2026–2027">
-<meta property="og:description" content="We're partnering with about 10 FTC teams that demonstrate competitive success, community involvement, and a passion for sharing their work. Apply now.">
+<meta property="og:description" content="Each season we sponsor a select ten FTC teams that win, give back, and share their work. Applications close October 25.">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Crackbotics">
-<meta property="og:url" content="https://crackbotics.com/sponsor.html">
+<meta property="og:url" content="https://crackbotics.com/sponsorships">
 <meta property="og:image" content="https://crackbotics.com/images/og-image.jpg">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="/favicon.ico" sizes="48x48">
@@ -37,7 +38,7 @@
       <li><a href="/#parts">Parts</a></li>
       <li><a href="/#pricing">Pricing</a></li>
       <li><a href="/#faq">FAQ</a></li>
-      <li><a class="nav-sponsor" href="/sponsor.html" aria-current="page">Sponsorships</a></li>
+      <li><a class="nav-sponsor" href="/sponsorships" aria-current="page">Sponsorships</a></li>
     </ul>
     <a class="btn btn-sm" href="/#quote">Get a quote</a>
   </div>
@@ -46,12 +47,13 @@
 <main>
   <article class="wrap claim sponsor-page">
     <p class="claim-kicker">Sponsored Team Program · 2026–2027 season</p>
-    <h1>Get your team <em>sponsored by CrackBotics</em></h1>
+    <h1>Become one of our <em>ten sponsored teams</em></h1>
     <p class="lede">
-      CrackBotics is excited to support FTC teams that are making an impact both on and off the field!
-      We're looking to partner with approximately 10 FTC teams that demonstrate competitive success,
-      community involvement, and a passion for sharing their work with others.
+      Each season, CrackBotics partners with a select ten FTC teams: teams that win on the field, lift
+      up their communities off it, and share what they build so others can learn. If that's your team,
+      we want to hear from you.
     </p>
+    <p class="deadline" id="deadline">Applications close <b>Sunday, October 25</b> at 11:59&nbsp;pm Pacific.</p>
 
     <section class="sponsor-looks" aria-labelledby="looks-head">
       <h2 id="looks-head">What we look for</h2>
@@ -60,11 +62,17 @@
         <li><span>Community involvement</span> Outreach, events, helping other teams and new students.</li>
         <li><span>Sharing your work</span> Posting builds, CAD, code or how-tos so others can learn.</li>
       </ul>
-      <p class="hint">Selected teams hear from us by email with the program details.</p>
+      <p class="hint">We'll email the ten selected teams with the program details after applications close.</p>
     </section>
 
     <section aria-labelledby="apply-head">
       <h2 id="apply-head">Apply</h2>
+      <!-- After the deadline the form is swapped for this (and api/sponsor.js refuses new applications). -->
+      <div class="sent-screen" id="a-closed" hidden>
+        <h3>Applications are closed</h3>
+        <p>Applications for the 2026–2027 season closed on October 25. We'll email the selected teams with the program details.</p>
+        <p class="claim-actions"><a class="btn" href="/#quote">Get a quote</a></p>
+      </div>
       <form class="form sponsor-form" id="apply" novalidate>
         <!-- Honeypot: bots fill this in, people never see it. -->
         <input type="text" name="_honey" tabindex="-1" autocomplete="off" hidden>
@@ -150,6 +158,16 @@
         </div>
         <p class="form-status field-wide" id="a-msg" role="status" aria-live="polite" hidden></p>
       </form>
+
+      <!-- Shown instead of the form once it's sent, so it's clear there's nothing more to press. -->
+      <div class="sent-screen" id="a-sent" hidden>
+        <p class="sent-check" aria-hidden="true">✓</p>
+        <h2 id="a-sent-title" tabindex="-1">Application sent</h2>
+        <p id="a-sent-text"></p>
+        <p class="hint">You don't need to send it again. If something changes, reply to our email or write to
+          <a href="mailto:crackboticssandiego@gmail.com">crackboticssandiego@gmail.com</a>.</p>
+        <p class="claim-actions"><a class="btn" href="/">Back to CrackBotics</a> <a class="btn btn-quiet" href="/#quote">Get a quote</a></p>
+      </div>
     </section>
   </article>
 </main>
@@ -182,7 +200,32 @@
 <script>
 (function () {
   var form = document.getElementById('apply'), btn = document.getElementById('a-send'), msg = document.getElementById('a-msg');
+  // The last day to apply (San Diego time). Keep in step with APPLY_CLOSES in api/_lib/sponsors.js.
+  var CLOSES = '2026-10-25';
+  var todayLA = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles' }).format(new Date());
+  if (todayLA > CLOSES) {
+    form.hidden = true;
+    document.getElementById('a-closed').hidden = false;
+    document.getElementById('deadline').textContent = 'Applications for the 2026–2027 season are closed.';
+    return;
+  }
   var LOADED_AT = Date.now();
+  // One random id for this application, kept across retries: api/sponsor.js
+  // saves a repeat of the same id only once, so pressing Send again is safe.
+  var requestId = (function () {
+    var b = new Uint8Array(12);
+    crypto.getRandomValues(b);
+    return Array.prototype.map.call(b, function (x) { return ('0' + x.toString(16)).slice(-2); }).join('');
+  })();
+  function showSent(data) {
+    document.getElementById('a-sent-text').textContent = 'Thanks, ' + (data.team_name || 'team') + '! We got your application, and we\'ll email ' +
+      data.contact_email + ' with what\'s next. We\'ll email the selected teams after applications close on October 25.';
+    form.hidden = true;
+    var sent = document.getElementById('a-sent');
+    sent.hidden = false;
+    sent.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    document.getElementById('a-sent-title').focus({ preventScroll: true });
+  }
   function say(text, bad) {
     msg.textContent = text;
     msg.className = 'form-status field-wide is-' + (bad ? 'bad' : 'ok');
@@ -241,19 +284,18 @@
     say('');
     getPass().then(function (pass) {
       data.pass = pass;
+      data.request_id = requestId;
       return fetch('/api/sponsor', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(data) });
     }).then(function (res) {
       return res.json().catch(function () { return {}; }).then(function (out) {
-        if (res.ok && out.ok) {
-          form.hidden = true;
-          say('Thanks, ' + (data.team_name || 'team') + '! We got your application and we\'ll email ' + data.contact_email + ' with what\'s next.');
-          form.parentNode.insertBefore(msg, form);
-          return;
-        }
-        say(res.status === 429 ? 'Too many tries from your network. Wait a few minutes and try again.' : out.error || 'Something went wrong. Please try again.', true);
+        if (res.ok && out.ok) { say(''); showSent(data); return; }
+        if (res.status === 429) { say('Too many tries from your network. Wait a few minutes and try again.', true); return; }
+        if ((res.status === 400 || res.status === 410) && out.error) { say(out.error, true); return; }
+        // A timeout or server error: it may have gone through anyway.
+        say('We couldn\'t confirm your application went through. It may have. You can press Send again: it won\'t be sent twice.', true);
       });
     }).catch(function () {
-      say('We couldn\'t send that. Check your connection and try again, or email crackboticssandiego@gmail.com.', true);
+      say('We couldn\'t confirm your application went through. Check your connection and press Send again: it won\'t be sent twice.', true);
     }).then(function () { btn.disabled = false; btn.textContent = 'Send application'; });
   });
 })();

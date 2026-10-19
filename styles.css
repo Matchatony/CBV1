@@ -1107,3 +1107,38 @@ footer { padding-block: 48px 56px; border-top: 1px solid var(--line); }
 .sponsor-looks { margin-bottom: 48px; }
 .sponsor-looks .hint { margin-top: 14px; }
 .sponsor-form { margin-top: 8px; }
+
+/* "Sent" screens: the sponsorship form and the quote form switch to these once
+   a send is confirmed, so it's clear there's nothing left to press. */
+.sent-screen {
+  border: 1px solid rgba(var(--accent-rgb), .45);
+  background: rgba(var(--accent-rgb), .07);
+  padding: clamp(24px, 4vw, 40px);
+  animation: sent-in .45s ease both;
+}
+.sent-screen h2, .sent-screen h3 { margin: 0 0 10px; font-size: clamp(26px, 3.6vw, 34px); outline: none; }
+.sent-screen p { margin: 0 0 14px; }
+.sent-check {
+  width: 44px; height: 44px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--accent); color: #14121a;
+  font: 700 22px/1 var(--sans);
+  margin: 0 0 16px !important;
+}
+@keyframes sent-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .sent-screen { animation: none; } }
+/* Quote form, once sent: only the sent screen and the quote below it. */
+.form.is-sent > :not(.sent-screen):not(.calc-result) { display: none !important; }
+.sent-screen .sent-warn { color: var(--accent-lit); }
+.sent-screen a { color: var(--accent); }
+/* .form's grid display would otherwise beat the hidden attribute. */
+.form[hidden] { display: none; }
+/* Sponsorship deadline, under the intro. */
+.sponsor-page .deadline {
+  display: inline-block;
+  margin: -20px 0 40px;
+  padding: 8px 14px;
+  border: 1px solid rgba(var(--accent-rgb), .5);
+  font-size: 15px;
+}
+.sponsor-page .deadline b { color: var(--accent); font-weight: 600; }

@@ -147,15 +147,19 @@ shipped order's USPS tracking number in the admin panel's **To ship** list (or
 with the Claude connector's `update_order`), and it shows on the status page
 with a link to USPS tracking.
 
-**Sponsored Team Program.** `sponsor.html` (**Sponsorships** in the top menu,
-in the accent color) is the 2026–2027 application for the ~10 sponsored teams:
+**Sponsored Team Program.** `sponsor.html`, at crackbotics.com/sponsorships (`vercel.json`
+rewrites `/sponsorships`, `/Sponsorships`, `/SPONSORSHIPS`, `/sponsorship` and `/sponsor`;
+**Sponsorships** in the top menu, in the accent color) is the 2026–2027 application for the ~10 sponsored teams:
 team number and name, city and state, the contact's name, role and email (plus a
 coach's email for students), and their competition results, community
 involvement, how they share their work, links, why CrackBotics, and parts
 they'll need. `api/sponsor.js` checks it (same Turnstile pass, honeypot and
 per-IP limit as the quote form), saves it encrypted under `sponsors/` in the Blob
 store, and emails it to the shop through FormSubmit with the applicant as
-Reply-To. Review them in the admin panel's **Sponsors** tab (`api/sponsors.js`):
+Reply-To. Applications close at the end of Oct 25, 2026 (San Diego time): set by
+`APPLY_CLOSES` in `api/_lib/sponsors.js` and `CLOSES` in `sponsor.html` (change both
+for next season); after it the page shows "closed" and the server refuses new ones.
+Review them in the admin panel's **Sponsors** tab (`api/sponsors.js`):
 filter by status (New, Reviewing, Accepted, Declined), keep private notes, reply
 by email, or delete. Questions and limits live in `api/_lib/sponsors.js`
 (`FIELDS`) and the form in `sponsor.html`; change both together.

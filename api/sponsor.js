@@ -1,7 +1,7 @@
-import { newId } from './_lib/orders.js';
+import { newId, seenRequest, rememberRequest } from './_lib/orders.js';
 import { passOk, rateLimited, tooMany } from './_lib/guard.js';
 import { sendMail, MAIL_CC } from './_lib/mail.js';
-import { applications, cleanApplication, FIELDS } from './_lib/sponsors.js';
+import { applications, cleanApplication, FIELDS, applicationsClosed } from './_lib/sponsors.js';
 
 // The Sponsored Team Program application (sponsor.html). Saves it for the
 // admin panel's Sponsors tab and emails it to the shop. Same bot protection
@@ -15,7 +15,10 @@ export async function POST(request) {
   try { body = JSON.parse(raw); } catch { return Response.json({ error: 'Invalid request' }, { status: 400 }); }
   if (!body || typeof body !== 'object') return Response.json({ error: 'Invalid request' }, { status: 400 });
   if (body._honey) return Response.json({ ok: true });
+  if (applicationsClosed()) return Response.json({ error: 'Applications for the 2026–2027 season are closed.' }, { status: 410 });
   if (!passOk(body.pass)) return Response.json({ error: 'Bot check missing or expired' }, { status: 403 });
+  // Sent before (Send pressed again after an unclear error): don't save a second copy.
+  if (await seenRequest('sponsor', body.request_id)) return Response.json({ ok: true, saved: true, emailed: true, repeat: true });
   const { app, error } = cleanApplication(body);
   if (error) return Response.json({ error }, { status: 400 });
 
@@ -33,5 +36,6 @@ export async function POST(request) {
     })
   ]);
   if (!saved && !emailed) return Response.json({ error: 'Couldn\'t send your application. Please try again, or email it to crackboticssandiego@gmail.com.' }, { status: 502 });
+  if (saved) await rememberRequest('sponsor', body.request_id, { id: rec.id });
   return Response.json({ ok: true, saved, emailed });
 }

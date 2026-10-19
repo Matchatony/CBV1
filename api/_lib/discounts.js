@@ -65,7 +65,8 @@ export const MESSAGES = {
 };
 
 // What the customer and the order see of a code: never its use count or note.
-export const publicView = (c) => ({ code: c.code, kind: c.kind, value: c.value, label: describe(c), ...(c.once ? { once: true } : {}) });
+export const publicView = (c) => ({ code: c.code, kind: c.kind, value: c.value, label: describe(c),
+  ...(c.once ? { once: true } : {}), ...(c.expires ? { expires: c.expires } : {}) });
 
 // ---- Once per customer ----
 export function normalizeEmail(e) {

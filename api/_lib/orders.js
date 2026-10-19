@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { put, list, del } from '@vercel/blob';
+import { put, list, del, head } from '@vercel/blob';
 
 // Order records live in the same Blob store as the design files, under
 // orders/<id>/<version>.json. The store is public, so every record is
@@ -189,4 +189,28 @@ export function recordStore(prefix) {
       return true;
     }
   };
+}
+
+// Duplicate-send guard. The quote form and the sponsorship form send a random
+// request id with each submission and keep it until the send is confirmed, so
+// pressing Send again after a timeout or an unclear error resends the same id.
+// The first save is remembered under requests/<kind>-<id>.json (just the saved
+// record's id, readable only by someone who has the random request id), and a
+// repeat gets the first result instead of saving a second copy.
+const REQUEST_ID = /^[a-f0-9]{24}$/;
+export async function seenRequest(kind, rid) {
+  if (!REQUEST_ID.test(rid || '')) return null;
+  try {
+    const meta = await head(`requests/${kind}-${rid}.json`);
+    const res = await fetch(meta.url);
+    return res.ok ? await res.json() : null;
+  } catch {
+    return null; // not seen (or the lookup failed: then a duplicate is possible, never a lost request)
+  }
+}
+export async function rememberRequest(kind, rid, info) {
+  if (!REQUEST_ID.test(rid || '')) return;
+  await put(`requests/${kind}-${rid}.json`, JSON.stringify({ ...info, at: new Date().toISOString() }), {
+    access: 'public', addRandomSuffix: false, allowOverwrite: true, contentType: 'application/json'
+  }).catch((err) => console.error('Remembering a request id failed:', err));
 }

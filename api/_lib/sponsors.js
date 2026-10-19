@@ -5,6 +5,13 @@ import { recordStore } from './orders.js';
 export const applications = recordStore('sponsors/');
 export const APP_STATUSES = ['new', 'reviewing', 'accepted', 'declined'];
 
+// The last day applications are taken (San Diego time, all of that day). Keep
+// in step with CLOSES in sponsor.html, which shows it and switches the page to
+// "closed" after it.
+export const APPLY_CLOSES = '2026-10-25';
+export const applicationsClosed = () =>
+  new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles' }).format(new Date()) > APPLY_CLOSES;
+
 // The form's fields: name → [label (for the email and admin panel), max length, required].
 export const FIELDS = {
   team_number: ['Team number', 8, true],

@@ -1,4 +1,4 @@
-import { newId, saveOrder } from './_lib/orders.js';
+import { newId, saveOrder, seenRequest, rememberRequest } from './_lib/orders.js';
 import { passOk, rateLimited, tooMany } from './_lib/guard.js';
 import { sendConfirmation } from './_lib/confirm.js';
 import { sendMail, MAIL_CC, formsubmitUrl } from './_lib/mail.js';
@@ -119,6 +119,9 @@ export async function POST(request) {
   if (!body || typeof body !== 'object') return Response.json({ error: 'Invalid request' }, { status: 400 });
   if (body._honey) return Response.json({ ok: true, emailed: true });
   if (!passOk(body.pass)) return Response.json({ error: 'Bot check missing or expired' }, { status: 403 });
+  // Sent before (Send pressed again after an unclear error): answer as the first time did.
+  const earlier = await seenRequest('order', body.request_id);
+  if (earlier) return Response.json({ ok: true, id: earlier.id, saved: true, emailed: true, repeat: true });
 
   const order = { id: newId(), createdAt: new Date().toISOString(), status: 'new', notes: '' };
   for (const [field, max] of Object.entries(LIMITS)) order[field] = clip(body[field], max);
@@ -147,6 +150,7 @@ export async function POST(request) {
   if (!saved && !emailed) return Response.json({ error: 'Could not save or send', fallback }, { status: 502 });
   // The customer's confirmation (api/_lib/confirm.js; off until Gmail is set
   // up). Only for a saved order, since it links to the order's status page.
+  if (saved) await rememberRequest('order', body.request_id, { id: order.id });
   const confirmed = saved ? await sendConfirmation(order) : false;
   return Response.json({ ok: true, id: saved ? order.id : undefined, saved, emailed, confirmed, fallback });
 }

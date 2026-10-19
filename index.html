@@ -111,7 +111,7 @@
       <li><a href="#work">Photos</a></li>
       <li><a href="#team">About us</a></li>
       <li><a href="#faq">FAQ</a></li>
-      <li><a class="nav-sponsor" href="sponsor.html">Sponsorships</a></li>
+      <li><a class="nav-sponsor" href="/sponsorships">Sponsorships</a></li>
     </ul>
     <a class="btn btn-sm" href="#quote">Get a quote</a>
   </div>
@@ -487,6 +487,16 @@
 
       <!-- Shown when a discount link (crackbotics.com/discountFirst) filled in a code. -->
       <p class="claim-note field-wide" id="q-claim" hidden></p>
+
+      <!-- Shown in place of the form's fields once a request is sent (the quote
+           and its PDF stay below it), so there's nothing left to press twice. -->
+      <div class="sent-screen field-wide" id="q-sent" hidden>
+        <p class="sent-check" aria-hidden="true">✓</p>
+        <h3 id="q-sent-title" tabindex="-1">Request sent</h3>
+        <p id="q-sent-text"></p>
+        <p id="q-sent-track"></p>
+        <p class="claim-actions"><button type="button" class="btn btn-quiet" id="q-new">Start a new quote</button></p>
+      </div>
 
       <div class="field">
         <label for="q-name">Name</label>
@@ -1793,6 +1803,7 @@
           discount = { code: out.code, kind: out.kind, value: out.value, label: out.label, once: !!out.once };
           discountKey = key;
           codeSay(out.code + ': ' + out.label + ' your parts (not delivery or shipping).' +
+            (out.expires ? ' Valid through ' + new Date(out.expires + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + '.' : '') +
             (out.once ? ' One per team' + (who.team ? '.' : ': add your team number above.') : ''));
           return true;
         }
@@ -2590,6 +2601,44 @@
   }
   function failedText(name) { return 'UPLOAD FAILED — ask the customer to email the file (' + name + ')'; }
 
+  // One random id per request, sent with it and kept while that same request
+  // is retried (api/order.js saves a repeat of an id only once), so pressing
+  // the button again after a timeout can't send it twice. Anything changed
+  // since (a field, a file, a quantity) makes it a new request.
+  var sendId = '', sendKey = '';
+  function requestIdFor(key) {
+    if (key !== sendKey || !sendId) {
+      var b = new Uint8Array(12);
+      crypto.getRandomValues(b);
+      sendId = Array.prototype.map.call(b, function (x) { return ('0' + x.toString(16)).slice(-2); }).join('');
+      sendKey = key;
+    }
+    return sendId;
+  }
+
+  // "Start a new quote" on the sent screen: an empty form again.
+  function resetQuote() {
+    form.reset();
+    clearItems();
+    form.classList.remove('is-sent');
+    document.getElementById('q-sent').hidden = true;
+    els.result.hidden = true;
+    els.result.textContent = '';
+    els.status.hidden = true;
+    els.status.textContent = '';
+    if (els.note) els.note.hidden = false;
+    discount = null;
+    codeSay('');
+    fileProblem('');
+    syncType();
+    document.querySelector('input[name="delivery"]:checked').dispatchEvent(new Event('change'));
+    sendId = '';
+    var code = storedCode();
+    if (code) { els.code.value = code; checkCode(); }
+    form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+  document.getElementById('q-new').addEventListener('click', resetQuote);
+
   form.addEventListener('submit', function (event) {
     event.preventDefault();
 
@@ -2619,6 +2668,11 @@
     };
     var label = els.button.textContent;
     var list = items.slice(); // what was in the list when they pressed the button
+    var sameAs = [];
+    new FormData(form).forEach(function (v, k) {
+      if (typeof v === 'string' && !/^(_|design_file|quote_summary)/.test(k)) sameAs.push([k, v]);
+    });
+    var rid = requestIdFor(JSON.stringify([sameAs, list.map(function (it) { return [it.name, it.file.size, it.qty]; })]));
     els.button.disabled = true;
     els.files.disabled = true;
     els.button.textContent = 'Measuring your files…';
@@ -2730,6 +2784,7 @@
           email_fields: emailFields,
           discount_code: discount ? discount.code : '',
           device: discount ? deviceId() : '',
+          request_id: rid,
           pass: pass,
           _honey: value('_honey')
         })
@@ -2763,15 +2818,27 @@
 
       // The order number and a link to the status page (status.html), under the "sent" message.
       function trackLink() {
+        var p = document.getElementById('q-sent-track');
+        p.textContent = '';
         if (!orderId) return;
-        var p = document.createElement('span');
-        p.className = 'track-note';
-        p.appendChild(document.createTextNode(' Your order number is ' + orderId + '. '));
+        p.appendChild(document.createTextNode('Your order number is ' + orderId + '. '));
         var a = document.createElement('a');
         a.href = 'status.html?order=' + encodeURIComponent(orderId) + '&email=' + encodeURIComponent(data.email);
         a.textContent = 'Track your order';
         p.appendChild(a);
-        els.status.appendChild(p);
+      }
+      // Swap the form's fields for the sent screen (the quote stays below it).
+      function showSent(text, warn) {
+        els.status.hidden = true;
+        document.getElementById('q-sent-text').textContent = text;
+        document.getElementById('q-sent-text').className = warn ? 'sent-warn' : '';
+        trackLink();
+        form.classList.add('is-sent');
+        var sent = document.getElementById('q-sent');
+        sent.hidden = false;
+        sent.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        document.getElementById('q-sent-title').focus({ preventScroll: true });
+        sendId = ''; // done: the next request gets its own id
       }
 
       function finish(ok, reason) {
@@ -2791,25 +2858,25 @@
         }
         if (ok && !failed.length) {
           if (els.note) els.note.hidden = true;
-          say('Sent — we\'ll confirm by email, usually the same day.', 'ok');
-          trackLink();
+          showSent('We\'ll check your files and confirm the price by email, usually the same day. You don\'t need to send it again.');
           return;
         }
         if (ok) {
-          say('Your details were sent, but ' + (failed.length === uploaded.length
+          if (els.note) els.note.hidden = true;
+          showSent('Your request went through, but ' + (failed.length === uploaded.length
             ? (uploaded.length === 1 ? 'the file' : 'the files')
             : failed.length + ' of ' + uploaded.length + ' files') + ' didn\'t upload (' + failed.join(', ') +
-            '). Please email ' + (failed.length === 1 ? 'it' : 'them') + ' to ' + EMAIL + '.', 'bad');
-          trackLink();
+            '). Please email ' + (failed.length === 1 ? 'it' : 'them') + ' to ' + EMAIL + ' with your order number. No need to send the request again.', true);
+          return;
         } else {
           console.error('Quote form submission failed:', reason);
           say(reason === 'timeout'
-            ? 'The request didn\'t send — it timed out. Check your connection and try again, or email us the files.'
+            ? 'We couldn\'t confirm the request went through: it timed out, but it may have arrived. You can press the button again: it won\'t be sent twice.'
             : reason === 'human'
               ? 'We couldn\'t confirm you\'re not a bot, so the request didn\'t send. Reload the page and try again, or email it to us with the files attached.'
               : reason === 'busy'
                 ? 'Too many requests from your network just now. Wait a few minutes and try again, or email it to us with the files attached.'
-                : 'We couldn\'t confirm the request went through. To be safe, email it to us with the files attached.', 'bad');
+                : 'We couldn\'t confirm the request went through. It may have. You can press the button again: it won\'t be sent twice.', 'bad');
         }
         var retry = document.createElement('button');
         retry.type = 'button';

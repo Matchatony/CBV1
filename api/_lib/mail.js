@@ -19,7 +19,7 @@ export async function sendMail(fields) {
       method: 'POST',
       headers: { 'content-type': 'application/json', accept: 'application/json', origin: MAIL_SITE(), referer: MAIL_SITE() + '/' },
       body: JSON.stringify(fields),
-      signal: AbortSignal.timeout(20_000)
+      signal: AbortSignal.timeout(10_000) // well inside the function's time limit (vercel.json)
     });
     const out = await res.json().catch(() => ({}));
     if (res.ok && String(out.success) === 'true') return true;

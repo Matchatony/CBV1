@@ -41,7 +41,7 @@
       <li><a href="/#pricing">Pricing</a></li>
       <li><a href="/#work">Photos</a></li>
       <li><a href="/#team">About us</a></li>
-      <li><a class="nav-sponsor" href="/sponsor.html">Sponsorships</a></li>
+      <li><a class="nav-sponsor" href="/sponsorships">Sponsorships</a></li>
     </ul>
     <a class="btn btn-sm" href="/?code=FIRST5#quote">Get a quote</a>
   </div>
@@ -68,6 +68,7 @@
         <li>One per team: we check your team number, email and device when you send your request.</li>
         <li>Comes off the parts, not delivery or shipping. One discount code per order.</li>
         <li>Works on every job. Anything we price by hand gets it taken off the price we email you.</li>
+        <li id="ends" hidden></li>
       </ul>
     </div>
   </section>
@@ -141,6 +142,11 @@
   }).then(function (res) { return res.json(); }).then(function (out) {
     if (out.valid) {
       if (out.label) $('headline').querySelector('em').textContent = out.label; // in case the shop changed the amount
+      if (out.expires) { // the end date set in the admin panel (it works through that whole day)
+        var d = new Date(out.expires + 'T12:00:00');
+        $('ends').textContent = 'Valid through ' + d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }) + '.';
+        $('ends').hidden = false;
+      }
       return;
     }
     keep('');
