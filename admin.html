@@ -1341,7 +1341,7 @@
   var sponsorApps = null;
   var APP_LABELS = { 'new': 'New', reviewing: 'Reviewing', accepted: 'Accepted', declined: 'Declined' };
   var APP_FIELDS = [['results', 'Competition results'], ['community', 'Community involvement'], ['sharing', 'How they share their work'],
-    ['links', 'Links'], ['why', 'Why CrackBotics'], ['parts', 'Parts needed this season']];
+    ['links', 'Links'], ['promote', 'How they\'ll promote CrackBotics'], ['why', 'Why CrackBotics (earlier form)'], ['parts', 'Parts needed this season']];
   function sponsorsApi(method, body) { return api(method, body, '/api/sponsors'); }
   function loadSponsors() {
     if (sponsorApps === null) say('sponsors-msg', 'Loading…');

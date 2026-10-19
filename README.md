@@ -179,8 +179,8 @@ rewrites `/sponsorships`, `/Sponsorships`, `/SPONSORSHIPS`, `/sponsorship` and `
 **Sponsorships** in the top menu, in the accent color) is the 2026–2027 application for the ~10 sponsored teams:
 team number and name, city and state, the contact's name, role and email (plus a
 coach's email for students), and their competition results, community
-involvement, how they share their work, links, why CrackBotics, and parts
-they'll need. `api/sponsor.js` checks it (same Turnstile pass, honeypot and
+involvement, how they share their work, links, how they'd help promote
+CrackBotics, and parts they'll need. `api/sponsor.js` checks it (same Turnstile pass, honeypot and
 per-IP limit as the quote form), saves it encrypted under `sponsors/` in the Blob
 store, and emails it to the shop through FormSubmit with the applicant as
 Reply-To. Applications close at the end of Oct 25, 2026 (San Diego time): set by

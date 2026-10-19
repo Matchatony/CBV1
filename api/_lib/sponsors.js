@@ -25,7 +25,7 @@ export const FIELDS = {
   community: ['Community involvement', 2000, true],
   sharing: ['How the team shares its work', 2000, true],
   links: ['Links', 1000, false],
-  why: ['Why CrackBotics', 2000, true],
+  promote: ['How they\'ll promote CrackBotics', 2000, true],
   parts: ['Parts needed this season', 1000, false]
 };
 export const ROLES = ['Student', 'Coach or mentor', 'Parent'];
