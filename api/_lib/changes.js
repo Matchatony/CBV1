@@ -43,5 +43,21 @@ export function orderChanges(body) {
     }
   }
   if (body.delivered !== undefined) changes.delivered_at = body.delivered === true ? new Date().toISOString() : '';
+  // The price quoted by hand, in dollars: the parts, and shipping (null when it
+  // isn't quoted yet or isn't needed), with a short note on what it covers.
+  // null clears it. Customers see it on their order status page.
+  if (body.quote !== undefined) {
+    const q = body.quote;
+    if (q === null) {
+      changes.quote = null;
+    } else {
+      if (typeof q !== 'object') return { error: 'Bad quote' };
+      const dollars = (v) => Math.round(Number(v) * 100) / 100;
+      const total = dollars(q.total), shipping = q.shipping === null || q.shipping === undefined || q.shipping === '' ? null : dollars(q.shipping);
+      if (!(total > 0 && total <= 1e6)) return { error: 'The quoted price should be a dollar amount' };
+      if (shipping !== null && !(shipping >= 0 && shipping <= 1e5)) return { error: 'Shipping should be a dollar amount' };
+      changes.quote = { total, shipping, note: String(q.note || '').trim().slice(0, 300), at: new Date().toISOString() };
+    }
+  }
   return { changes };
 }

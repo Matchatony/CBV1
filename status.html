@@ -133,7 +133,7 @@
 
     var facts = [['Order number', o.order], ['Placed', day(o.created)]];
     if (o.part_type) facts.push(['Job', o.part_type + (o.files > 1 ? ', ' + o.files + ' files' : '')]);
-    if (o.price) facts.push(['Estimate', o.price]);
+    if (o.price) facts.push([o.quoted ? 'Price' : 'Estimate', o.price]);
     var how = o.delivery === 'ship' ? 'Shipping, USPS Priority Mail' + (o.shipping_box ? ' (' + o.shipping_box + ')' : '')
       : o.delivery === 'delivery' ? 'Local delivery' : 'Pickup in San Diego';
     facts.push(['Getting it to you', how]);

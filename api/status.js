@@ -7,6 +7,13 @@ import { rateLimited, tooMany } from './_lib/guard.js';
 // when it's going out, and the tracking number, never notes, files or prices
 // beyond what they were quoted. Rate-limited per IP so emails can't be probed.
 const LABELS = { new: 'Received', quoted: 'Quoted', paid: 'Paid', 'in-progress': 'Being made', ready: 'Ready', done: 'Done', cancelled: 'Cancelled' };
+const money = (n) => '$' + n.toFixed(2);
+// What they were quoted: the shop's hand quote once there is one, else the estimate.
+function priceOf(o) {
+  const q = o.quote;
+  if (!q) return o.price || '';
+  return money(q.total + (q.shipping || 0)) + (o.delivery === 'ship' && q.shipping === null ? ' + shipping' : '');
+}
 const same = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
 const notFound = () => Response.json({ error: 'No order matches that order number and email.' }, { status: 404, headers: { 'cache-control': 'no-store' } });
 
@@ -30,7 +37,8 @@ export async function GET(request) {
     label: LABELS[o.status] || o.status,
     part_type: o.part_type || '',
     files: Array.isArray(o.files) ? o.files.length : (o.design_file ? 1 : 0),
-    price: o.price || '',
+    price: priceOf(o),
+    quoted: Boolean(o.quote),
     delivery: o.delivery,
     shipping_box: sp.shipping_box || '',
     delivery_date: o.delivery_date || '',

@@ -54,6 +54,13 @@
   .price-table td:last-child { text-align: right; font-family: var(--mono); }
   .price-table tr.total td { border-top: 1px solid var(--line-firm); padding-top: 7px; font-weight: 600; }
   .price-table + .hand-reason { margin-top: 10px; }
+  .quote-box { margin: 12px 0 0; padding: 12px; border: 1px solid var(--line-firm); border-radius: 6px; font-size: 14px; }
+  .quote-box .quote-now { margin: 0 0 10px; }
+  .quote-box .quote-now b { font-family: var(--mono); }
+  .quote-form { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; }
+  .quote-form label { display: grid; gap: 4px; font-size: 12px; color: var(--muted); }
+  .quote-form .wide { grid-column: 1 / -1; }
+  .quote-form .row { grid-column: 1 / -1; display: flex; gap: 8px; }
   .check-note { margin: 10px 0 0; padding: 10px 12px; border: 1px solid rgba(255, 210, 122, .5); border-radius: 6px; background: rgba(255, 210, 122, .08); font-size: 14px; }
   .check-note ul { margin: 6px 0 0; padding-left: 18px; }
   .file-links { margin: 0; padding: 0; list-style: none; }
@@ -483,6 +490,12 @@
     return [s.material, '×' + s.qty, s.color, n > 1 ? n + ' files' : ''].filter(Boolean).join(' · ');
   }
   function money(n) { return '$' + (Math.round(n * 100) / 100).toFixed(2); }
+  // The price quoted by hand (o.quote), e.g. "$321.56 + shipping"; otherwise
+  // the quote page's estimate as it was emailed.
+  function quoteText(q, o) {
+    return money(q.total + (q.shipping || 0)) + (o.delivery === 'ship' && q.shipping === null ? ' + shipping' : '');
+  }
+  function priceText(o) { return o.quote ? quoteText(o.quote, o) : o.price || ''; }
   // How the order reaches the customer: local drop-off, shop pickup, or shipped.
   var HANDOFF = { delivery: 'Delivery', pickup: 'Pickup', ship: 'Shipping' };
   function handoffName(o) { return HANDOFF[o.delivery] || 'Pickup'; }
@@ -514,9 +527,10 @@
 
   // Changes made through the Claude connector (api/mcp), newest first. Each entry is
   // { at, by, change: { field: { from, to } } }; earlier notes are kept in full here.
-  var HISTORY_FIELDS = { status: 'Status', delivery_date: 'Delivery date', delivery_window: 'Time window', delivery_stop: 'Stop', tracking: 'Tracking number' };
+  var HISTORY_FIELDS = { status: 'Status', delivery_date: 'Delivery date', delivery_window: 'Time window', delivery_stop: 'Stop', tracking: 'Tracking number', quote: 'Quote' };
   function historyValue(k, v) {
     if (v === null || v === undefined || v === '' || (k === 'delivery_stop' && !v)) return 'none';
+    if (k === 'quote') return money(v.total) + (v.shipping !== null ? ' + ' + money(v.shipping) + ' shipping' : '') + (v.note ? ' (' + v.note + ')' : '');
     if (k === 'status') return LABELS[v] || v;
     if (k === 'delivery_date') return dayLabel(v);
     return String(v);
@@ -541,6 +555,50 @@
         ]);
       }))
     ]);
+  }
+
+  // The price quoted by hand (an order that needed a hand quote, or a change to
+  // the estimate): the parts, shipping, and a note on what it covers. Saved on
+  // the order (api/_lib/changes.js) and shown on the customer's status page.
+  function quoteBox(o, priceSpan) {
+    var box = el('div', { class: 'quote-box' });
+    function fill() {
+      var q = o.quote;
+      box.textContent = '';
+      var dollars = function (label, v, extra) {
+        return el('label', {}, [label, el('input', Object.assign({ type: 'number', min: '0', step: '0.01', inputmode: 'decimal', value: v === null || v === undefined ? '' : String(v) }, extra || {}))]);
+      };
+      var total = dollars('Parts ($)', q ? q.total : null);
+      var ship = dollars(o.delivery === 'ship' ? 'Shipping ($, blank if not quoted yet)' : 'Delivery ($, blank if none)', q ? q.shipping : null);
+      var note = el('label', { class: 'wide' }, ['What it covers', el('input', { type: 'text', maxlength: '300', value: q ? q.note : '',
+        placeholder: 'e.g. 1/8 in. 6061, 2 of each plate' })]);
+      var save = el('button', { type: 'button', class: 'sm primary', text: q ? 'Update quote' : 'Save quote' });
+      var clear = q ? el('button', { type: 'button', class: 'sm', text: 'Clear quote' }) : null;
+      function send(quote) {
+        save.disabled = true;
+        if (clear) clear.disabled = true;
+        patch(o, { quote: quote }).then(function () {
+          priceSpan.textContent = priceText(o);
+          priceSpan.className = 'price' + (o.escalated && !o.quote ? ' hand' : '');
+          fill();
+        }, function (err) {
+          save.disabled = false;
+          if (clear) clear.disabled = false;
+          failed('save the quote')(err);
+        });
+      }
+      save.addEventListener('click', function () {
+        send({ total: total.querySelector('input').value, shipping: ship.querySelector('input').value, note: note.querySelector('input').value });
+      });
+      if (clear) clear.addEventListener('click', function () { if (confirm('Clear the quoted price?')) send(null); });
+      box.appendChild(el('p', { class: 'quote-now' }, q
+        ? [el('b', { text: 'Quoted ' + quoteText(q, o) }), (q.shipping !== null ? ' (' + money(q.total) + ' parts + ' + money(q.shipping) + (o.delivery === 'ship' ? ' shipping' : ' delivery') + ')' : '') +
+            (q.note ? ' — ' + q.note : '') + (q.at ? ' · ' + new Date(q.at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '')]
+        : ['No quoted price yet. Set one here to replace the estimate on the customer\'s status page.']));
+      box.appendChild(el('div', { class: 'quote-form' }, [total, ship, note, el('div', { class: 'row' }, [save, clear])]));
+    }
+    fill();
+    return box;
   }
 
   function orderCard(o) {
@@ -579,10 +637,11 @@
     });
 
     var bodyId = 'order-' + o.id;
+    var priceSpan = el('span', { class: 'price' + (o.escalated && !o.quote ? ' hand' : ''), text: priceText(o) });
     var toggle = el('button', { type: 'button', class: 'toggle', 'aria-expanded': 'false', 'aria-controls': bodyId }, [
       el('span', { class: 'when', text: fmtDate(o.createdAt), style: 'white-space:pre-line' }),
       el('span', { class: 'who' }, [el('b', {}, [kindTags(o), o.name]), el('span', { text: [o.team ? 'FTC ' + o.team : '', specShort(o)].filter(Boolean).join(' · ') })]),
-      el('span', { class: 'price' + (o.escalated ? ' hand' : ''), text: o.price || '' }),
+      priceSpan,
       el('span', { class: 'badge', text: o.delivery === 'ship' ? 'Ship' : handoffName(o) })
     ]);
     toggle.addEventListener('click', function () {
@@ -632,7 +691,7 @@
       if (p.partial) price = el('div', {}, [price, el('p', { class: 'hand-reason' }, [el('b', { text: 'Plus a hand quote: ' }), sp.reason || ''])]);
       if (o.delivery === 'ship' && !p.delivery) price = el('div', {}, [price, el('p', { class: 'hand-reason' }, [el('b', { text: 'Plus shipping: ' }), 'quote it to the address below and add it to the total.'])]);
     } else if (o.escalated || (sp && sp.reason)) {
-      price = el('p', { class: 'hand-reason' }, [el('b', { text: 'Needs a hand quote. ' }), (sp && sp.reason) || o.part || '']);
+      price = el('p', { class: 'hand-reason' }, [el('b', { text: o.quote ? 'The quote page couldn\'t price it: ' : 'Needs a hand quote. ' }), (sp && sp.reason) || o.part || '']);
     } else {
       price = el('p', { text: o.price || '—' });
     }
@@ -656,7 +715,7 @@
       el('div', { class: 'sections' }, [
         el('div', {}, [el('h2', { text: 'Job' }), el('dl', { class: 'facts' }, job), itemsTable]),
         el('div', {}, [
-          el('h2', { text: 'Price' }), price,
+          el('h2', { text: 'Price' }), price, quoteBox(o, priceSpan),
           el('h2', { text: 'Customer' }),
           el('dl', { class: 'facts' }, [].concat(
             fact('Email', el('a', { href: mailto(o.email) + '?subject=' + encodeURIComponent('Your Crackbotics quote'), text: o.email })),
@@ -807,7 +866,7 @@
         el('span', { class: 'st' + (ready ? ' ready' : ctx.scheduled && !ready ? ' early' : ''), text: LABELS[o.status] || o.status })
       ]),
       addr,
-      el('div', { class: 'meta' }, [kindTags(o), [o.team ? 'FTC ' + o.team : '', specShort(o), o.price, o.delivery_window ? 'Window ' + o.delivery_window : ''].filter(Boolean).join(' · ')]),
+      el('div', { class: 'meta' }, [kindTags(o), [o.team ? 'FTC ' + o.team : '', specShort(o), priceText(o), o.delivery_window ? 'Window ' + o.delivery_window : ''].filter(Boolean).join(' · ')]),
       el('div', { class: 'meta' }, [el('a', { href: mailto(o.email), text: o.email })]),
       el('div', { class: 'print-only meta', text: '☐ ' + (del ? 'Delivered' : 'Picked up') + '    ☐ Paid' })
     ]));
@@ -880,7 +939,7 @@
         el('span', { class: 'st' + (o.status === 'ready' ? ' ready' : ''), text: LABELS[o.status] || o.status })
       ]),
       o.address ? el('span', { text: o.address }) : el('span', { class: 'warn', text: 'No address given' }),
-      el('div', { class: 'meta' }, [kindTags(o), [o.team ? 'FTC ' + o.team : '', specShort(o), o.price].filter(Boolean).join(' · ')]),
+      el('div', { class: 'meta' }, [kindTags(o), [o.team ? 'FTC ' + o.team : '', specShort(o), priceText(o)].filter(Boolean).join(' · ')]),
       el('div', { class: 'meta' }, [el('a', { href: mailto(o.email), text: o.email })])
     ]));
     var done = el('button', { type: 'button', class: 'sm', text: 'Shipped' });
@@ -1614,7 +1673,7 @@
           var item = sp.items && sp.items.length > 1 ? sp.items[f.i] || {} : null;
           rows.push([o.name, o.email, o.team, KINDS[kindOf(o)], sp.material || '', item ? item.qty || '' : sp.qty || '', sp.color || '',
             sp.options ? sp.options.map(function (x) { return OPTION_LABELS[x] || x; }).join('; ') : '', sp.rush ? 'Yes' : '',
-            item ? (item.size || item.reason || '') : o.part, item ? (item.price ? money(item.price.total) : 'Hand quote') : o.price, LABELS[o.status] || o.status,
+            item ? (item.size || item.reason || '') : o.part, item ? (item.price ? money(item.price.total) : 'Hand quote') : priceText(o), LABELS[o.status] || o.status,
             handoffName(o), o.address, buf ? 'files/' + name : 'MISSING (' + fname + ')',
             new Date(o.createdAt).toLocaleString()]);
           return fetchNext();

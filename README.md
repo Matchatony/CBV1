@@ -284,6 +284,11 @@ Sign in with the `ADMIN_PASSWORD` set in Vercel → Settings → Environment
 Variables. There you can see every order, download its design files, set a
 status (New → Quoted → Paid → In progress → Ready → Done / Cancelled), keep
 private notes, search, filter, and delete an order (optionally with its files).
+**Quoted price** (in each order's Price section) records what you quoted by
+hand: the parts, shipping or delivery (blank until it's quoted), and a note on
+what it covers. It replaces the estimate on the order card, in the lists, on the
+customer's status page, and in the Claude connector (`update_order`'s
+`quote_total`, `quote_shipping` and `quote_note`).
 Each order carries the full spec the customer chose (`specs`: CNC / 3D print /
 other, material, quantity, color, infill and walls, CNC options, rush, measured
 size, file type, price breakdown or hand-quote reason, and per file in

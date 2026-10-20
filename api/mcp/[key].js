@@ -43,7 +43,8 @@ function kindOf(o) {
 }
 
 function total(o) {
-  const sp = o.specs;
+  const sp = o.specs, q = o.quote;
+  if (q) return Math.round((q.total + (q.shipping || 0)) * 100) / 100; // the shop's hand quote
   if (sp && sp.price && sp.price.total > 0) return Math.round(sp.price.total * 100) / 100; // dollars, to the cent
   if (o.escalated || (sp && sp.reason) || !o.price) return 'hand quote';
   return o.price; // older orders: the price text as emailed
@@ -62,8 +63,8 @@ function summary(o) {
     id: o.id, created: o.createdAt, name: o.name, team: o.team || '', kind: kindOf(o),
     qty: sp.qty ?? null, files: filesOf(o).length, material: sp.material || '', status: o.status,
     delivery: o.delivery, delivery_date: o.delivery_date || '', delivery_stop: o.delivery_stop || 0, delivered_at: o.delivered_at || '',
-    total: total(o), ...(sp.price && sp.price.partial ? { plus_hand_quote: true } : {}),
-    ...(o.delivery === 'ship' && !(sp.price && sp.price.delivery) ? { plus_shipping: true } : {}),
+    total: total(o), ...(o.quote ? { quoted: true } : sp.price && sp.price.partial ? { plus_hand_quote: true } : {}),
+    ...(o.delivery === 'ship' && (o.quote ? o.quote.shipping === null : !(sp.price && sp.price.delivery)) ? { plus_shipping: true } : {}),
     ...(sp.shipping_box ? { shipping_box: sp.shipping_box } : {}),
     ...((sp.items || []).some((it) => it.checks && it.checks.length) ? { check: true } : {}),
     ...(sp.discount ? { discount_code: sp.discount.code + (sp.discount.invalid ? ' (not valid: ' + sp.discount.invalid + ')' : ' (' + sp.discount.label + ')') } : {})
@@ -129,7 +130,7 @@ const READ = { readOnlyHint: true, openWorldHint: false };
 const EDIT = { readOnlyHint: false, destructiveHint: false, openWorldHint: false };
 
 function buildServer() {
-  const server = new McpServer({ name: 'crackbotics-orders', version: '1.4.0' }, {
+  const server = new McpServer({ name: 'crackbotics-orders', version: '1.5.0' }, {
     instructions: 'Crackbotics is a student-run CNC and 3D-print shop for FTC robotics teams. These tools read and update its order log. ' +
       'An order moves new → quoted → paid → in-progress → ready → done (or cancelled). Paid, in-progress and ready delivery orders go on a delivery day. ' +
       'An order is picked up in San Diego (delivery "pickup"), delivered locally for a flat $15.99 ("delivery"), or shipped anywhere in the US ("ship"); ' +
@@ -147,7 +148,7 @@ function buildServer() {
     title: 'List orders',
     description: 'List orders, newest first, as a short summary each: id, created date, name, team, kind (cnc/print/other), quantity, material, ' +
       'status, delivery type (pickup, delivery or ship), delivery date and stop number, delivered time, number of design files, and total in dollars (or "hand quote" when it needs pricing by hand; ' +
-      'plus_hand_quote: true when some of its files still need pricing by hand, plus_shipping: true when shipping still has to be added, discount_code when it used one, ' +
+      'quoted: true when the total is the shop\'s hand quote, plus_hand_quote: true when some of its files still need pricing by hand, plus_shipping: true when shipping still has to be added, discount_code when it used one, ' +
       'check: true when a file was priced automatically but flagged for a look before confirming). ' +
       'Use get_order for the full details of one order.',
     inputSchema: fromJsonSchema({
@@ -175,7 +176,7 @@ function buildServer() {
   server.registerTool('get_order', {
     title: 'Get one order',
     description: 'Everything about one order: what was ordered (specs: kind, material, quantity, color, infill, walls, CNC options, rush, measured size, file type), ' +
-      'the price breakdown (or the reason it needs a hand quote), customer name, email and team, pickup or delivery with address, date, time window, ' +
+      'the price breakdown (or the reason it needs a hand quote) and quote (the price quoted by hand, if any), customer name, email and team, pickup or delivery with address, date, time window, ' +
       'stop number and delivered time, status, private notes, the design files (files: name and download URL of each, in order; specs.items has each ' +
       'file\'s quantity, measurements and price or hand-quote reason, plus checks: what to look over before confirming that file\'s price), the original ' +
       'quote text, and the history of changes made through this connector.',
@@ -190,23 +191,32 @@ function buildServer() {
   });
 
   server.registerTool('update_order', {
-    title: 'Update status, notes or tracking',
-    description: `Change an order's status, its private notes, its shipping tracking number, or any of them. Status must be one of: ${STATUSES.join(', ')}. ` +
+    title: 'Update status, notes, tracking or quoted price',
+    description: `Change an order's status, its private notes, its shipping tracking number, its quoted price, or any of them. Status must be one of: ${STATUSES.join(', ')}. ` +
       'Notes replace the whole private notes field (up to 4000 characters), so to add to them, read the current notes with get_order first and send the full new text. ' +
-      'Customers never see notes; they do see the tracking number, on their order status page. Marking an order handed over or shipped is mark_delivered.',
+      'The quoted price is what the shop quoted by hand (quote_total for the parts, quote_shipping for shipping or delivery, quote_note for what it covers); ' +
+      'it replaces the estimate in list_orders and on the customer\'s status page. Send all three together (quote_total 0 clears it). ' +
+      'Customers never see notes; they do see the tracking number and the quoted price, on their order status page. Marking an order handed over or shipped is mark_delivered.',
     inputSchema: fromJsonSchema({
       type: 'object',
       properties: {
         id: ID,
         status: { type: 'string', description: `New status: one of ${STATUSES.join(', ')}.` },
         notes: { type: 'string', description: 'The full new private notes text. Replaces what is there now.' },
-        tracking: { type: 'string', description: 'Carrier tracking number for a shipped order (letters, digits, spaces, dashes; up to 40). "" clears it.' }
+        tracking: { type: 'string', description: 'Carrier tracking number for a shipped order (letters, digits, spaces, dashes; up to 40). "" clears it.' },
+        quote_total: { type: 'number', minimum: 0, description: 'The quoted price for the parts, in dollars (any discount already taken off). 0 clears the quote.' },
+        quote_shipping: { type: 'number', minimum: 0, description: 'Quoted shipping or delivery, in dollars. Leave it out when it isn\'t quoted yet or isn\'t needed.' },
+        quote_note: { type: 'string', description: 'What the quote covers, e.g. "1/8 in. 6061, 2 of each plate" (up to 300 characters).' }
       },
       required: ['id'],
       additionalProperties: false
     }),
     annotations: EDIT
-  }, ({ id, status, notes, tracking }) => write(id, { status, notes, tracking }));
+  }, ({ id, status, notes, tracking, quote_total, quote_shipping, quote_note }) => {
+    if (quote_total === undefined && (quote_shipping !== undefined || quote_note !== undefined)) return fail('Give quote_total with quote_shipping and quote_note.');
+    const quote = quote_total === undefined ? undefined : quote_total === 0 ? null : { total: quote_total, shipping: quote_shipping ?? null, note: quote_note || '' };
+    return write(id, { status, notes, tracking, quote });
+  });
 
   server.registerTool('schedule_delivery', {
     title: 'Schedule a delivery or pickup',
