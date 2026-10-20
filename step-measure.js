@@ -151,7 +151,7 @@ function convexHull(points) {
 
 // Smallest rectangle around the points (it lines up with one hull edge):
 // { length, width, angle } with length >= width, angle turning the length onto x.
-function minRect(points) {
+export function minRect(points) {
   const hull = convexHull(points);
   let best = null;
   for (let i = 0; i < hull.length; i++) {
@@ -334,7 +334,7 @@ function finishPlate({ topLoops, floorLevels, floorUnder, thickness, hi, lo, fla
       type: through ? (circle ? 'hole' : 'cutout') : 'pocket',
       // A round opening's length is its true circumference, not the mesh's polygon.
       length: circle ? 2 * Math.PI * circle.r : l.length, depth: through ? h - lo : h - floor,
-      diameter: circle ? 2 * circle.r : null, area: Math.abs(l.area), pts: l.pts, from: hi - h
+      diameter: circle ? 2 * circle.r : null, center: circle ? circle.center : null, area: Math.abs(l.area), pts: l.pts, from: hi - h
     });
   }
 
@@ -562,8 +562,10 @@ const polyLength = (pts) => pts.reduce((s, q, i) => (i ? s + dist(pts[i - 1], q)
 
 // The faces of the file's solids, read with lengths in millimeters (k per unit):
 // face(ref) gives { plane: { n, o } (n pointing out of the solid) or null,
-// loops: [{ pts, length, circle }] }, each loop a 3D polygon in order.
-function brepReader(file, k) {
+// loops: [{ pts, length, circle }] }, each loop a 3D polygon in order. Arcs are
+// split every 0.1 rad, or finer where that would stray more than tol mm from
+// the true curve (toolpaths need 0.005 mm; measuring doesn't).
+function brepReader(file, k, tol) {
   const point = (ref) => {
     const e = file.get(ref);
     if (e.type !== 'CARTESIAN_POINT') throw new Unsupported('point');
@@ -637,7 +639,8 @@ function brepReader(file, k) {
       const turn = (x) => { const m = ((x % T) + T) % T; return m < 1e-9 ? T : m; };
       const t0 = angle(A), sweep = closed ? (forward ? T : -T) : forward ? turn(angle(B) - t0) : -turn(t0 - angle(B));
       const at = (t) => ax.o.map((o, i) => o + ax.x[i] * cv.a * Math.cos(t) + ax.y[i] * cv.b * Math.sin(t));
-      const steps = Math.max(2, Math.ceil(Math.abs(sweep) / 0.1));
+      const step = tol ? Math.min(0.1, 2 * Math.acos(Math.max(0, 1 - tol / Math.max(cv.a, cv.b)))) : 0.1;
+      const steps = Math.max(2, Math.ceil(Math.abs(sweep) / step));
       const pts = [];
       for (let s = 0; s <= steps; s++) pts.push(at(t0 + (sweep * s) / steps));
       pts[0] = A; pts[steps] = B;
@@ -733,8 +736,10 @@ function areaVector(pts) {
   return [x / 2, y / 2, z / 2];
 }
 
-// One solid's faces (brepReader) measured as a plate, like measureSolid.
-function measureFaces(faces, rate) {
+// One solid's faces (brepReader) measured as a plate, like measureSolid. With
+// profile set, the result also keeps the 2D loops of the top and bottom faces
+// (m.profile), which toolpaths are cut from.
+function measureFaces(faces, rate, profile) {
   for (const f of faces) for (const l of f.loops) l.vec = areaVector(l.pts);
   // A flat face's area: its outer loop's, less its openings'.
   for (const f of faces) {
@@ -823,6 +828,7 @@ function measureFaces(faces, rate) {
   // Surface area: the flat faces plus the walls around every contour.
   m.area = [...c.top, ...c.bottom].reduce((s, f) => s + f.area, 0) + [...c.floors, ...c.under].reduce((s, x) => s + x.f.area, 0) +
     m.contours.reduce((s, x) => s + x.length * x.depth, 0);
+  if (profile) m.profile = { top: c.top.length ? flatLoops(c.top[0]) : [], bottom: c.bottom.length === 1 ? flatLoops(c.bottom[0]) : null };
   return m;
 }
 
@@ -863,8 +869,9 @@ function instanceCounter(file) {
 
 // Every solid in the file, measured straight from its geometry, with
 // identical solids grouped like measureModel: { solids, groups }, or null when
-// the file needs OpenCascade instead.
-export function measureStepText(text, rate) {
+// the file needs OpenCascade instead. opts.tol (mm) reads arcs finer and
+// opts.profile keeps each solid's face loops, for toolpaths (api/_lib/cam.js).
+export function measureStepText(text, rate, opts = {}) {
   const file = stepFile(text);
   if (!file || file.has('MAPPED_ITEM') || file.has('BREP_WITH_VOIDS')) return null;
   const breps = file.ids('MANIFOLD_SOLID_BREP');
@@ -880,10 +887,10 @@ export function measureStepText(text, rate) {
       const rep = owner.get(id);
       if (rep === undefined) throw new Unsupported('solid outside a representation');
       const k = lengthUnit(file, file.get(rep).args[2]);
-      const reader = readers.get(k) || readers.set(k, brepReader(file, k)).get(k);
+      const reader = readers.get(k) || readers.set(k, brepReader(file, k, opts.tol)).get(k);
       const shell = file.get(file.get(id).args[1]);
       if (shell.type !== 'CLOSED_SHELL') throw new Unsupported('open shell');
-      const m = measureFaces(shell.args[1].map(reader.face), rate);
+      const m = measureFaces(shell.args[1].map(reader.face), rate, opts.profile);
       const copies = copiesOf(rep);
       solids += copies;
       const g = groups.find((x) => sameShape(x.m, m));

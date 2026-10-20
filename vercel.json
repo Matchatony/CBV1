@@ -4,6 +4,10 @@
       "includeFiles": "node_modules/occt-import-js/dist/occt-import-js.wasm",
       "maxDuration": 60
     },
+    "api/cam.js": {
+      "includeFiles": "node_modules/occt-import-js/dist/occt-import-js.wasm",
+      "maxDuration": 60
+    },
     "api/order.js": {
       "maxDuration": 30
     },

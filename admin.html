@@ -61,6 +61,22 @@
   .quote-form label { display: grid; gap: 4px; font-size: 12px; color: var(--muted); }
   .quote-form .wide { grid-column: 1 / -1; }
   .quote-form .row { grid-column: 1 / -1; display: flex; gap: 8px; }
+  .cam { margin-top: 22px; }
+  .cam-file { border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; margin-top: 10px; }
+  .cam-file > b { display: block; margin-bottom: 8px; overflow-wrap: anywhere; }
+  .cam-form { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px 10px; }
+  .cam-form label { display: grid; gap: 4px; font-size: 12px; color: var(--muted); }
+  .cam-form label[hidden] { display: none; }
+  .cam-out .meta { color: var(--muted); font-size: 13px; }
+  .cam-form .row { grid-column: 1 / -1; }
+  .cam-out { margin-top: 12px; }
+  .cam-out img { display: block; width: 100%; max-height: 640px; object-fit: contain; background: #fff; border-radius: 6px; }
+  .cam-out ul { margin: 4px 0 8px; padding-left: 18px; font-size: 14px; }
+  .cam-out .bad { color: #f0a4b0; font-weight: 600; }
+  .cam-versions { list-style: none; margin: 10px 0 0; padding: 0; font-size: 14px; }
+  .cam-versions li { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; padding: 6px 0; border-top: 1px solid var(--line); }
+  .cam-versions .meta { color: var(--muted); }
+  @media (max-width: 560px) { .cam-form { grid-template-columns: 1fr 1fr; } }
   .check-note { margin: 10px 0 0; padding: 10px 12px; border: 1px solid rgba(255, 210, 122, .5); border-radius: 6px; background: rgba(255, 210, 122, .08); font-size: 14px; }
   .check-note ul { margin: 6px 0 0; padding-left: 18px; }
   .file-links { margin: 0; padding: 0; list-style: none; }
@@ -601,6 +617,112 @@
     return box;
   }
 
+  // Toolpaths for the Shapeoko (api/cam.js): for each DXF or STEP file, a
+  // preview and numbered versions (V1, V2, ...) of the G-code (.nc, for
+  // gSender) and the Carbide Create file (.c2d). Only shown here; the
+  // customer's own file links above stay as they are.
+  function camBox(o) {
+    var files = filesOf(o), rows = [];
+    files.forEach(function (f, i) {
+      if (!isUrl(f.url) || !/\.(dxf|step|stp)$/i.test(f.name || f.url)) return;
+      rows.push(camFile(o, f, i));
+    });
+    if (!rows.length) return null;
+    return el('div', { class: 'cam' }, [
+      el('h2', { text: 'Toolpaths (Shapeoko 5 Pro)' }),
+      el('p', { class: 'meta', text: 'G-code (.nc) for gSender and a Carbide Create file (.c2d) from the customer\'s file: 1/8 in. flat end mill, 16,000 RPM, 20 ipm, holes in rings, tabbed slugs and outside profiles. New versions never replace old ones.' })
+    ].concat(rows));
+  }
+  function camFile(o, f, index) {
+    var part = el('select', { 'aria-label': 'Part' }, [el('option', { value: '1', text: 'Part 1' })]);
+    var partLabel = el('label', { hidden: '' }, ['Part in the file', part]);
+    var thick = el('input', { type: 'number', step: '0.001', min: '0.1', max: '25.4', placeholder: 'from the order' });
+    var qty = el('input', { type: 'number', step: '1', min: '1', max: '200', placeholder: 'from the order' });
+    var dir = el('select', {}, [
+      el('option', { value: '', text: 'Outside CCW, inside CW (spec)' }),
+      el('option', { value: 'climb', text: 'Climb: outside CW, inside CCW' })
+    ]);
+    var preview = el('button', { type: 'button', class: 'sm', text: 'Preview' });
+    var make = el('button', { type: 'button', class: 'sm primary', text: 'Make files' });
+    var out = el('div', { class: 'cam-out' });
+    var versions = el('ul', { class: 'cam-versions' });
+    var imgUrl = null;
+    function listVersions() {
+      versions.textContent = '';
+      (o.cam || []).filter(function (c) { return c.file_name === f.name; }).slice().reverse().forEach(function (c) {
+        versions.appendChild(el('li', {}, [
+          el('b', { text: c.name }),
+          el('a', { href: c.nc + '?download=1', text: '.nc (gSender)' }),
+          el('a', { href: c.c2d + '?download=1', text: '.c2d (Carbide Create)' }),
+          el('span', { class: 'meta', text: [new Date(c.at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }),
+            c.thickness_mm + ' mm stock', c.qty + (c.qty === 1 ? ' copy' : ' copies'), c.stock_in[0] + ' × ' + c.stock_in[1] + ' in. sheet', 'about ' + c.minutes + ' min',
+            c.climb ? 'climb' : '', c.skipped ? c.skipped + ' skipped' : '', c.problems ? c.problems + ' PROBLEM(S)' : ''].filter(Boolean).join(' · ') })
+        ]));
+      });
+      var next = 1 + (o.cam || []).filter(function (c) { return c.file_name === f.name && String(c.part) === part.value; })
+        .reduce(function (v, c) { return Math.max(v, c.v); }, 0);
+      make.textContent = 'Make V' + next + ' files';
+    }
+    function list(title, items, cls) {
+      return items.length ? [el('b', { class: cls || '', text: title }), el('ul', {}, items.map(function (x) { return el('li', { class: cls || '', text: x }); }))] : [];
+    }
+    function show(j) {
+      var r = j.report;
+      if (j.parts.length > 1 && part.options.length !== j.parts.length) {
+        part.textContent = '';
+        j.parts.forEach(function (p) { part.appendChild(el('option', { value: String(p.part), text: 'Part ' + p.part + (p.copies > 1 ? ' (' + p.copies + ' in the file)' : '') })); });
+        part.value = String(j.part);
+        partLabel.hidden = false;
+      }
+      thick.placeholder = String(j.defaults.thickness_mm);
+      qty.placeholder = String(j.defaults.qty);
+      if (imgUrl) URL.revokeObjectURL(imgUrl);
+      imgUrl = URL.createObjectURL(new Blob([j.svg], { type: 'image/svg+xml' }));
+      out.textContent = '';
+      [el('img', { src: imgUrl, alt: 'Toolpath preview: parts gray, holes blue, inside cuts orange, outside cuts green, tabs red, skipped features dashed red' }),
+        el('p', {}, [el('b', { text: 'Stock ' + r.stock.w_in + ' × ' + r.stock.h_in + ' × ' + r.stock.t_in + ' in.' }),
+          ' (' + r.stock.w_mm + ' × ' + r.stock.h_mm + ' × ' + r.stock.t_mm + ' mm) · ' + r.copies + (r.copies === 1 ? ' copy' : ' copies') + ', ' + r.layout.cols + ' × ' + r.layout.rows +
+          ' · about ' + r.run_minutes + ' min · ' + r.passes + ' passes to ' + r.depth_mm + ' mm · ' + r.operations.pockets + ' holes in rings, ' +
+          r.operations.inside_contours + ' tabbed slugs, ' + r.operations.outside_contours + ' outside profiles']),
+        el('p', { class: 'meta', text: 'Area of one part: drawing ' + r.area_mm2.drawing + ' mm², as cut ' + r.area_mm2.cut + ' mm² (' + r.area_mm2.left_on + ' mm² left on: skipped features and inside corners).' })
+      ].concat(list('Problems', r.problems, 'bad'), list('Skipped (each copy; positions on the first)', r.skipped, 'warn'), list('Warnings', r.warnings), list('Assumptions', r.assumptions),
+        [el('p', { class: 'meta', text: 'The .c2d has no tabs yet (Carbide Create\'s tab format isn\'t public): add them with Edit Tabs before cutting from it. The .nc has them. Open and save the .c2d in Carbide Create once before sending it to Carbide Motion. Not yet tested on the machine.' })])
+        .forEach(function (n) { out.appendChild(n); });
+    }
+    function run(save) {
+      preview.disabled = make.disabled = true;
+      (save ? make : preview).textContent = save ? 'Making…' : 'Working…';
+      var body = { id: o.id, file: index, part: Number(part.value) || 1, climb: dir.value === 'climb', save: save };
+      if (thick.value) body.thickness_mm = Number(thick.value);
+      if (qty.value) body.qty = Number(qty.value);
+      api('POST', body, '/api/cam').then(function (j) {
+        if (j.cam) o.cam = j.cam;
+        show(j);
+      }).catch(function (err) {
+        if (err.message !== 'unauthorized') { out.textContent = ''; out.appendChild(el('p', { class: 'warn', text: 'Couldn\'t make the toolpath: ' + err.message })); }
+      }).then(function () {
+        preview.disabled = make.disabled = false;
+        preview.textContent = 'Preview';
+        listVersions();
+      });
+    }
+    preview.addEventListener('click', function () { run(false); });
+    make.addEventListener('click', function () { run(true); });
+    part.addEventListener('change', listVersions);
+    listVersions();
+    return el('div', { class: 'cam-file' }, [
+      el('b', { text: f.name || 'Design file ' + (index + 1) }),
+      el('div', { class: 'cam-form' }, [
+        partLabel,
+        el('label', {}, ['Stock thickness (mm)', thick]),
+        el('label', {}, ['Quantity', qty]),
+        el('label', {}, ['Cut direction', dir]),
+        el('div', { class: 'row' }, [preview, make])
+      ]),
+      out, versions
+    ]);
+  }
+
   function orderCard(o) {
     var card = el('div', { class: 'order s-' + o.status });
     var files = filesOf(o);
@@ -733,6 +855,7 @@
           ))
         ])
       ]),
+      camBox(o),
       o.quote_summary ? el('details', { class: 'orig' }, [el('summary', { text: 'Original quote text (as emailed)' }), el('pre', { class: 'summary', text: o.quote_summary })]) : null,
       historyList(o),
       notes,

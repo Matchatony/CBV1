@@ -153,7 +153,10 @@ function picture(m) {
 
 // ---- Whole file ----
 
-export async function analyzeStep(bytes) {
+// The model's solids measured as plates (step-measure.js): straight from the
+// file when it can, else from OpenCascade's mesh (mesh: true). opts go to
+// measureStepText (api/_lib/cam.js asks for finer curves and the face loops).
+export async function readStepModel(bytes, opts) {
   const head = Buffer.from(bytes.buffer, bytes.byteOffset, Math.min(bytes.length, 200)).toString('latin1');
   if (!head.includes('ISO-10303-21')) throw new UserError('This isn\'t a STEP file (no ISO-10303-21 header).');
   const text = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.length).toString('latin1');
@@ -161,19 +164,22 @@ export async function analyzeStep(bytes) {
   // else goes through OpenCascade.
   let model = null;
   try {
-    model = measureStepText(text, SHOP);
+    model = measureStepText(text, SHOP, opts);
   } catch (err) {
     console.error('Reading the STEP geometry directly failed:', err);
   }
-  if (!model) {
-    const faceCount = (text.match(/\b(ADVANCED_FACE|FACE_SURFACE)\s*\(/g) || []).length;
-    if (faceCount > MAX_FACES) throw new UserError(`This model has ${faceCount} faces, over the ${MAX_FACES} this tool can measure in time. Quote it by hand, or ask for the plates as separate files.`);
-    const lib = await occt();
-    const result = lib.ReadStepFile(bytes, READ_OPTIONS);
-    if (!result || !result.success) throw new UserError('The file couldn\'t be read as a STEP model.');
-    if (!result.meshes || !result.meshes.length) throw new UserError('The file has no solid geometry in it. It may be an assembly that only points to other part files: ask the customer for the parts themselves, or one STEP export with everything in it.');
-    model = measureModel(result.meshes, SHOP);
-  }
+  if (model) return { model, mesh: false };
+  const faceCount = (text.match(/\b(ADVANCED_FACE|FACE_SURFACE)\s*\(/g) || []).length;
+  if (faceCount > MAX_FACES) throw new UserError(`This model has ${faceCount} faces, over the ${MAX_FACES} this tool can measure in time. Quote it by hand, or ask for the plates as separate files.`);
+  const lib = await occt();
+  const result = lib.ReadStepFile(bytes, READ_OPTIONS);
+  if (!result || !result.success) throw new UserError('The file couldn\'t be read as a STEP model.');
+  if (!result.meshes || !result.meshes.length) throw new UserError('The file has no solid geometry in it. It may be an assembly that only points to other part files: ask the customer for the parts themselves, or one STEP export with everything in it.');
+  return { model: measureModel(result.meshes, SHOP), mesh: true };
+}
+
+export async function analyzeStep(bytes) {
+  const { model } = await readStepModel(bytes);
   const { solids, groups } = model;
 
   const pictures = [];

@@ -340,6 +340,32 @@ environment variable (not in the page source, which is public) and is only sent
 to a signed-in admin; set `FAB_LATLON` to `lat,lon` to pin it exactly instead of
 looking it up. Scroll or pinch to zoom; "Show all" zooms back out to everything.
 
+**Toolpaths (Shapeoko 5 Pro)** (in each order with a DXF or STEP file) makes the
+machine files for a plate: G-code (`.nc`, for gSender) and a Carbide Create
+project (`.c2d`), one per part, following the shop's CAM spec (1/8 in. flat end
+mill, 16,000 RPM, 20 ipm cut, 10 ipm plunge, at most 0.025 in. a pass, cut 0.254 mm
+past the stock). Set the stock thickness (it starts from the order's material),
+the quantity (it starts from the order's, counting the same file uploaded twice
+as one part) and the cut direction, then **Preview** shows the sheet: parts in
+gray, holes cleared in rings (blue), bigger openings cut inside with the slug
+held by 3 tabs (orange), the outside of every plate last with its tabs (green,
+red tabs), and anything narrower than the bit skipped and listed (dashed red),
+plus the stock size, run time and every assumption (countersinks cut at the
+neck size with that face up, the model's thickness against the stock's, and so
+on). **Make V1 files** saves both files; each new run is the next version (V2,
+V3, ...) and old ones are never replaced or deleted. Only the admin panel links
+to them (an unguessable path in the Blob store, under `cam/`); the customer's
+own file links stay as they are. The files hold the part's shape and the job
+settings only: their names drop the customer's name, email and address.
+Two limits of the `.c2d`: it has **no tabs** (Carbide Create's tab format isn't
+public, so add them with Edit Tabs; the `.nc` has them), and it has to be opened
+and saved in Carbide Create once before Carbide Motion can run it. The format
+follows the public notes and specimen files at
+[phobicdotno/shapeoko-c2d](https://github.com/phobicdotno/shapeoko-c2d).
+The spec asks for both "climb" and "outside CCW, inside CW"; with the router
+spinning clockwise that direction is conventional milling, so it's the default
+(as written) and **Climb** is the other choice.
+
 - `api/order.js` saves a request and emails it (called by the quote form).
 - `api/human.js` and `api/_lib/guard.js` are the bot check and rate limits (see **Bot protection**).
 - `api/discount.js` checks a code for the quote form; `api/discounts.js` (password) makes and edits them.
@@ -348,6 +374,7 @@ looking it up. Scroll or pinch to zoom; "Show all" zooms back out to everything.
 - `api/orders.js` lists / updates / deletes; every call needs the password.
   Its update rules live in `api/_lib/changes.js`, shared with the Claude connector.
 - `api/mcp/[key].js` is the Claude connector (see below).
+- `api/cam.js` (password) makes the toolpaths: `api/_lib/cam.js` plans the sheet and writes the G-code, `api/_lib/c2d.js` the Carbide Create file, `api/_lib/dxf.js` reads DXF outlines (STEP plates come from `step-measure.js`).
 - Records live in the `crackbotics-uploads` Blob store under `orders/`,
   encrypted with `ORDERS_KEY`. **Never change `ORDERS_KEY`**: every existing
   order would become unreadable. `ADMIN_PASSWORD` can be changed any time
