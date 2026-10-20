@@ -204,8 +204,10 @@ function buildServer() {
         status: { type: 'string', description: `New status: one of ${STATUSES.join(', ')}.` },
         notes: { type: 'string', description: 'The full new private notes text. Replaces what is there now.' },
         tracking: { type: 'string', description: 'Carrier tracking number for a shipped order (letters, digits, spaces, dashes; up to 40). "" clears it.' },
-        quote_total: { type: 'number', minimum: 0, description: 'The quoted price for the parts, in dollars (any discount already taken off). 0 clears the quote.' },
-        quote_shipping: { type: 'number', minimum: 0, description: 'Quoted shipping or delivery, in dollars. Leave it out when it isn\'t quoted yet or isn\'t needed.' },
+        // Dollar amounts, as numbers or as text like "321.56" (a client with an
+        // older copy of this schema sends them as text).
+        quote_total: { anyOf: [{ type: 'number', minimum: 0 }, { type: 'string', pattern: '^\\d+(\\.\\d+)?$' }], description: 'The quoted price for the parts, in dollars (any discount already taken off). 0 clears the quote.' },
+        quote_shipping: { anyOf: [{ type: 'number', minimum: 0 }, { type: 'string', pattern: '^\\d+(\\.\\d+)?$' }], description: 'Quoted shipping or delivery, in dollars. Leave it out when it isn\'t quoted yet or isn\'t needed.' },
         quote_note: { type: 'string', description: 'What the quote covers, e.g. "1/8 in. 6061, 2 of each plate" (up to 300 characters).' }
       },
       required: ['id'],
@@ -214,7 +216,7 @@ function buildServer() {
     annotations: EDIT
   }, ({ id, status, notes, tracking, quote_total, quote_shipping, quote_note }) => {
     if (quote_total === undefined && (quote_shipping !== undefined || quote_note !== undefined)) return fail('Give quote_total with quote_shipping and quote_note.');
-    const quote = quote_total === undefined ? undefined : quote_total === 0 ? null : { total: quote_total, shipping: quote_shipping ?? null, note: quote_note || '' };
+    const quote = quote_total === undefined ? undefined : Number(quote_total) === 0 ? null : { total: Number(quote_total), shipping: quote_shipping === undefined ? null : Number(quote_shipping), note: quote_note || '' };
     return write(id, { status, notes, tracking, quote });
   });
 
