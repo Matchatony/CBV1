@@ -622,25 +622,63 @@
   // Toolpaths for the Shapeoko (api/cam.js): for each DXF or STEP file, a
   // preview and numbered versions (V1, V2, ...) of the G-code (.nc, for
   // gSender) and the Carbide Create file (.c2d). Only shown here; the
-  // customer's own file links above stay as they are.
+  // customer's own file links above stay as they are. The saved versions are
+  // the shop's, not this browser's: the list comes from the server when the
+  // order is opened, when you come back to this tab, and after every save, so
+  // a version anyone made shows up for everyone.
+  var camBoxes = [];
   function camBox(o) {
+    var shared = { versions: Array.isArray(o.cam) ? o.cam.slice() : [], files: [] };
+    shared.set = function (list) {
+      if (!Array.isArray(list)) return;
+      shared.versions = list;
+      shared.files.forEach(function (f) { f.listVersions(); });
+    };
     var files = filesOf(o), rows = [];
     files.forEach(function (f, i) {
       if (!isUrl(f.url) || !/\.(dxf|step|stp)$/i.test(f.name || f.url)) return;
-      rows.push(camFile(o, f, i));
+      var file = camFile(o, f, i, shared);
+      shared.files.push(file);
+      rows.push(file.node);
     });
     if (!rows.length) return null;
-    return el('div', { class: 'cam' }, [
+    var status = el('span', { class: 'meta' });
+    var again = el('button', { type: 'button', class: 'sm', text: '↻ Refresh' });
+    var node = el('div', { class: 'cam' }, [
       el('h2', { text: 'Toolpaths (Shapeoko 5 Pro)' }),
-      el('p', { class: 'meta', text: 'G-code (.nc) for gSender and a Carbide Create file (.c2d) from the customer\'s file: 1/8 in. flat end mill, 16,000 RPM, 20 ipm, holes in rings, tabbed slugs and outside profiles. New versions never replace old ones.' })
+      el('p', { class: 'meta', text: 'G-code (.nc) for gSender and a Carbide Create file (.c2d) from the customer\'s file: 1/8 in. flat end mill, 16,000 RPM, 20 ipm, holes in rings, tabbed slugs and outside profiles. Saved versions are shared: everyone on the admin panel sees and downloads the same ones, and new versions never replace old ones.' }),
+      el('div', { class: 'row' }, [again, status])
     ].concat(rows));
+    var loading = null;
+    function refresh() {
+      if (loading) return loading;
+      status.textContent = 'Checking for versions others saved…';
+      loading = api('GET', null, '/api/cam?id=' + encodeURIComponent(o.id)).then(function (j) {
+        shared.set(j.versions);
+        status.textContent = 'Up to date ' + new Date().toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) + '.';
+      }).catch(function (err) {
+        status.textContent = err.message === 'unauthorized' ? '' : 'Couldn\'t load the saved versions: ' + err.message;
+      }).then(function () { loading = null; });
+      return loading;
+    }
+    again.addEventListener('click', refresh);
+    var box = { node: node, refresh: refresh };
+    camBoxes = camBoxes.filter(function (b) { return b.node.isConnected; }).concat([box]);
+    // A card that's open as soon as it's drawn (kept open across a redraw) loads its list too.
+    setTimeout(function () { if (node.isConnected && node.offsetParent !== null) refresh(); }, 0);
+    return box;
   }
-  // One saved toolpath file (o.cam[i], kind 'nc' or 'c2d') downloaded through
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState !== 'visible') return;
+    camBoxes.forEach(function (b) { if (b.node.isConnected && b.node.offsetParent !== null) b.refresh(); });
+  });
+  // One saved toolpath file (version c, kind 'nc' or 'c2d') downloaded through
   // api/cam.js and saved under its version's name. A file too big for that
   // comes straight from the store instead.
-  function camDownload(o, i, kind) {
-    var c = o.cam[i], pw = state.pw;
-    return fetch('/api/cam?id=' + encodeURIComponent(o.id) + '&i=' + i + '&kind=' + kind, { headers: { authorization: 'Bearer ' + pw }, cache: 'no-store' })
+  function camDownload(o, c, kind) {
+    var pw = state.pw;
+    return fetch('/api/cam?id=' + encodeURIComponent(o.id) + '&file=' + encodeURIComponent(c.file_name) + '&name=' + encodeURIComponent(c.name) + '&kind=' + kind,
+      { headers: { authorization: 'Bearer ' + pw }, cache: 'no-store' })
       .then(function (r) {
         if (r.status === 401) { if (pw === state.pw) signOut('Wrong password.'); throw new Error('unauthorized'); }
         if (r.ok) return r.blob().then(function (b) { saveBlob(b, c.name + '.' + kind); });
@@ -651,7 +689,7 @@
       });
   }
 
-  function camFile(o, f, index) {
+  function camFile(o, f, index, shared) {
     var part = el('select', { 'aria-label': 'Part' }, [el('option', { value: '1', text: 'Part 1' })]);
     var partLabel = el('label', { hidden: '' }, ['Part in the file', part]);
     var thick = el('input', { type: 'number', step: '0.001', min: '0.1', max: '25.4', placeholder: 'from the order' });
@@ -675,26 +713,29 @@
     var imgs = {}, view = 'cut';
     function listVersions() {
       versions.textContent = '';
-      (o.cam || []).map(function (c, i) { return { c: c, i: i }; }).filter(function (x) { return x.c.file_name === f.name; }).reverse().forEach(function (x) {
-        var c = x.c;
+      var mine = shared.versions.filter(ofThisFile);
+      if (mine.length) versions.appendChild(el('li', { class: 'meta', text: 'Saved versions (everyone on the admin panel sees these):' }));
+      mine.slice().reverse().forEach(function (c) {
         versions.appendChild(el('li', {}, [
           el('b', { text: c.name }),
-          downloadButton(x.i, 'nc', '.nc'),
-          downloadButton(x.i, 'c2d', '.c2d'),
+          downloadButton(c, 'nc', '.nc'),
+          downloadButton(c, 'c2d', '.c2d'),
           el('span', { class: 'meta', text: [new Date(c.at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }),
             c.thickness_mm + ' mm stock', c.qty + (c.qty === 1 ? ' copy' : ' copies'), c.stock_in[0] + ' × ' + c.stock_in[1] + ' in. sheet', 'about ' + c.minutes + ' min',
             c.climb ? 'climb' : '', c.skipped ? c.skipped + ' skipped' : '', c.problems ? c.problems + ' PROBLEM(S)' : ''].filter(Boolean).join(' · ') })
         ]));
       });
-      var next = 1 + (o.cam || []).filter(function (c) { return c.file_name === f.name && String(c.part) === part.value; })
+      var next = 1 + shared.versions.filter(function (c) { return ofThisFile(c) && String(c.part) === part.value; })
         .reduce(function (v, c) { return Math.max(v, c.v); }, 0);
-      hint.textContent = 'Downloading saves these settings as V' + next + ' (or reuses the version that already has them). Old versions stay below.';
+      hint.textContent = 'Downloading saves these settings as V' + next + ', or hands back the version anyone already saved with the same settings. Old versions stay below.';
     }
-    function downloadButton(i, kind, label) {
+    // This file's versions, and those of the same file uploaded again (kept under its first copy).
+    function ofThisFile(c) { return c.file_name === f.name || (c.same_files || []).indexOf(f.name) !== -1; }
+    function downloadButton(c, kind, label) {
       var b = el('button', { type: 'button', class: 'sm', text: '↓ ' + label });
       b.addEventListener('click', function () {
         b.disabled = true;
-        camDownload(o, i, kind).catch(function (err) {
+        camDownload(o, c, kind).catch(function (err) {
           if (err.message !== 'unauthorized') say('app-msg', 'Couldn\'t download: ' + err.message, true);
         }).then(function () { b.disabled = false; });
       });
@@ -752,11 +793,11 @@
       if (thick.value) body.thickness_mm = Number(thick.value);
       if (qty.value) body.qty = Number(qty.value);
       api('POST', body, '/api/cam').then(function (j) {
-        if (j.cam) o.cam = j.cam;
+        shared.set(j.versions);
         show(j);
         if (!kind) return;
         btn.textContent = 'Downloading…';
-        return camDownload(o, j.index, kind);
+        return camDownload(o, j.entry, kind);
       }).catch(function (err) {
         if (err.message !== 'unauthorized') { out.textContent = ''; out.appendChild(el('p', { class: 'warn', text: 'Couldn\'t ' + (kind ? 'download' : 'make') + ' the toolpath: ' + err.message })); }
       }).then(function () {
@@ -770,7 +811,7 @@
     getC2d.addEventListener('click', function () { run('c2d'); });
     part.addEventListener('change', listVersions);
     listVersions();
-    return el('div', { class: 'cam-file' }, [
+    return { listVersions: listVersions, node: el('div', { class: 'cam-file' }, [
       el('b', { text: f.name || 'Design file ' + (index + 1) }),
       el('div', { class: 'cam-form' }, [
         partLabel,
@@ -781,7 +822,7 @@
         el('div', { class: 'row' }, [hint])
       ]),
       out, versions
-    ]);
+    ]) };
   }
 
   function orderCard(o) {
@@ -827,11 +868,13 @@
       priceSpan,
       el('span', { class: 'badge', text: o.delivery === 'ship' ? 'Ship' : handoffName(o) })
     ]);
+    var cam = camBox(o);
     toggle.addEventListener('click', function () {
       var open = toggle.getAttribute('aria-expanded') !== 'true';
       toggle.setAttribute('aria-expanded', String(open));
       body.hidden = !open;
       card.classList.toggle('open', open);
+      if (open && cam) cam.refresh();
     });
     card.appendChild(el('div', { class: 'order-head' }, [toggle, statusSelect(o, card)]));
     var sp = o.specs, kind = kindOf(o);
@@ -916,7 +959,7 @@
           ))
         ])
       ]),
-      camBox(o),
+      cam && cam.node,
       o.quote_summary ? el('details', { class: 'orig' }, [el('summary', { text: 'Original quote text (as emailed)' }), el('pre', { class: 'summary', text: o.quote_summary })]) : null,
       historyList(o),
       notes,

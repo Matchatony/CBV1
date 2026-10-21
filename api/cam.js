@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
-import { put } from '@vercel/blob';
-import { isAdmin, isValidId, getOrder, updateOrder } from './_lib/orders.js';
+import { put, list, head } from '@vercel/blob';
+import { isAdmin, isValidId, getOrder, encrypt, decrypt } from './_lib/orders.js';
 import { downloadDesignFile, isStoreUrl, readStepModel, UserError } from './_lib/step.js';
 import { CAM, CamError, stepPart, dxfPart, planSheet, reportText } from './_lib/cam.js';
 import { c2dFile } from './_lib/c2d.js';
@@ -10,14 +10,20 @@ import { c2dFile } from './_lib/c2d.js';
 // file is the order's design file (its index), part the distinct part in it.
 // Without save it answers with a preview (picture and report); with save it
 // also writes the next version (V1, V2, ...) of the G-code (.nc, for gSender)
-// and the Carbide Create project (.c2d), and lists them on the order
-// (order.cam); with reuse too, the newest version already made with the same
-// settings is handed back instead of a new one. Old versions are never
-// replaced or deleted. GET ?id=&i=&kind=nc|c2d downloads version i (its place
-// in order.cam) through here, so the admin panel can save it as a file. The files hold
-// only the part's shape and the job's settings: their names come from the
-// design file's name with the customer's name and email taken out, and
-// nothing else about the customer goes in.
+// and the Carbide Create project (.c2d); with reuse too, the newest version
+// already made with the same settings is handed back instead of a new one.
+// GET ?id= lists every saved version of the order's toolpaths, and
+// GET ?id=&file=&name=&kind=nc|c2d downloads one through here, so the admin
+// panel can save it as a file.
+//
+// Each saved version is its own record (cam/<order id>/meta/..., encrypted
+// like the orders), not part of the order record: every admin sees every
+// version, an edit to the order can't drop one, and two admins saving at once
+// can't both take the same number (a version's record is never overwritten,
+// so the second save moves on to the next number). Old versions are never
+// replaced or deleted. The files hold only the part's shape and the job's
+// settings: their names come from the design file's name with the customer's
+// name and email taken out, and nothing else about the customer goes in.
 //
 // The files are kept in the Blob store at an unguessable path, like the design
 // files, and only the admin panel links to them.
@@ -55,13 +61,48 @@ const GEN = 2;
 const MAX_PASS_THROUGH = 4_300_000;
 const CAM_URL = /^https:\/\/[a-z0-9]+\.public\.blob\.vercel-storage\.com\/cam\//;
 
+// Every saved version of an order's toolpaths, oldest first: their own
+// records, plus any kept on the order record itself (order.cam, before
+// versions had records of their own).
+const metaPrefix = (id) => `cam/${id}/meta/`;
+const metaPath = (id, fileName, part, v) => `${metaPrefix(id)}${sha(Buffer.from(String(fileName))).slice(0, 16)}/p${part}-V${v}.json`;
+async function versionsOf(o) {
+  const blobs = [];
+  let cursor;
+  do {
+    const page = await list({ prefix: metaPrefix(o.id), cursor, limit: 1000 });
+    blobs.push(...page.blobs);
+    cursor = page.hasMore ? page.cursor : undefined;
+  } while (cursor);
+  const saved = await Promise.all(blobs.map(async (b) => {
+    try {
+      const res = await fetch(b.url, { signal: AbortSignal.timeout(10000) });
+      return res.ok ? decrypt(await res.text()) : null;
+    } catch (err) {
+      console.error('Reading a toolpath version failed:', b.pathname, err);
+      return null;
+    }
+  }));
+  const old = Array.isArray(o.cam) ? o.cam : [];
+  return [...old, ...saved.filter(Boolean)].sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
+}
+const ofPart = (versions, fileName, part) => versions.filter((c) => c.file_name === fileName && c.part === part);
+const nextNumber = (versions, fileName, part) => 1 + ofPart(versions, fileName, part).reduce((n, c) => Math.max(n, c.v), 0);
+async function exists(pathname) {
+  try { await head(pathname); return true; } catch { return false; }
+}
+
 export async function GET(request) {
   if (!(await isAdmin(request))) return fail('Wrong password', 401);
   const q = new URL(request.url).searchParams;
-  const id = q.get('id'), i = Number(q.get('i')), kind = q.get('kind');
-  if (!isValidId(id) || !Number.isInteger(i) || !['nc', 'c2d'].includes(kind)) return fail('Bad request');
+  const id = q.get('id'), kind = q.get('kind');
+  if (!isValidId(id)) return fail('Bad id');
   const found = await getOrder(id);
-  const c = found && Array.isArray(found.order.cam) ? found.order.cam[i] : null;
+  if (!found) return fail('Not found', 404);
+  const versions = await versionsOf(found.order);
+  if (!kind) return Response.json({ versions }, { headers: noStore });
+  if (!['nc', 'c2d'].includes(kind)) return fail('Bad request');
+  const c = versions.find((x) => x.file_name === q.get('file') && x.name === q.get('name'));
   if (!c || !CAM_URL.test(c[kind] || '')) return fail('No such toolpath file.', 404);
   const res = await fetch(c[kind], { signal: AbortSignal.timeout(20000) });
   if (!res.ok) return fail(`The file couldn't be read from the store (HTTP ${res.status}).`, 502);
@@ -130,49 +171,60 @@ export async function POST(request) {
     const suggested = [index, ...same].reduce((s, i) => s + itemQty(i), 0) * chosen.copies;
     const qty = Number.isInteger(Number(body.qty)) && Number(body.qty) >= 1 ? Number(body.qty) : suggested;
     const climb = body.climb === true;
-    const name = baseName(f.name, o) + (parts.length > 1 ? `-part${partNo}` : '');
-    if (same.length) part.assumptions.unshift(`The same file is on this order ${same.length + 1} times (${[index, ...same].map((i) => `#${i + 1}`).join(', ')}): it's one part, so make its toolpath once, for all the copies.`);
+    // Copies of one file are one part: their versions are all kept (named and
+    // numbered) under the first copy, and listed under each.
+    const group = [index, ...same].sort((a, b) => a - b), home = files[group[0]];
+    const name = baseName(home.name, o) + (parts.length > 1 ? `-part${partNo}` : '');
+    if (same.length) part.assumptions.unshift(`The same file is on this order ${same.length + 1} times (${group.map((i) => `#${i + 1}`).join(', ')}): it's one part, so make its toolpath once, for all the copies. Its versions are listed under each copy.`);
 
-    const cam = Array.isArray(o.cam) ? o.cam : [];
-    const nextVersion = 1 + cam.filter((c) => c.file_name === f.name && c.part === partNo).reduce((v, c) => Math.max(v, c.v), 0);
+    const versions = await versionsOf(o);
+    const nextVersion = nextNumber(versions, home.name, partNo);
     const plan = planSheet(part, { thickness, qty, climb, name, material: o.specs && o.specs.material, version: body.save ? nextVersion : null });
     const info = {
       file: index, file_name: f.name, part: partNo, parts: parts.map((p, i) => ({ part: i + 1, copies: p.copies })),
       defaults: { thickness_mm: Math.round((orderThickness(o) || modelT || 3.175) * 1000) / 1000, qty: suggested },
       model_thickness_mm: modelT ? Math.round(modelT * 1000) / 1000 : null, same_as: same, next_version: nextVersion
     };
-    if (!body.save) return Response.json({ ...info, report: plan.report, svg: plan.svg, svg_cut: plan.svg_cut, svg_part: plan.svg_part }, { headers: noStore });
+    const pictures = (p) => ({ report: p.report, svg: p.svg, svg_cut: p.svg_cut, svg_part: p.svg_part });
+    if (!body.save) return Response.json({ ...info, versions, ...pictures(plan) }, { headers: noStore });
 
-    // The files, then the order's list of them.
-    const latest = await getOrder(body.id);
-    const list = Array.isArray(latest.order.cam) ? latest.order.cam : [];
+    // Whoever made these settings into files already (any admin): hand those back.
     if (body.reuse) {
-      const at = list.map((c, i) => [c, i]).reverse().find(([c]) => c.file_name === f.name && c.part === partNo && c.gen === GEN &&
-        c.qty === qty && c.climb === climb && Math.abs(c.thickness_mm - thickness) < 0.0005);
-      if (at) {
-        return Response.json({ ...info, next_version: nextVersion, entry: at[0], index: at[1], reused: true, cam: list, report: plan.report, svg: plan.svg, svg_cut: plan.svg_cut, svg_part: plan.svg_part }, { headers: noStore });
+      const hit = ofPart(versions, home.name, partNo).reverse().find((c) => c.gen === GEN && c.qty === qty && c.climb === climb && Math.abs(c.thickness_mm - thickness) < 0.0005);
+      if (hit) return Response.json({ ...info, entry: hit, reused: true, versions, ...pictures(plan) }, { headers: noStore });
+    }
+
+    // The files, then the version's record. If another save took this number
+    // in the meantime, the files are made again as the next one.
+    let v = nextVersion, final = plan, entry;
+    for (let attempt = 0; ; attempt++) {
+      if (v !== nextVersion) final = planSheet(part, { thickness, qty, climb, name, material: o.specs && o.specs.material, version: v });
+      const notes = reportText(final.report, { version: v }) +
+        '\nTabs: none in this file. Carbide Create keeps tabs on the drawing in a form this website can\'t write yet, so add them (Edit Tabs) on the inside and outside contours before cutting. The .nc file of the same version has them.\n' +
+        'Carbide Motion: open and save this file in Carbide Create once before sending it to Carbide Motion.\n';
+      const dir = `cam/${o.id}/${crypto.randomBytes(16).toString('hex')}/${name}-V${v}`;
+      const opts = { access: 'public', addRandomSuffix: false };
+      const [nc, c2d] = await Promise.all([
+        put(`${dir}.nc`, final.gcode, { ...opts, contentType: 'text/plain; charset=utf-8' }),
+        put(`${dir}.c2d`, c2dFile(final.sheet, notes), { ...opts, contentType: 'application/octet-stream' })
+      ]);
+      const r = final.report;
+      entry = {
+        v, gen: GEN, file_name: home.name, same_files: group.map((i) => files[i].name), part: partNo, name: `${name}-V${v}`, at: new Date().toISOString(),
+        thickness_mm: Math.round(thickness * 1000) / 1000, qty, climb,
+        stock_in: [r.stock.w_in, r.stock.h_in], minutes: r.run_minutes,
+        skipped: r.skipped.length, problems: r.problems.length, nc: nc.url, c2d: c2d.url
+      };
+      const path = metaPath(o.id, home.name, partNo, v);
+      try {
+        await put(path, encrypt(entry), { ...opts, allowOverwrite: false, contentType: 'application/json' });
+        break;
+      } catch (err) {
+        if (attempt >= 4 || !(await exists(path))) throw err;
+        v++;
       }
     }
-    const v = 1 + list.filter((c) => c.file_name === f.name && c.part === partNo).reduce((n, c) => Math.max(n, c.v), 0);
-    const final = v === nextVersion ? plan : planSheet(part, { thickness, qty, climb, name, material: o.specs && o.specs.material, version: v });
-    const notes = reportText(final.report, { version: v }) +
-      '\nTabs: none in this file. Carbide Create keeps tabs on the drawing in a form this website can\'t write yet, so add them (Edit Tabs) on the inside and outside contours before cutting. The .nc file of the same version has them.\n' +
-      'Carbide Motion: open and save this file in Carbide Create once before sending it to Carbide Motion.\n';
-    const dir = `cam/${o.id}/${crypto.randomBytes(16).toString('hex')}/${name}-V${v}`;
-    const opts = { access: 'public', addRandomSuffix: false };
-    const [nc, c2d] = await Promise.all([
-      put(`${dir}.nc`, final.gcode, { ...opts, contentType: 'text/plain; charset=utf-8' }),
-      put(`${dir}.c2d`, c2dFile(final.sheet, notes), { ...opts, contentType: 'application/octet-stream' })
-    ]);
-    const r = final.report;
-    const entry = {
-      v, gen: GEN, file_name: f.name, part: partNo, name: `${name}-V${v}`, at: new Date().toISOString(),
-      thickness_mm: Math.round(thickness * 1000) / 1000, qty, climb,
-      stock_in: [r.stock.w_in, r.stock.h_in], minutes: r.run_minutes,
-      skipped: r.skipped.length, problems: r.problems.length, nc: nc.url, c2d: c2d.url
-    };
-    const order = await updateOrder(o.id, { cam: [...list, entry] });
-    return Response.json({ ...info, next_version: v + 1, entry, index: list.length, cam: order ? order.cam : [...list, entry], report: r, svg: final.svg, svg_cut: final.svg_cut, svg_part: final.svg_part }, { headers: noStore });
+    return Response.json({ ...info, next_version: v + 1, entry, versions: [...versions, entry], ...pictures(final) }, { headers: noStore });
   } catch (err) {
     if (err instanceof CamError || err instanceof UserError) return fail(err.message);
     console.error('Toolpath failed:', err);

@@ -359,8 +359,14 @@ model's thickness against the stock's, and so on). **Download .nc** and **Downlo
 as the next version (V1, V2, ...), or reuse the newest version that already has
 exactly these settings, and download the file through the site
 (`GET /api/cam`, with the admin password); each saved version is listed under
-the panel with its own download buttons. Old versions are never replaced or
-deleted. Only the admin panel offers them (they're kept at an unguessable path
+the panel with its own download buttons. Saved versions are shared: each is
+its own encrypted record in the Blob store (`cam/<order id>/meta/`), not part of
+the order record, so every admin sees the same list (it reloads when an order
+is opened, when you come back to the tab, after every save, and with
+**Refresh**), downloading settings someone already saved hands back their
+version, and two admins saving at once get different numbers. The same file
+uploaded twice is one part: its versions are kept under the first copy and
+listed under both. Old versions are never replaced or deleted. Only the admin panel offers them (they're kept at an unguessable path
 in the Blob store, under `cam/`, and a file over Vercel's 4.5 MB response limit
 is downloaded from there directly); the customer's own file links stay as they
 are. The files hold the part's shape and the job

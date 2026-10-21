@@ -20,14 +20,14 @@ function key() {
   return k;
 }
 
-function encrypt(obj) {
+export function encrypt(obj) {
   const iv = crypto.randomBytes(12);
   const cipher = crypto.createCipheriv('aes-256-gcm', key(), iv);
   const data = Buffer.concat([cipher.update(JSON.stringify(obj), 'utf8'), cipher.final()]);
   return JSON.stringify({ v: 1, iv: iv.toString('base64'), tag: cipher.getAuthTag().toString('base64'), data: data.toString('base64') });
 }
 
-function decrypt(text) {
+export function decrypt(text) {
   const box = JSON.parse(text);
   const decipher = crypto.createDecipheriv('aes-256-gcm', key(), Buffer.from(box.iv, 'base64'));
   decipher.setAuthTag(Buffer.from(box.tag, 'base64'));
