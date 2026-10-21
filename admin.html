@@ -61,6 +61,24 @@
   .quote-form label { display: grid; gap: 4px; font-size: 12px; color: var(--muted); }
   .quote-form .wide { grid-column: 1 / -1; }
   .quote-form .row { grid-column: 1 / -1; display: flex; gap: 8px; }
+  .crew { margin: -8px 0 22px; }
+  .crew-head { display: flex; align-items: center; gap: 10px; }
+  .crew-head h2 { margin: 0; font: 500 12px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+  .crew-strip { display: flex; flex-wrap: wrap; gap: 20px; padding: 14px 6px 6px; }
+  .polaroid { position: relative; margin: 0; width: 150px; padding: 8px 8px 0; background: #f6f5f1; border-radius: 3px;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, .4); transform: rotate(-2.2deg); transition: transform .2s ease; }
+  .polaroid:nth-child(even) { transform: rotate(1.8deg); }
+  .polaroid:hover, .polaroid:focus-within { transform: rotate(0) scale(1.05); z-index: 1; }
+  .polaroid img { display: block; width: 100%; aspect-ratio: 3 / 4; object-fit: cover; }
+  .polaroid figcaption { color: #3a3a40; font-size: 13px; font-style: italic; text-align: center; padding: 8px 4px 10px; min-height: 16px; overflow-wrap: anywhere; }
+  .admin .polaroid .remove { position: absolute; top: -9px; right: -9px; width: 26px; height: 26px; padding: 0; border-radius: 50%;
+    background: #2b2a33; border: 1px solid var(--line-firm); color: var(--text); font-size: 16px; line-height: 1; opacity: 0; transition: opacity .15s; }
+  .polaroid:hover .remove, .polaroid .remove:focus-visible { opacity: 1; }
+  @media (hover: none) { .admin .polaroid .remove { opacity: 1; } }
+  .admin button.crew-add { width: 150px; min-height: 200px; border: 1px dashed var(--line-firm); border-radius: 4px; background: transparent; color: var(--muted); }
+  .admin button.crew-add:hover { color: var(--text); border-color: var(--accent); }
+  @media (max-width: 560px) { .polaroid, .admin button.crew-add { width: 120px; } .admin button.crew-add { min-height: 160px; } }
+  @media (prefers-reduced-motion: reduce) { .polaroid { transition: none; } }
   .cam { margin-top: 22px; }
   .cam-file { border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; margin-top: 10px; }
   .cam-file > b { display: block; margin-bottom: 8px; overflow-wrap: anywhere; }
@@ -296,6 +314,7 @@
   </form>
 
   <section id="app" hidden>
+    <div class="crew" id="crew"></div>
     <div class="tabs">
       <button type="button" class="tab" id="tab-orders" aria-pressed="true">Orders</button>
       <button type="button" class="tab" id="tab-deliv" aria-pressed="false">Deliveries</button>
@@ -435,6 +454,7 @@
     $('orders').textContent = '';
     codes = null; $('codes').textContent = '';
     sponsorApps = null; $('sponsors').textContent = '';
+    crew.photos = null; $('crew').textContent = '';
     say('login-msg', message || '', !!message);
   }
 
@@ -448,11 +468,77 @@
       $('login').hidden = true; $('app').hidden = false; $('signout').hidden = false;
       say('app-msg', '');
       render();
+      if (!crew.photos) loadCrew();
       if (!$('view-codes').hidden) loadCodes();
       loadSponsors(); // also keeps the tab's "new" count current
     }).catch(function (err) {
       if (err.message !== 'unauthorized') say(state.orders.length ? 'app-msg' : 'login-msg', 'Couldn\'t load orders: ' + err.message, true);
     }).then(function () { $('refresh').disabled = false; });
+  }
+
+  // The shop crew's photos (api/crew.js), at the top once you're signed in.
+  // They live encrypted next to the orders, never in this page's files, and
+  // "Hide" folds them away on this device.
+  var crew = { photos: null };
+  function crewHidden() { try { return localStorage.getItem('cb-crew-hidden') === '1'; } catch (e) { return false; } }
+  function setCrewHidden(v) { try { if (v) localStorage.setItem('cb-crew-hidden', '1'); else localStorage.removeItem('cb-crew-hidden'); } catch (e) {} }
+  function loadCrew() {
+    return api('GET', null, '/api/crew').then(function (j) { crew.photos = j.photos || []; renderCrew(); }).catch(failed('load the crew photos'));
+  }
+  function renderCrew() {
+    var box = $('crew');
+    box.textContent = '';
+    if (!crew.photos) return;
+    var hidden = crewHidden();
+    var toggle = el('button', { type: 'button', class: 'sm', text: hidden ? 'Show' : 'Hide' });
+    toggle.addEventListener('click', function () { setCrewHidden(!hidden); renderCrew(); });
+    // With photos up, adding one is a small button in the heading; with none, a big empty frame.
+    var input = el('input', { type: 'file', accept: 'image/*', hidden: '' });
+    var add = el('button', { type: 'button', class: crew.photos.length ? 'sm' : 'crew-add', text: crew.photos.length ? '+ Add a photo' : '+ Add crew photos' });
+    add.addEventListener('click', function () { input.click(); });
+    input.addEventListener('change', function () {
+      var file = input.files[0];
+      input.value = '';
+      if (file) addCrewPhoto(file, add);
+    });
+    box.appendChild(el('div', { class: 'crew-head' }, [el('h2', { text: 'Shop crew' }), toggle, crew.photos.length && !hidden ? add : null, input]));
+    if (hidden) return;
+    var strip = el('div', { class: 'crew-strip' });
+    crew.photos.forEach(function (p) {
+      var remove = el('button', { type: 'button', class: 'remove', 'aria-label': 'Remove this photo', title: 'Remove', text: '×' });
+      remove.addEventListener('click', function () {
+        if (!confirm('Remove this photo for everyone?')) return;
+        api('DELETE', { id: p.id }, '/api/crew').then(function (j) { crew.photos = j.photos; renderCrew(); }).catch(failed('remove the photo'));
+      });
+      strip.appendChild(el('figure', { class: 'polaroid' }, [el('img', { src: p.src, alt: p.caption || 'Crew photo' }), el('figcaption', { text: p.caption || '' }), remove]));
+    });
+    if (!crew.photos.length) strip.appendChild(add);
+    box.appendChild(strip);
+  }
+  function addCrewPhoto(file, button) {
+    var caption = prompt('Caption under the photo (optional):', '');
+    if (caption === null) return;
+    button.disabled = true;
+    button.textContent = 'Adding…';
+    shrinkPhoto(file).then(function (data) { return api('POST', { data: data, caption: caption }, '/api/crew'); })
+      .then(function (j) { crew.photos = j.photos; })
+      .catch(failed('add the photo'))
+      .then(renderCrew);
+  }
+  // A phone photo shrunk to at most 900 px on its long side, as a JPEG data URL.
+  function shrinkPhoto(file) {
+    return new Promise(function (resolve, reject) {
+      var url = URL.createObjectURL(file), img = new Image();
+      img.onload = function () {
+        var k = Math.min(1, 900 / Math.max(img.naturalWidth, img.naturalHeight));
+        var c = el('canvas', { width: String(Math.round(img.naturalWidth * k)), height: String(Math.round(img.naturalHeight * k)) });
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        resolve(c.toDataURL('image/jpeg', 0.85));
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('this browser can\'t read that image (try a JPG or PNG)')); };
+      img.src = url;
+    });
   }
 
   function fmtDate(iso) {

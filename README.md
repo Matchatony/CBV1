@@ -313,6 +313,12 @@ stored encrypted next to the orders (`settings/discounts/` in the Blob store,
 `api/discounts.js`, `api/_lib/discounts.js`). Use counts are best effort: two
 orders at the same instant can count as one.
 
+**Shop crew** (at the top once you're signed in) holds the crew's photos as
+polaroids: **+ Add a photo** (shrunk in the browser, with an optional caption),
+× to remove one for everyone, **Hide** to fold them away on that device. They're
+stored encrypted next to the orders (`settings/crew/`, `api/crew.js`), never in
+the site's files or this public repository, so only a signed-in admin sees them.
+
 **Download files** saves the design files for the orders on screen as one ZIP
 (every file of every order), with an `orders.csv` index, one row per file.
 
