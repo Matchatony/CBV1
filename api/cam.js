@@ -6,12 +6,15 @@ import { CAM, CamError, stepPart, dxfPart, planSheet, reportText } from './_lib/
 import { c2dFile } from './_lib/c2d.js';
 
 // Toolpaths for the shop's Shapeoko 5 Pro, for admin.html only (ADMIN_PASSWORD
-// as a Bearer token). POST { id, file, part, thickness_mm, qty, climb, save }:
+// as a Bearer token). POST { id, file, part, thickness_mm, qty, climb, save, reuse }:
 // file is the order's design file (its index), part the distinct part in it.
 // Without save it answers with a preview (picture and report); with save it
 // also writes the next version (V1, V2, ...) of the G-code (.nc, for gSender)
 // and the Carbide Create project (.c2d), and lists them on the order
-// (order.cam). Old versions are never replaced or deleted. The files hold
+// (order.cam); with reuse too, the newest version already made with the same
+// settings is handed back instead of a new one. Old versions are never
+// replaced or deleted. GET ?id=&i=&kind=nc|c2d downloads version i (its place
+// in order.cam) through here, so the admin panel can save it as a file. The files hold
 // only the part's shape and the job's settings: their names come from the
 // design file's name with the customer's name and email taken out, and
 // nothing else about the customer goes in.
@@ -44,6 +47,34 @@ function orderThickness(o) {
   return m && Number(m[2]) ? (Number(m[1]) / Number(m[2])) * 25.4 : null;
 }
 const sha = (bytes) => crypto.createHash('sha256').update(bytes).digest('hex');
+// Bump when the toolpath code changes what it makes, so `reuse` stops handing
+// back files made by the old code.
+const GEN = 2;
+// Vercel caps a function's response at 4.5 MB: a bigger file is fetched from
+// the store directly.
+const MAX_PASS_THROUGH = 4_300_000;
+const CAM_URL = /^https:\/\/[a-z0-9]+\.public\.blob\.vercel-storage\.com\/cam\//;
+
+export async function GET(request) {
+  if (!(await isAdmin(request))) return fail('Wrong password', 401);
+  const q = new URL(request.url).searchParams;
+  const id = q.get('id'), i = Number(q.get('i')), kind = q.get('kind');
+  if (!isValidId(id) || !Number.isInteger(i) || !['nc', 'c2d'].includes(kind)) return fail('Bad request');
+  const found = await getOrder(id);
+  const c = found && Array.isArray(found.order.cam) ? found.order.cam[i] : null;
+  if (!c || !CAM_URL.test(c[kind] || '')) return fail('No such toolpath file.', 404);
+  const res = await fetch(c[kind], { signal: AbortSignal.timeout(20000) });
+  if (!res.ok) return fail(`The file couldn't be read from the store (HTTP ${res.status}).`, 502);
+  const body = Buffer.from(await res.arrayBuffer());
+  if (body.length > MAX_PASS_THROUGH) return Response.json({ error: 'Too big to pass through here.', url: c[kind] }, { status: 413, headers: noStore });
+  return new Response(body, {
+    headers: {
+      ...noStore,
+      'content-type': kind === 'nc' ? 'text/plain; charset=utf-8' : 'application/octet-stream',
+      'content-disposition': `attachment; filename="${c.name.replace(/[^A-Za-z0-9_.-]/g, '_')}.${kind}"`
+    }
+  });
+}
 
 export async function POST(request) {
   if (!(await isAdmin(request))) return fail('Wrong password', 401);
@@ -115,6 +146,13 @@ export async function POST(request) {
     // The files, then the order's list of them.
     const latest = await getOrder(body.id);
     const list = Array.isArray(latest.order.cam) ? latest.order.cam : [];
+    if (body.reuse) {
+      const at = list.map((c, i) => [c, i]).reverse().find(([c]) => c.file_name === f.name && c.part === partNo && c.gen === GEN &&
+        c.qty === qty && c.climb === climb && Math.abs(c.thickness_mm - thickness) < 0.0005);
+      if (at) {
+        return Response.json({ ...info, next_version: nextVersion, entry: at[0], index: at[1], reused: true, cam: list, report: plan.report, svg: plan.svg, svg_cut: plan.svg_cut, svg_part: plan.svg_part }, { headers: noStore });
+      }
+    }
     const v = 1 + list.filter((c) => c.file_name === f.name && c.part === partNo).reduce((n, c) => Math.max(n, c.v), 0);
     const final = v === nextVersion ? plan : planSheet(part, { thickness, qty, climb, name, material: o.specs && o.specs.material, version: v });
     const notes = reportText(final.report, { version: v }) +
@@ -128,13 +166,13 @@ export async function POST(request) {
     ]);
     const r = final.report;
     const entry = {
-      v, file_name: f.name, part: partNo, name: `${name}-V${v}`, at: new Date().toISOString(),
+      v, gen: GEN, file_name: f.name, part: partNo, name: `${name}-V${v}`, at: new Date().toISOString(),
       thickness_mm: Math.round(thickness * 1000) / 1000, qty, climb,
       stock_in: [r.stock.w_in, r.stock.h_in], minutes: r.run_minutes,
       skipped: r.skipped.length, problems: r.problems.length, nc: nc.url, c2d: c2d.url
     };
     const order = await updateOrder(o.id, { cam: [...list, entry] });
-    return Response.json({ ...info, next_version: v + 1, entry, cam: order ? order.cam : [...list, entry], report: r, svg: final.svg, svg_cut: final.svg_cut, svg_part: final.svg_part }, { headers: noStore });
+    return Response.json({ ...info, next_version: v + 1, entry, index: list.length, cam: order ? order.cam : [...list, entry], report: r, svg: final.svg, svg_cut: final.svg_cut, svg_part: final.svg_part }, { headers: noStore });
   } catch (err) {
     if (err instanceof CamError || err instanceof UserError) return fail(err.message);
     console.error('Toolpath failed:', err);

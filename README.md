@@ -355,10 +355,15 @@ openings cut inside with the slug held by 3 tabs in orange, the outside of every
 plate last in green, tabs in red). Anything narrower than the bit is skipped,
 listed and dashed red in all three. Below them: the stock size, run time and
 every assumption (countersinks cut at the neck size with that face up, the
-model's thickness against the stock's, and so on). **Make V1 files** saves both files; each new run is the next version (V2,
-V3, ...) and old ones are never replaced or deleted. Only the admin panel links
-to them (an unguessable path in the Blob store, under `cam/`); the customer's
-own file links stay as they are. The files hold the part's shape and the job
+model's thickness against the stock's, and so on). **Download .nc** and **Download .c2d** (next to Preview) save these settings
+as the next version (V1, V2, ...), or reuse the newest version that already has
+exactly these settings, and download the file through the site
+(`GET /api/cam`, with the admin password); each saved version is listed under
+the panel with its own download buttons. Old versions are never replaced or
+deleted. Only the admin panel offers them (they're kept at an unguessable path
+in the Blob store, under `cam/`, and a file over Vercel's 4.5 MB response limit
+is downloaded from there directly); the customer's own file links stay as they
+are. The files hold the part's shape and the job
 settings only: their names drop the customer's name, email and address.
 Two limits of the `.c2d`: it has **no tabs** (Carbide Create's tab format isn't
 public, so add them with Edit Tabs; the `.nc` has them), and it has to be opened

@@ -67,6 +67,7 @@
   .cam-form { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px 10px; }
   .cam-form label { display: grid; gap: 4px; font-size: 12px; color: var(--muted); }
   .cam-form label[hidden] { display: none; }
+  .cam-form .meta { color: var(--muted); font-size: 12.5px; }
   .cam-out .meta { color: var(--muted); font-size: 13px; }
   .cam-form .row { grid-column: 1 / -1; }
   .cam-out { margin-top: 12px; }
@@ -634,6 +635,22 @@
       el('p', { class: 'meta', text: 'G-code (.nc) for gSender and a Carbide Create file (.c2d) from the customer\'s file: 1/8 in. flat end mill, 16,000 RPM, 20 ipm, holes in rings, tabbed slugs and outside profiles. New versions never replace old ones.' })
     ].concat(rows));
   }
+  // One saved toolpath file (o.cam[i], kind 'nc' or 'c2d') downloaded through
+  // api/cam.js and saved under its version's name. A file too big for that
+  // comes straight from the store instead.
+  function camDownload(o, i, kind) {
+    var c = o.cam[i], pw = state.pw;
+    return fetch('/api/cam?id=' + encodeURIComponent(o.id) + '&i=' + i + '&kind=' + kind, { headers: { authorization: 'Bearer ' + pw }, cache: 'no-store' })
+      .then(function (r) {
+        if (r.status === 401) { if (pw === state.pw) signOut('Wrong password.'); throw new Error('unauthorized'); }
+        if (r.ok) return r.blob().then(function (b) { saveBlob(b, c.name + '.' + kind); });
+        if (r.status !== 413) return r.json().catch(function () { return {}; }).then(function (j) { throw new Error(j.error || ('Server error ' + r.status)); });
+        var frame = el('iframe', { src: c[kind] + '?download=1', hidden: '', title: 'download' });
+        document.body.appendChild(frame);
+        setTimeout(function () { frame.remove(); }, 60000);
+      });
+  }
+
   function camFile(o, f, index) {
     var part = el('select', { 'aria-label': 'Part' }, [el('option', { value: '1', text: 'Part 1' })]);
     var partLabel = el('label', { hidden: '' }, ['Part in the file', part]);
@@ -644,7 +661,9 @@
       el('option', { value: 'climb', text: 'Climb: outside CW, inside CCW' })
     ]);
     var preview = el('button', { type: 'button', class: 'sm', text: 'Preview' });
-    var make = el('button', { type: 'button', class: 'sm primary', text: 'Make files' });
+    var getNc = el('button', { type: 'button', class: 'sm primary', text: 'Download .nc (gSender)' });
+    var getC2d = el('button', { type: 'button', class: 'sm primary', text: 'Download .c2d (Carbide Create)' });
+    var hint = el('span', { class: 'meta' });
     var out = el('div', { class: 'cam-out' });
     var versions = el('ul', { class: 'cam-versions' });
     // The preview's three pictures (object URLs) and which one is showing.
@@ -656,11 +675,12 @@
     var imgs = {}, view = 'cut';
     function listVersions() {
       versions.textContent = '';
-      (o.cam || []).filter(function (c) { return c.file_name === f.name; }).slice().reverse().forEach(function (c) {
+      (o.cam || []).map(function (c, i) { return { c: c, i: i }; }).filter(function (x) { return x.c.file_name === f.name; }).reverse().forEach(function (x) {
+        var c = x.c;
         versions.appendChild(el('li', {}, [
           el('b', { text: c.name }),
-          el('a', { href: c.nc + '?download=1', text: '.nc (gSender)' }),
-          el('a', { href: c.c2d + '?download=1', text: '.c2d (Carbide Create)' }),
+          downloadButton(x.i, 'nc', '.nc'),
+          downloadButton(x.i, 'c2d', '.c2d'),
           el('span', { class: 'meta', text: [new Date(c.at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }),
             c.thickness_mm + ' mm stock', c.qty + (c.qty === 1 ? ' copy' : ' copies'), c.stock_in[0] + ' × ' + c.stock_in[1] + ' in. sheet', 'about ' + c.minutes + ' min',
             c.climb ? 'climb' : '', c.skipped ? c.skipped + ' skipped' : '', c.problems ? c.problems + ' PROBLEM(S)' : ''].filter(Boolean).join(' · ') })
@@ -668,7 +688,17 @@
       });
       var next = 1 + (o.cam || []).filter(function (c) { return c.file_name === f.name && String(c.part) === part.value; })
         .reduce(function (v, c) { return Math.max(v, c.v); }, 0);
-      make.textContent = 'Make V' + next + ' files';
+      hint.textContent = 'Downloading saves these settings as V' + next + ' (or reuses the version that already has them). Old versions stay below.';
+    }
+    function downloadButton(i, kind, label) {
+      var b = el('button', { type: 'button', class: 'sm', text: '↓ ' + label });
+      b.addEventListener('click', function () {
+        b.disabled = true;
+        camDownload(o, i, kind).catch(function (err) {
+          if (err.message !== 'unauthorized') say('app-msg', 'Couldn\'t download: ' + err.message, true);
+        }).then(function () { b.disabled = false; });
+      });
+      return b;
     }
     function list(title, items, cls) {
       return items.length ? [el('b', { class: cls || '', text: title }), el('ul', {}, items.map(function (x) { return el('li', { class: cls || '', text: x }); }))] : [];
@@ -713,25 +743,31 @@
         [el('p', { class: 'meta', text: 'The .c2d has no tabs yet (Carbide Create\'s tab format isn\'t public): add them with Edit Tabs before cutting from it. The .nc has them. Open and save the .c2d in Carbide Create once before sending it to Carbide Motion. Not yet tested on the machine.' })])
         .forEach(function (n) { out.appendChild(n); });
     }
-    function run(save) {
-      preview.disabled = make.disabled = true;
-      (save ? make : preview).textContent = save ? 'Making…' : 'Working…';
-      var body = { id: o.id, file: index, part: Number(part.value) || 1, climb: dir.value === 'climb', save: save };
+    // kind: '' for a preview, else 'nc' or 'c2d' to save (or reuse) a version and download that file.
+    function run(kind) {
+      var btn = kind === 'nc' ? getNc : kind === 'c2d' ? getC2d : preview, label = btn.textContent;
+      preview.disabled = getNc.disabled = getC2d.disabled = true;
+      btn.textContent = kind ? 'Saving…' : 'Working…';
+      var body = { id: o.id, file: index, part: Number(part.value) || 1, climb: dir.value === 'climb', save: !!kind, reuse: !!kind };
       if (thick.value) body.thickness_mm = Number(thick.value);
       if (qty.value) body.qty = Number(qty.value);
       api('POST', body, '/api/cam').then(function (j) {
         if (j.cam) o.cam = j.cam;
         show(j);
+        if (!kind) return;
+        btn.textContent = 'Downloading…';
+        return camDownload(o, j.index, kind);
       }).catch(function (err) {
-        if (err.message !== 'unauthorized') { out.textContent = ''; out.appendChild(el('p', { class: 'warn', text: 'Couldn\'t make the toolpath: ' + err.message })); }
+        if (err.message !== 'unauthorized') { out.textContent = ''; out.appendChild(el('p', { class: 'warn', text: 'Couldn\'t ' + (kind ? 'download' : 'make') + ' the toolpath: ' + err.message })); }
       }).then(function () {
-        preview.disabled = make.disabled = false;
-        preview.textContent = 'Preview';
+        preview.disabled = getNc.disabled = getC2d.disabled = false;
+        btn.textContent = label;
         listVersions();
       });
     }
-    preview.addEventListener('click', function () { run(false); });
-    make.addEventListener('click', function () { run(true); });
+    preview.addEventListener('click', function () { run(''); });
+    getNc.addEventListener('click', function () { run('nc'); });
+    getC2d.addEventListener('click', function () { run('c2d'); });
     part.addEventListener('change', listVersions);
     listVersions();
     return el('div', { class: 'cam-file' }, [
@@ -741,7 +777,8 @@
         el('label', {}, ['Stock thickness (mm)', thick]),
         el('label', {}, ['Quantity', qty]),
         el('label', {}, ['Cut direction', dir]),
-        el('div', { class: 'row' }, [preview, make])
+        el('div', { class: 'row' }, [preview, getNc, getC2d]),
+        el('div', { class: 'row' }, [hint])
       ]),
       out, versions
     ]);
