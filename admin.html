@@ -70,6 +70,7 @@
   .cam-out .meta { color: var(--muted); font-size: 13px; }
   .cam-form .row { grid-column: 1 / -1; }
   .cam-out { margin-top: 12px; }
+  .cam-views { margin-bottom: 8px; }
   .cam-out img { display: block; width: 100%; max-height: 640px; object-fit: contain; background: #fff; border-radius: 6px; }
   .cam-out ul { margin: 4px 0 8px; padding-left: 18px; font-size: 14px; }
   .cam-out .bad { color: #f0a4b0; font-weight: 600; }
@@ -646,7 +647,13 @@
     var make = el('button', { type: 'button', class: 'sm primary', text: 'Make files' });
     var out = el('div', { class: 'cam-out' });
     var versions = el('ul', { class: 'cam-versions' });
-    var imgUrl = null;
+    // The preview's three pictures (object URLs) and which one is showing.
+    var VIEWS = [
+      ['cut', 'As cut', 'The sheet when the program ends: dark is cut through, the gray bars are the 0.5 mm tabs still holding the slugs and the parts, dashed red isn\'t cut.'],
+      ['part', 'Finished part', 'One part out of the sheet with its slugs knocked out (tab stubs not shown): inside corners come out rounded to the bit\'s 1/16 in. radius. Dashed red isn\'t cut.'],
+      ['paths', 'Toolpaths', 'Blue: holes cleared in rings. Orange: openings cut inside. Green: outside profiles, cut last. Red bars: tabs. Dashed red: not cut. Thin gray: the order the bit goes in.']
+    ];
+    var imgs = {}, view = 'cut';
     function listVersions() {
       versions.textContent = '';
       (o.cam || []).filter(function (c) { return c.file_name === f.name; }).slice().reverse().forEach(function (c) {
@@ -676,10 +683,27 @@
       }
       thick.placeholder = String(j.defaults.thickness_mm);
       qty.placeholder = String(j.defaults.qty);
-      if (imgUrl) URL.revokeObjectURL(imgUrl);
-      imgUrl = URL.createObjectURL(new Blob([j.svg], { type: 'image/svg+xml' }));
+      Object.keys(imgs).forEach(function (k) { URL.revokeObjectURL(imgs[k]); });
+      imgs = {};
+      [['paths', j.svg], ['cut', j.svg_cut], ['part', j.svg_part]].forEach(function (x) {
+        if (x[1]) imgs[x[0]] = URL.createObjectURL(new Blob([x[1]], { type: 'image/svg+xml' }));
+      });
+      if (!imgs[view]) view = 'paths';
+      var img = el('img', {}), caption = el('p', { class: 'meta' });
+      var buttons = VIEWS.filter(function (v) { return imgs[v[0]]; }).map(function (v) {
+        var b = el('button', { type: 'button', class: 'tab', text: v[1] });
+        b.addEventListener('click', function () { view = v[0]; pick(); });
+        return { v: v, b: b };
+      });
+      function pick() {
+        buttons.forEach(function (x) {
+          x.b.setAttribute('aria-pressed', String(x.v[0] === view));
+          if (x.v[0] === view) { img.src = imgs[view]; img.alt = x.v[1] + ': ' + x.v[2]; caption.textContent = x.v[2]; }
+        });
+      }
+      pick();
       out.textContent = '';
-      [el('img', { src: imgUrl, alt: 'Toolpath preview: parts gray, holes blue, inside cuts orange, outside cuts green, tabs red, skipped features dashed red' }),
+      [el('div', { class: 'tabs cam-views' }, buttons.map(function (x) { return x.b; })), img, caption,
         el('p', {}, [el('b', { text: 'Stock ' + r.stock.w_in + ' × ' + r.stock.h_in + ' × ' + r.stock.t_in + ' in.' }),
           ' (' + r.stock.w_mm + ' × ' + r.stock.h_mm + ' × ' + r.stock.t_mm + ' mm) · ' + r.copies + (r.copies === 1 ? ' copy' : ' copies') + ', ' + r.layout.cols + ' × ' + r.layout.rows +
           ' · about ' + r.run_minutes + ' min · ' + r.passes + ' passes to ' + r.depth_mm + ' mm · ' + r.operations.pockets + ' holes in rings, ' +

@@ -727,7 +727,9 @@ export function planSheet(part, settings) {
   return {
     gcode, report,
     sheet: { W, H, T, depth, offsets, outlines, holes, climb, tabTop, passMm, name, material },
-    svg: picture({ W, H, offsets, outlines, holes, order, tabs: true })
+    svg: picture({ W, H, offsets, outlines, holes, order }),
+    svg_cut: cutPicture({ W, H, offsets, features, holes }),
+    svg_part: partPicture({ kept, holes })
   };
 }
 
@@ -769,6 +771,77 @@ function picture({ W, H, offsets, outlines, holes, order }) {
   out.push(`<circle cx="0" cy="${y(0)}" r="1.6" fill="#111827"/><text x="2.5" y="${r2(H + 5.5)}" font-size="4" fill="#111827">zero</text>`);
   out.push('</svg>');
   return out.join('');
+}
+
+// The sheet as it comes off the machine, from the toolpaths themselves: the
+// stock (light), cut through wherever the bit went all the way down (dark: its
+// path drawn as wide as the bit), the 0.5 mm tabs still holding the slugs and
+// the parts (darker gray bars), and features left uncut (dashed red). Every
+// copy is the same group, moved into place.
+function cutPicture({ W, H, offsets, features, holes }) {
+  const y = (v) => r1(H - v);
+  const P = (p) => `${r1(p[0])} ${y(p[1])}`;
+  // A stretch of a ring, from s0 to s1, as path data.
+  const piece = (ring, s0, s1) => {
+    if (ring.kind === 'circle') {
+      const k = Math.ceil((s1 - s0) / ring.rho / Math.PI - 1e-9);
+      let d = 'M' + P(pointAt(ring, s0));
+      // (Y is flipped on screen, so a clockwise ring sweeps the positive way.)
+      for (let i = 1; i <= k; i++) d += `A${r2(ring.rho)} ${r2(ring.rho)} 0 0 ${ring.cw ? 1 : 0} ${P(pointAt(ring, s0 + ((s1 - s0) * i) / k))}`;
+      return d;
+    }
+    const pts = [pointAt(ring, s0)];
+    for (let i = 1; i < ring.pts.length; i++) if (ring.cum[i] > s0 + 1e-9 && ring.cum[i] < s1 - 1e-9) pts.push(ring.pts[i]);
+    pts.push(s1 >= ring.L - 1e-9 ? ring.pts[0] : pointAt(ring, s1));
+    return 'M' + pts.map(P).join('L');
+  };
+  const cut = [], tabs = [], discs = [];
+  for (const f of features) {
+    if (f.kind === 'circle') { discs.push(`<circle cx="${r1(f.c[0])}" cy="${y(f.c[1])}" r="${r2(f.rings[f.rings.length - 1] + R)}"/>`); continue; }
+    if (f.kind === 'poly') { for (const ring of f.levels.flat()) cut.push(piece(ring, 0, ring.L) + 'Z'); continue; }
+    let s = 0;
+    for (const [a, b] of [...f.tabs].sort((x, z) => x[0] - z[0])) {
+      if (a > s) cut.push(piece(f.ring, s, a));
+      tabs.push(piece(f.ring, a, b));
+      s = b;
+    }
+    if (s < f.ring.L) cut.push(piece(f.ring, s, f.ring.L) + (s ? '' : 'Z'));
+  }
+  const round = ({ c, r }) => `M${r2(c[0] - r)} ${y(c[1])}a${r2(r)} ${r2(r)} 0 1 0 ${r2(2 * r)} 0a${r2(r)} ${r2(r)} 0 1 0 ${r2(-2 * r)} 0Z`;
+  const skipped = holes.filter((h) => h.op === 'skip').map((h) => (h.circle ? round(h.circle) : 'M' + h.pts.map(P).join('L') + 'Z')).join('');
+  const DARK = '#2b3038';
+  return [
+    `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="-8 -8 ${r2(W + 16)} ${r2(H + 16)}">`,
+    `<rect x="0" y="0" width="${r2(W)}" height="${r2(H)}" fill="#d3d7dd" stroke="#8b929c" stroke-width="0.4"/>`,
+    '<defs><g id="cut">',
+    tabs.length ? `<path d="${tabs.join('')}" fill="none" stroke="#8a919b" stroke-width="${CAM.tool}" stroke-linecap="butt" stroke-linejoin="round"/>` : '',
+    cut.length ? `<path d="${cut.join('')}" fill="none" stroke="${DARK}" stroke-width="${CAM.tool}" stroke-linecap="round" stroke-linejoin="round"/>` : '',
+    discs.length ? `<g fill="${DARK}">${discs.join('')}</g>` : '',
+    skipped ? `<path d="${skipped}" fill="none" stroke="#dc2626" stroke-width="0.5" stroke-dasharray="1.2 0.8"/>` : '',
+    '</g></defs>',
+    ...offsets.map((off) => `<use href="#cut" xlink:href="#cut" transform="translate(${r1(off[0])} ${r1(-off[1])})"/>`),
+    '</svg>'
+  ].join('');
+}
+
+// One finished part: what's left once it's out of the sheet and the slugs are
+// knocked out (inside corners rounded by the bit, tab stubs not shown), with
+// the features that weren't cut marked (dashed red).
+function partPicture({ kept, holes }) {
+  if (!kept.length) return '';
+  const b = bbox(kept), w = b[2] - b[0], h = b[3] - b[1], pad = Math.max(4, 0.03 * Math.max(w, h));
+  const P = (p) => `${r1(p[0] - b[0])} ${r1(b[3] - p[1])}`;
+  const shape = kept.map((l) => 'M' + simplify(l, 0.03).map(P).join('L') + 'Z').join('');
+  const skipped = holes.filter((x) => x.op === 'skip').map((x) => 'M' + x.pts.map(P).join('L') + 'Z').join('');
+  const label = `${r2(inch(w))} x ${r2(inch(h))} in. (${r1(w)} x ${r1(h)} mm)`;
+  const fs = r1(Math.max(4, 0.035 * Math.max(w, h)));
+  return [
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${r1(-pad)} ${r1(-pad)} ${r1(w + 2 * pad)} ${r1(h + 3 * pad + fs)}" font-family="sans-serif">`,
+    `<path d="${shape}" fill="#cfd3d9" fill-rule="evenodd" stroke="#4b5563" stroke-width="${r2(Math.max(0.2, 0.0015 * Math.max(w, h)))}"/>`,
+    skipped ? `<path d="${skipped}" fill="none" stroke="#dc2626" stroke-width="0.5" stroke-dasharray="1.2 0.8"/>` : '',
+    `<text x="${r1(w / 2)}" y="${r1(h + 1.5 * pad + fs * 0.8)}" font-size="${fs}" text-anchor="middle" fill="#374151">${label}</text>`,
+    '</svg>'
+  ].join('');
 }
 
 // The report as plain text (the .c2d's notes, and the admin panel's copy button).

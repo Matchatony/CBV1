@@ -110,7 +110,7 @@ export async function POST(request) {
       defaults: { thickness_mm: Math.round((orderThickness(o) || modelT || 3.175) * 1000) / 1000, qty: suggested },
       model_thickness_mm: modelT ? Math.round(modelT * 1000) / 1000 : null, same_as: same, next_version: nextVersion
     };
-    if (!body.save) return Response.json({ ...info, report: plan.report, svg: plan.svg }, { headers: noStore });
+    if (!body.save) return Response.json({ ...info, report: plan.report, svg: plan.svg, svg_cut: plan.svg_cut, svg_part: plan.svg_part }, { headers: noStore });
 
     // The files, then the order's list of them.
     const latest = await getOrder(body.id);
@@ -134,7 +134,7 @@ export async function POST(request) {
       skipped: r.skipped.length, problems: r.problems.length, nc: nc.url, c2d: c2d.url
     };
     const order = await updateOrder(o.id, { cam: [...list, entry] });
-    return Response.json({ ...info, next_version: v + 1, entry, cam: order ? order.cam : [...list, entry], report: r, svg: final.svg }, { headers: noStore });
+    return Response.json({ ...info, next_version: v + 1, entry, cam: order ? order.cam : [...list, entry], report: r, svg: final.svg, svg_cut: final.svg_cut, svg_part: final.svg_part }, { headers: noStore });
   } catch (err) {
     if (err instanceof CamError || err instanceof UserError) return fail(err.message);
     console.error('Toolpath failed:', err);

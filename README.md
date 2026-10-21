@@ -346,13 +346,16 @@ project (`.c2d`), one per part, following the shop's CAM spec (1/8 in. flat end
 mill, 16,000 RPM, 20 ipm cut, 10 ipm plunge, at most 0.025 in. a pass, cut 0.254 mm
 past the stock). Set the stock thickness (it starts from the order's material),
 the quantity (it starts from the order's, counting the same file uploaded twice
-as one part) and the cut direction, then **Preview** shows the sheet: parts in
-gray, holes cleared in rings (blue), bigger openings cut inside with the slug
-held by 3 tabs (orange), the outside of every plate last with its tabs (green,
-red tabs), and anything narrower than the bit skipped and listed (dashed red),
-plus the stock size, run time and every assumption (countersinks cut at the
-neck size with that face up, the model's thickness against the stock's, and so
-on). **Make V1 files** saves both files; each new run is the next version (V2,
+as one part) and the cut direction, then **Preview** shows three pictures:
+**As cut** (the sheet when the program ends, drawn from the toolpaths: cut
+through in dark, the 0.5 mm tabs still holding the slugs and parts in gray),
+**Finished part** (one part out of the sheet, slugs knocked out, inside corners
+rounded by the bit) and **Toolpaths** (holes cleared in rings in blue, bigger
+openings cut inside with the slug held by 3 tabs in orange, the outside of every
+plate last in green, tabs in red). Anything narrower than the bit is skipped,
+listed and dashed red in all three. Below them: the stock size, run time and
+every assumption (countersinks cut at the neck size with that face up, the
+model's thickness against the stock's, and so on). **Make V1 files** saves both files; each new run is the next version (V2,
 V3, ...) and old ones are never replaced or deleted. Only the admin panel links
 to them (an unguessable path in the Blob store, under `cam/`); the customer's
 own file links stay as they are. The files hold the part's shape and the job
