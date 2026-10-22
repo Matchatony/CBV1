@@ -819,6 +819,11 @@
     other: { ext: '.dxf,.step,.stp,.stl,.3mf,.pdf,.zip', hint: 'Whatever helps us understand the parts. 10 MB max each.' }
   };
 
+  // Phones and tablets grey out every file of a type they don't know (an iPhone
+  // knows neither DXF nor STEP), so nothing could be picked. There the picker
+  // takes any file, and addFiles turns away the wrong ones with a note.
+  var PICK_ANY_FILE = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+
   // The files in this request, one per part (see FILES below).
   var items = [];
 
@@ -833,7 +838,8 @@
       if (type === 'print') label.querySelector('input').checked = false;
     });
     var a = ACCEPT[type] || ACCEPT.other;
-    els.files.setAttribute('accept', a.ext);
+    if (PICK_ANY_FILE) els.files.removeAttribute('accept');
+    else els.files.setAttribute('accept', a.ext);
     els.fileHint.textContent = a.hint;
     // Files added under another type that this one doesn't take come out.
     var dropped = items.filter(function (it) { return !fitsType(it.name, type); });
