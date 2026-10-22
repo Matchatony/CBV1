@@ -908,6 +908,15 @@ footer { padding-block: 48px 56px; border-top: 1px solid var(--line); }
 .file-note { grid-column: 1 / -1; font-size: 14px; color: var(--muted); }
 .file-note b { color: var(--text); font-weight: 500; font-family: var(--mono); }
 .file-item.is-hand .file-note { color: var(--faint); }
+/* A file we can't use as it is, and the things worth fixing in one we can. */
+.file-item.has-problem { border-left-color: #f0a4b0; }
+.file-item.has-problem .file-note { color: #f6c1ca; }
+.file-item.has-problem .file-note::before { content: "⚠ "; }
+.file-warnings { grid-column: 1 / -1; list-style: none; margin: 2px 0 0; padding: 0; font-size: 14px; color: #ffd27a; }
+.file-warnings[hidden] { display: none; }
+.file-warnings li::before { content: "⚠ "; }
+.file-warnings li + li { margin-top: 2px; }
+.file-issues { color: #f6c1ca; margin-top: 8px; }
 .form .file-qty { display: flex; align-items: center; gap: 8px; color: var(--faint); font-size: 14px; }
 .form .file-qty input[type="number"] { width: 76px; padding: 7px 9px; }
 .file-remove {

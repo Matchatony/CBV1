@@ -570,6 +570,7 @@
         <p class="hint"><a class="guide-link" href="file-guide.html" target="_blank" rel="noopener">How to export your file from Onshape or Fusion 360</a></p>
         <p class="hint file-problem" id="q-file-problem" role="alert" hidden></p>
         <ul class="file-list" id="q-file-list" aria-label="Your files" hidden></ul>
+        <p class="hint file-issues" id="q-file-issues" role="status" hidden></p>
       </div>
 
       <div class="field field-wide" id="q-preview-wrap" hidden>
@@ -788,6 +789,7 @@
     fileHint: document.getElementById('q-file-hint'),
     fileProblem: document.getElementById('q-file-problem'),
     fileList: document.getElementById('q-file-list'),
+    fileIssues: document.getElementById('q-file-issues'),
     previewLabel: document.getElementById('q-preview-label'),
     previewWrap: document.getElementById('q-preview-wrap'),
     previewCanvas: document.getElementById('q-preview'),
@@ -1535,8 +1537,36 @@
       cutLength: measured.cutLength * unit.toInches,
       holes: measured.holes.map(function (d) { return d * unit.toInches; }),
       units: unit.units,
-      guessed: unit.guessed
+      guessed: unit.guessed,
+      // Ends 0.01 mm apart or closer count as joined, like the shop's toolpaths.
+      gaps: Math.ceil(openEnds(dxf.entities, 0.01 / 25.4 / unit.toInches) / 2)
     };
+  }
+
+  // Ends of lines and arcs that don't meet another end within tol: a gap in an
+  // outline leaves two. A plate can only be cut along closed shapes.
+  function openEnds(entities, tol) {
+    var pts = [], cells = {};
+    var deg = Math.PI / 180;
+    entities.forEach(function (e) {
+      if (e.type === 'LINE') pts.push([e.x1, e.y1], [e.x2, e.y2]);
+      else if (e.type === 'ARC' && arcSweep(e) < 360) {
+        pts.push([e.cx + e.r * Math.cos(e.a1 * deg), e.cy + e.r * Math.sin(e.a1 * deg)], [e.cx + e.r * Math.cos(e.a2 * deg), e.cy + e.r * Math.sin(e.a2 * deg)]);
+      }
+    });
+    function cell(x, y) { return Math.round(x / tol) + ',' + Math.round(y / tol); }
+    pts.forEach(function (p, i) { var k = cell(p[0], p[1]); (cells[k] = cells[k] || []).push(i); });
+    return pts.filter(function (p, i) {
+      var cx = Math.round(p[0] / tol), cy = Math.round(p[1] / tol);
+      for (var dx = -1; dx <= 1; dx++) for (var dy = -1; dy <= 1; dy++) {
+        var near = cells[(cx + dx) + ',' + (cy + dy)] || [];
+        for (var n = 0; n < near.length; n++) {
+          var j = near[n];
+          if (j !== i && Math.hypot(pts[j][0] - p[0], pts[j][1] - p[1]) <= tol) return false;
+        }
+      }
+      return true;
+    }).length;
   }
 
   /* What a STEP file's plates measured (step-measure.js, from the model), in
@@ -1545,7 +1575,7 @@
      plate in it to price. */
   function stepGeom(model, sm) {
     var MM = sm.MM_PER_IN, parts = [], problem = '';
-    if (!model.groups.length) return { problem: 'We couldn\'t find a solid part in this STEP file, so it\'s priced by hand.' };
+    if (!model.groups.length) return { problem: 'We couldn\'t find a solid part in this STEP file, so it\'s priced by hand.', noSolid: true };
     model.groups.forEach(function (g) {
       var m = g.m;
       if (problem) return;
@@ -1717,9 +1747,55 @@
     return '';
   }
 
+  // What's wrong with a file, in the visitor's words, so they can fix it
+  // before sending. problem: we can't use the file as it is (it's priced by
+  // hand unless they replace it). warnings: it's priced, but there's something
+  // they should know or fix (gaps in the outline, holes under our bit...).
+  function fileIssues(item) {
+    var out = { problem: '', warnings: [] }, type = els.type.value, ext = item.ext;
+    if (item.status === 'failed') {
+      out.problem = 'There\'s a problem with this file: we couldn\'t open it. It may be damaged, empty, or not really a .' + ext + ' file. Export it again and add the new one.';
+    } else if (item.status !== 'ready') {
+      return out;
+    } else if (ext === 'dxf') {
+      var g = item.geom;
+      if (!g) {
+        out.problem = 'There\'s a problem with this file: it has no shapes we can read. It may be damaged or empty, or the part may be inside a block or saved as text. Explode it into lines, arcs and circles, then export it again.';
+      } else {
+        if (g.gaps) out.warnings.push(gapsNote(g.gaps));
+        var small = g.holes.filter(function (d) { return d < RATE.minToolDiaIn - 1e-6; }).length;
+        if (small && type === 'plate') out.warnings.push(smallHolesNote(small));
+      }
+    } else if (isStep(ext)) {
+      if ((!item.step && !item.mesh) || (item.step && item.step.noSolid)) {
+        out.problem = 'There\'s a problem with this file: we couldn\'t find a solid part in it. Export the part itself as a solid body (not a sketch, a drawing or surfaces) and add it again.';
+      } else if (item.step && item.step.parts && type === 'plate') {
+        out.warnings = stepFindings(item.step).notes;
+      }
+    } else if (ext === 'stl' || ext === '3mf') {
+      if (!item.mesh) out.problem = 'There\'s a problem with this file: the model isn\'t a closed solid (it\'s empty or its surface has gaps), so we can\'t tell how much plastic it takes. Export it again as a solid body and add the new one.';
+    }
+    return out;
+  }
+  function gapsNote(n) {
+    return n + (n === 1 ? ' gap' : ' gaps') + ' in the drawing: some lines don\'t join up into closed shapes, and we can only cut closed outlines and holes. ' +
+      'Close ' + (n === 1 ? 'it' : 'them') + ' in your CAD and export again, or we\'ll check with you before cutting.';
+  }
+
+  // Under the file list: which files have a problem, so it's hard to miss.
+  function showFileIssues() {
+    var bad = items.filter(function (it) { return fileIssues(it).problem; }).map(function (it) { return it.name; });
+    var text = bad.length ? 'There\'s a problem with ' + bad.join(', ') + ': see the note under ' + (bad.length === 1 ? 'it' : 'each one') +
+      '. Fix ' + (bad.length === 1 ? 'the file' : 'them') + ' and add ' + (bad.length === 1 ? 'it' : 'them') + ' again, or send the request as is and we\'ll sort it out with you.' : '';
+    els.fileIssues.textContent = text;
+    els.fileIssues.hidden = !text;
+  }
+
   // The line under a file's name: what it measured, or why it's priced by hand.
   function itemNote(item) {
     if (item.status === 'measuring') return { text: isStep(item.ext) ? 'Reading the STEP file…' : 'Measuring…' };
+    var problem = fileIssues(item).problem;
+    if (problem) return { text: problem + ' If you send it as is, it\'s priced by hand.', hand: true, problem: true };
     var reason = handReason(item);
     if (reason) return { text: reason, hand: true };
     if (els.type.value === 'plate') {
@@ -1760,8 +1836,10 @@
     remove.textContent = 'Remove';
     remove.setAttribute('aria-label', 'Remove ' + item.name);
     remove.addEventListener('click', function () { removeItem(item); });
-    li.appendChild(name); li.appendChild(qtyWrap); li.appendChild(remove); li.appendChild(note);
-    item.row = { li: li, name: name, note: note };
+    var warn = document.createElement('ul');
+    warn.className = 'file-warnings';
+    li.appendChild(name); li.appendChild(qtyWrap); li.appendChild(remove); li.appendChild(note); li.appendChild(warn);
+    item.row = { li: li, name: name, note: note, warn: warn };
     els.fileList.appendChild(li);
     updateRow(item);
   }
@@ -1770,7 +1848,17 @@
     if (!item.row) return;
     var n = itemNote(item);
     if (n.html) item.row.note.innerHTML = n.html; else item.row.note.textContent = n.text;
-    item.row.li.classList.toggle('is-hand', !!n.hand);
+    item.row.li.classList.toggle('is-hand', !!n.hand && !n.problem);
+    item.row.li.classList.toggle('has-problem', !!n.problem);
+    var warnings = n.problem ? [] : fileIssues(item).warnings;
+    item.row.warn.textContent = '';
+    warnings.forEach(function (w) {
+      var li = document.createElement('li');
+      li.textContent = w;
+      item.row.warn.appendChild(li);
+    });
+    item.row.warn.hidden = !warnings.length;
+    showFileIssues();
     item.row.li.classList.toggle('is-active', item === activeItem);
     item.row.name.setAttribute('aria-pressed', String(item === activeItem));
   }
@@ -1834,6 +1922,7 @@
     if (item.row) item.row.li.remove();
     els.fileList.hidden = !items.length;
     fileProblem('');
+    showFileIssues();
     if (item === activeItem) setActive(items[items.length - 1] || null);
   }
 
@@ -2106,10 +2195,9 @@
      unusual is still priced, and it goes in line.notes, for the customer, and
      line.checks, which flag the order for the shop to look over. */
   function stepParts(step, line) {
-    var found = {}, lb = 0, stack = 0, flat = [0, 0];
+    var lb = 0, stack = 0, flat = [0, 0];
     var parts = step.parts.map(function (p) {
       var area = p.length * p.width, ids = p.flags.map(function (f) { return f.id; });
-      p.flags.forEach(function (f) { (found[f.id] = found[f.id] || []).push({ flag: f, copies: p.copies }); });
       lb += area * p.thick * (PLATE_LB_PER_CU_IN[els.material.value] || 0.0975) * p.copies;
       stack += p.thick * p.copies;
       flat = [Math.max(flat[0], p.length), Math.max(flat[1], p.width)];
@@ -2120,7 +2208,19 @@
     });
     line.ship = { flat: flat, lb: lb, stack: stack };
     line.size = stepSize(step);
+    var f = stepFindings(step);
+    line.notes.push.apply(line.notes, f.notes);
+    line.checks.push.apply(line.checks, f.checks);
+    return parts;
+  }
 
+  // What's unusual about a STEP file's plates: notes for the visitor (in the
+  // price and under the file) and checks that flag the order for the shop.
+  function stepFindings(step) {
+    var found = {}, line = { notes: [], checks: [] };
+    step.parts.forEach(function (p) {
+      p.flags.forEach(function (f) { (found[f.id] = found[f.id] || []).push({ flag: f, copies: p.copies }); });
+    });
     if (found.sloped) {
       line.notes.push('It has chamfers, rounded edges or other sloped faces: priced with the unusual-geometry add-on, and we\'ll double-check it.');
       line.checks.push('Sloped or curved faces (chamfers, fillets or a 3D shape): priced as a flat plate plus the unusual-geometry add-on.');
@@ -2152,7 +2252,7 @@
       line.checks.push('Thickness ' + thick.join(' and ') + (odd ? ' (not a stock size)' : '') + ', but the material on the order is 1/8 in.: priced at that thickness.');
     }
     if (step.parts.length > 1) line.checks.push(step.parts.length + ' different parts in one file, priced together: check they\'re all plates.');
-    return parts;
+    return line;
   }
 
   // The material/color line that applies to every file in the request.
