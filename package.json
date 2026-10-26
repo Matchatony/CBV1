@@ -6,7 +6,12 @@
     "@modelcontextprotocol/server": "2.3.1",
     "@vercel/blob": "2.8.0",
     "clipper-lib": "6.4.2",
-    "nodemailer": "10.0.10",
+    "nodemailer": "10.2.1",
     "occt-import-js": "0.0.23"
+  },
+  "overrides": {
+    "@vercel/cli-config": {
+      "zod": "4.6.7"
+    }
   }
 }

@@ -1,10 +1,9 @@
-import { isAdmin, isValidId } from './_lib/orders.js';
+import { adminGate, isValidId } from './_lib/orders.js';
 import { applications, APP_STATUSES } from './_lib/sponsors.js';
 
 // Admin API for Sponsored Team Program applications (admin.html → Sponsors).
 // Every method needs ADMIN_PASSWORD as a Bearer token. GET lists them; PATCH
 // { id, status?, notes? } updates one; DELETE { id } removes one.
-const denied = () => Response.json({ error: 'Wrong password' }, { status: 401 });
 const noStore = { 'cache-control': 'no-store' };
 const bad = (error, status = 400) => Response.json({ error }, { status });
 async function body(request) {
@@ -12,7 +11,8 @@ async function body(request) {
 }
 
 export async function GET(request) {
-  if (!(await isAdmin(request))) return denied();
+  const refused = await adminGate(request);
+  if (refused) return refused;
   try {
     return Response.json({ applications: await applications.list(), statuses: APP_STATUSES }, { headers: noStore });
   } catch (err) {
@@ -22,7 +22,8 @@ export async function GET(request) {
 }
 
 export async function PATCH(request) {
-  if (!(await isAdmin(request))) return denied();
+  const refused = await adminGate(request);
+  if (refused) return refused;
   const b = await body(request);
   if (!b || !isValidId(b.id)) return bad('Bad id');
   const changes = {};
@@ -37,7 +38,8 @@ export async function PATCH(request) {
 }
 
 export async function DELETE(request) {
-  if (!(await isAdmin(request))) return denied();
+  const refused = await adminGate(request);
+  if (refused) return refused;
   const b = await body(request);
   if (!b || !isValidId(b.id)) return bad('Bad id');
   return (await applications.remove(b.id)) ? Response.json({ ok: true }) : bad('Not found', 404);

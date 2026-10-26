@@ -1,0 +1,7 @@
+# Found a security problem on crackbotics.com? Please tell us privately at
+# the address below before sharing it anywhere, and give us a little time to
+# fix it. We're a student team: no bug bounty, but we'll thank you.
+Contact: mailto:crackboticssandiego@gmail.com
+Expires: 2027-10-26T00:00:00.000Z
+Preferred-Languages: en
+Canonical: https://crackbotics.com/.well-known/security.txt

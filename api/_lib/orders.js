@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { put, list, del, head } from '@vercel/blob';
+import { clientIp } from './guard.js';
 
 // Order records live in the same Blob store as the design files, under
 // orders/<id>/<version>.json. The store is public, so every record is
@@ -133,6 +134,28 @@ export async function isAdmin(request) {
   );
   if (!ok) await new Promise((r) => setTimeout(r, 800));
   return ok;
+}
+
+// The admin check every admin endpoint starts with: null when the password is
+// right, or the refusal to send back. After 10 wrong passwords from one
+// address in 15 minutes, that address is refused (even with the right
+// password) until the 15 minutes are up, on top of isAdmin's delay. Like the
+// other rate limits it lives in the function's memory, so it slows guessing
+// rather than walls it off (the Vercel Firewall is the hard limit, see README).
+const adminFails = new Map(); // ip -> times of recent wrong passwords
+const FAIL_MAX = 10, FAIL_WINDOW = 15 * 60_000;
+export async function adminGate(request) {
+  const ip = clientIp(request), now = Date.now();
+  const recent = (adminFails.get(ip) || []).filter((t) => t > now - FAIL_WINDOW);
+  if (recent.length >= FAIL_MAX) {
+    return Response.json({ error: 'Too many wrong passwords from this network. Wait 15 minutes and try again.' },
+      { status: 429, headers: { 'retry-after': String(Math.ceil((recent[0] + FAIL_WINDOW - now) / 1000)), 'cache-control': 'no-store' } });
+  }
+  if (await isAdmin(request)) { adminFails.delete(ip); return null; }
+  recent.push(now);
+  adminFails.set(ip, recent);
+  if (adminFails.size > 5000) for (const k of adminFails.keys()) { adminFails.delete(k); if (adminFails.size <= 4000) break; }
+  return Response.json({ error: 'Wrong password' }, { status: 401, headers: { 'cache-control': 'no-store' } });
 }
 
 // Small settings records (the discount codes) live next to the orders, under

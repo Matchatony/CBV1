@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { put, list, head } from '@vercel/blob';
-import { isAdmin, isValidId, getOrder, encrypt, decrypt } from './_lib/orders.js';
+import { adminGate, isValidId, getOrder, encrypt, decrypt } from './_lib/orders.js';
 import { downloadDesignFile, isStoreUrl, readStepModel, UserError } from './_lib/step.js';
 import { CAM, CamError, stepPart, dxfPart, planSheet, reportText } from './_lib/cam.js';
 import { c2dFile } from './_lib/c2d.js';
@@ -93,7 +93,8 @@ async function exists(pathname) {
 }
 
 export async function GET(request) {
-  if (!(await isAdmin(request))) return fail('Wrong password', 401);
+  const refused = await adminGate(request);
+  if (refused) return refused;
   const q = new URL(request.url).searchParams;
   const id = q.get('id'), kind = q.get('kind');
   if (!isValidId(id)) return fail('Bad id');
@@ -118,7 +119,8 @@ export async function GET(request) {
 }
 
 export async function POST(request) {
-  if (!(await isAdmin(request))) return fail('Wrong password', 401);
+  const refused = await adminGate(request);
+  if (refused) return refused;
   let body;
   try { body = await request.json(); } catch { return fail('Invalid request'); }
   if (!body || !isValidId(body.id)) return fail('Bad id');

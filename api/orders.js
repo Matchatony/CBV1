@@ -1,9 +1,8 @@
-import { STATUSES, isAdmin, isValidId, listOrders, updateOrder, deleteOrder } from './_lib/orders.js';
+import { STATUSES, adminGate, isValidId, listOrders, updateOrder, deleteOrder } from './_lib/orders.js';
 import { orderChanges } from './_lib/changes.js';
 
 // Admin API for admin.html. Every method requires the ADMIN_PASSWORD as a
 // Bearer token.
-const denied = () => Response.json({ error: 'Wrong password' }, { status: 401 });
 const noStore = { 'cache-control': 'no-store' };
 
 // The fab shop's location for the admin map. Kept in env vars (FAB_ADDRESS, and
@@ -17,7 +16,8 @@ function fab() {
 }
 
 export async function GET(request) {
-  if (!(await isAdmin(request))) return denied();
+  const refused = await adminGate(request);
+  if (refused) return refused;
   try {
     return Response.json({ orders: await listOrders(), statuses: STATUSES, fab: fab() }, { headers: noStore });
   } catch (err) {
@@ -27,7 +27,8 @@ export async function GET(request) {
 }
 
 export async function PATCH(request) {
-  if (!(await isAdmin(request))) return denied();
+  const refused = await adminGate(request);
+  if (refused) return refused;
   let body;
   try { body = await request.json(); } catch { return Response.json({ error: 'Invalid request' }, { status: 400 }); }
   if (!body || !isValidId(body.id)) return Response.json({ error: 'Bad id' }, { status: 400 });
@@ -38,7 +39,8 @@ export async function PATCH(request) {
 }
 
 export async function DELETE(request) {
-  if (!(await isAdmin(request))) return denied();
+  const refused = await adminGate(request);
+  if (refused) return refused;
   let body;
   try { body = await request.json(); } catch { return Response.json({ error: 'Invalid request' }, { status: 400 }); }
   if (!body || !isValidId(body.id)) return Response.json({ error: 'Bad id' }, { status: 400 });

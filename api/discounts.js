@@ -1,11 +1,10 @@
-import { isAdmin } from './_lib/orders.js';
+import { adminGate } from './_lib/orders.js';
 import { readCodes, saveCodes, cleanCode, normalizeCode, forAdmin } from './_lib/discounts.js';
 
 // Admin API for discount codes (admin.html → Discounts). Every method needs
 // ADMIN_PASSWORD as a Bearer token. GET lists them; POST makes one
 // { code, kind: 'percent' | 'amount', value, expires?, max_uses?, note?, once? };
 // PATCH { code, ...fields to change, active? } edits one; DELETE { code }.
-const denied = () => Response.json({ error: 'Wrong password' }, { status: 401 });
 const noStore = { 'cache-control': 'no-store' };
 const bad = (error, status = 400) => Response.json({ error }, { status });
 
@@ -14,7 +13,8 @@ async function body(request) {
 }
 
 export async function GET(request) {
-  if (!(await isAdmin(request))) return denied();
+  const refused = await adminGate(request);
+  if (refused) return refused;
   try {
     return Response.json({ codes: forAdmin(await readCodes()) }, { headers: noStore });
   } catch (err) {
@@ -24,7 +24,8 @@ export async function GET(request) {
 }
 
 export async function POST(request) {
-  if (!(await isAdmin(request))) return denied();
+  const refused = await adminGate(request);
+  if (refused) return refused;
   const b = await body(request);
   if (!b) return bad('Invalid request');
   const codes = await readCodes();
@@ -38,7 +39,8 @@ export async function POST(request) {
 }
 
 export async function PATCH(request) {
-  if (!(await isAdmin(request))) return denied();
+  const refused = await adminGate(request);
+  if (refused) return refused;
   const b = await body(request);
   if (!b) return bad('Invalid request');
   const codes = await readCodes();
@@ -54,7 +56,8 @@ export async function PATCH(request) {
 }
 
 export async function DELETE(request) {
-  if (!(await isAdmin(request))) return denied();
+  const refused = await adminGate(request);
+  if (refused) return refused;
   const b = await body(request);
   if (!b) return bad('Invalid request');
   const codes = await readCodes();

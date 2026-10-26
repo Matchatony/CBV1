@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { isAdmin, readDoc, writeDoc } from './_lib/orders.js';
+import { adminGate, readDoc, writeDoc } from './_lib/orders.js';
 
 // The shop crew's photos at the top of admin.html: only for a signed-in admin
 // (ADMIN_PASSWORD as a Bearer token). They're kept encrypted next to the
@@ -21,12 +21,14 @@ async function photos() {
 const reply = (list) => Response.json({ photos: list }, { headers: noStore });
 
 export async function GET(request) {
-  if (!(await isAdmin(request))) return fail('Wrong password', 401);
+  const refused = await adminGate(request);
+  if (refused) return refused;
   return reply(await photos());
 }
 
 export async function POST(request) {
-  if (!(await isAdmin(request))) return fail('Wrong password', 401);
+  const refused = await adminGate(request);
+  if (refused) return refused;
   const raw = await request.text();
   if (raw.length > 2.2 * MAX_BYTES) return fail('That photo is too big.', 413);
   let body;
@@ -43,7 +45,8 @@ export async function POST(request) {
 }
 
 export async function DELETE(request) {
-  if (!(await isAdmin(request))) return fail('Wrong password', 401);
+  const refused = await adminGate(request);
+  if (refused) return refused;
   let body;
   try { body = await request.json(); } catch { return fail('Invalid request'); }
   const list = await photos();

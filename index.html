@@ -1063,21 +1063,38 @@
      jsPDF (~1 MB together) load once someone nears or starts the quote form,
      so the rest of the page stays light. */
 
+  // Each library is pinned to its exact version on jsDelivr (which serves the
+  // npm package's own files) and to its SHA-384 hash: if the CDN ever served
+  // anything else, the browser refuses to run it. A new version needs its new
+  // hash: openssl dgst -sha384 -binary FILE | base64 (FILE from `npm pack`).
   var LIB = {
-    three: 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js',
-    jspdf: 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
+    three: 'https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js',
+    jspdf: 'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js',
     fflate: 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/libs/fflate.min.js',
     threeMf: 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/3MFLoader.js',
     occtBase: 'https://cdn.jsdelivr.net/npm/occt-import-js@0.0.23/dist/'
   };
+  var SRI = {
+    three: 'sha384-CI3ELBVUz9XQO+97x6nwMDPosPR5XvsxW2ua7N1Xeygeh1IxtgqtCkGfQY9WWdHu',
+    jspdf: 'sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk',
+    fflate: 'sha384-z5TPRpmZ+60mv8LqyHeCA0HTTbGjLyhJPjpEb4c4mgqrdWC1zM5Sn5pSRmknOjK8',
+    threeMf: 'sha384-Qf3iW6qbvjv2SYq9fcW25m3HbcU4WOSbvQGkrr4V7LWFhtgBewCtl3w7IMdY8o6o',
+    occtJs: 'sha384-Z8pO9JEhFZF+mvDKxMuLvPT85VP7nly8CqYjBatl0bMeW9OsaKCes4gEUPL4nihc',
+    occtWasm: 'sha384-6BbVZ7iPDgcRszsoavxGz4TaYCwC2EkeYCy1aR9XFwqMZYXDQP+0vZSTP6Yw35iD'
+  };
+  // A library that didn't arrive (no connection, or a copy that failed its
+  // hash check) isn't the visitor's file's fault: such errors are marked.
+  function libError(err) { err.lib = true; return err; }
   var scriptLoads = {};
-  function loadScript(src) {
+  function loadScript(src, integrity) {
     if (!scriptLoads[src]) {
       scriptLoads[src] = new Promise(function (resolve, reject) {
         var s = document.createElement('script');
         s.src = src;
+        // (Not Turnstile's script: Cloudflare updates it in place, so it can't be pinned.)
+        if (integrity) { s.integrity = integrity; s.crossOrigin = 'anonymous'; }
         s.onload = resolve;
-        s.onerror = function () { delete scriptLoads[src]; reject(new Error('Could not load ' + src)); };
+        s.onerror = function () { delete scriptLoads[src]; reject(libError(new Error('Could not load ' + src))); };
         document.head.appendChild(s);
       });
     }
@@ -1086,8 +1103,13 @@
   var occtReady = null;
   function loadOcct() {
     if (!occtReady) {
-      occtReady = loadScript(LIB.occtBase + 'occt-import-js.js').then(function () {
-        return window.occtimportjs({ locateFile: function (name) { return LIB.occtBase + name; } });
+      // The WebAssembly is fetched here, checked against its hash, and handed over.
+      var wasm = fetch(LIB.occtBase + 'occt-import-js.wasm', { integrity: SRI.occtWasm }).then(function (r) {
+        if (!r.ok) throw new Error('Could not load the STEP reader (HTTP ' + r.status + ')');
+        return r.arrayBuffer();
+      }).catch(function (err) { throw libError(err); });
+      occtReady = Promise.all([loadScript(LIB.occtBase + 'occt-import-js.js', SRI.occtJs), wasm]).then(function (r) {
+        return window.occtimportjs({ wasmBinary: r[1] });
       });
       occtReady.catch(function () { occtReady = null; });
     }
@@ -1103,10 +1125,10 @@
     }
     return stepMeasureReady;
   }
-  function loadThree() { return loadScript(LIB.three); }
-  function loadJsPdf() { return loadScript(LIB.jspdf); }
+  function loadThree() { return loadScript(LIB.three, SRI.three); }
+  function loadJsPdf() { return loadScript(LIB.jspdf, SRI.jspdf); }
   function load3mf() {
-    return loadThree().then(function () { return loadScript(LIB.fflate); }).then(function () { return loadScript(LIB.threeMf); });
+    return loadThree().then(function () { return loadScript(LIB.fflate, SRI.fflate); }).then(function () { return loadScript(LIB.threeMf, SRI.threeMf); });
   }
   // Warm both up as soon as the quote form is near or touched, so the preview and
   // PDF are ready by the time they're needed. Failures surface where they're used.
@@ -1718,6 +1740,7 @@
     }, function (err) {
       console.error('Couldn\'t read ' + item.name + ':', err);
       item.status = 'failed';
+      item.libFailed = !!(err && err.lib);
     }).then(function () {
       updateRow(item);
       if (item === activeItem) showPreview(item);
@@ -1728,6 +1751,7 @@
   // material, or '' when it can be.
   function handReason(item) {
     var type = els.type.value, ext = item.ext;
+    if (item.status === 'failed' && item.libFailed) return 'Our file reader didn\'t load (check your connection, then remove the file and add it again), so for now it\'s priced by hand.';
     if (item.status === 'failed') return 'We couldn\'t read this file, so it\'s priced by hand.';
     if (type === 'other') return '"Something else" is priced by hand.';
     if (type === 'plate') {
@@ -1753,7 +1777,9 @@
   // they should know or fix (gaps in the outline, holes under our bit...).
   function fileIssues(item) {
     var out = { problem: '', warnings: [] }, type = els.type.value, ext = item.ext;
-    if (item.status === 'failed') {
+    if (item.status === 'failed' && item.libFailed) {
+      return out;
+    } else if (item.status === 'failed') {
       out.problem = 'There\'s a problem with this file: we couldn\'t open it. It may be damaged, empty, or not really a .' + ext + ' file. Export it again and add the new one.';
     } else if (item.status !== 'ready') {
       return out;

@@ -276,6 +276,41 @@ Three layers stop that:
 The admin panel and the Claude connector need their own long keys, so these
 layers don't apply to them.
 
+## Security
+
+What protects the site and its data, and what to keep up:
+
+- **Data:** orders, sponsor applications, discount codes, crew photos and
+  toolpath records are stored encrypted (AES-256-GCM, `ORDERS_KEY`) in the
+  Blob store, which is public; design and toolpath files sit at unguessable
+  paths. **Never change `ORDERS_KEY`**, and keep every secret in Vercel's
+  environment variables, never in the code: this repository is public.
+- **Admin:** every admin call checks `ADMIN_PASSWORD` (12+ characters) in
+  constant time with a delay on a wrong one, and after 10 wrong passwords
+  from one address in 15 minutes that address is refused for the rest of the
+  15 minutes (`adminGate` in `api/_lib/orders.js`). The admin page signs out
+  after 30 minutes without activity. Use a long, unique password, and change
+  it (then redeploy) if anyone who knew it leaves the team.
+- **Public forms:** Cloudflare Turnstile and per-address rate limits (see
+  **Bot protection**); uploads only take design-file types up to 10 MB.
+- **Headers** (`vercel.json`): a Content Security Policy that only lets pages
+  load code from this site, jsDelivr and Cloudflare Turnstile, connect to the
+  services listed there, and be framed only by this site; HSTS; nosniff;
+  a strict referrer policy; camera, microphone, location and payment access
+  turned off; `noindex` and no caching for the admin page and the API. The
+  quote page alone allows `eval`, which the OpenCascade STEP reader needs.
+  Adding a new outside service means adding it to the policy, or the browser
+  blocks it.
+- **Outside code:** every library loaded from a CDN is pinned to an exact
+  version and its SHA-384 hash (`LIB`/`SRI` in `index.html`, Leaflet and
+  fflate in `admin.html`), so a changed copy won't run. Updating one means
+  updating its hash.
+- **Dependencies:** run `npm audit --omit=dev` now and then. `overrides` in
+  `package.json` pins a fixed `zod` inside `@vercel/blob`'s dependencies;
+  drop it once `@vercel/blob` ships the fix itself.
+- **Reports:** `/.well-known/security.txt` tells anyone who finds a problem
+  how to report it privately. Renew its `Expires` date each year.
+
 ## Order admin (admin.html)
 
 Every quote request is also saved to an order log you can manage at

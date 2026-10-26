@@ -1909,6 +1909,8 @@
     return new Promise(function (resolve, reject) {
       var s = document.createElement('script');
       s.src = 'https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js';
+      s.integrity = 'sha384-DT0Ls0mO7JmjTnT+oBuMhEJzYJO1zUqzuuMXNdnOmOQRIpN2BgSjvBV/j50NngIT';
+      s.crossOrigin = 'anonymous';
       s.onload = function () { window.fflate ? resolve(window.fflate) : reject(new Error('ZIP library didn\'t load')); };
       s.onerror = function () { reject(new Error('ZIP library didn\'t load')); };
       document.head.appendChild(s);
@@ -2035,7 +2037,25 @@
   $('filter').addEventListener('change', render);
   $('kind-filter').addEventListener('change', render);
 
+  // Signed out after 30 minutes without a click, key press or scroll (also
+  // across reloads of this tab), so an admin page left open on a shared
+  // computer doesn't stay signed in.
+  var IDLE_MS = 30 * 60 * 1000, lastActive = Date.now(), lastSaved = 0;
+  function seen() {
+    lastActive = Date.now();
+    if (lastActive - lastSaved > 30000) { lastSaved = lastActive; try { sessionStorage.setItem('cb-admin-seen', String(lastActive)); } catch (e) {} }
+  }
+  ['pointerdown', 'keydown', 'scroll', 'touchstart'].forEach(function (type) { document.addEventListener(type, seen, { capture: true, passive: true }); });
+  function idleCheck() {
+    if (state.pw && Date.now() - lastActive > IDLE_MS) signOut('Signed out after 30 minutes without activity. Sign in again to keep going.');
+  }
+  setInterval(idleCheck, 60 * 1000);
+  document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') idleCheck(); });
+
   state.pw = storeGet();
+  try { lastActive = Number(sessionStorage.getItem('cb-admin-seen')) || Date.now(); } catch (e) {}
+  idleCheck();
+  seen();
   if (state.pw) load();
 })();
 </script>
