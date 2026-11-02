@@ -72,7 +72,13 @@ list in `admin.html`. Only a model with no flat plate in it, or one thicker than
 
 **Getting it to them.** Three choices: free pickup in San Diego, local delivery
 in the San Diego area for a flat $15.99, or **Ship it** anywhere in the US by USPS
-Priority Mail. Delivery and shipping both ask for an address.
+Priority Mail. Delivery and shipping both ask for an address. The address field
+suggests matches as you type (`api/address.js` looks the text up in
+OpenStreetMap through Photon, or Nominatim if Photon is down, and nothing is
+saved). Each suggestion is a short mailing line, "4380 Miramar Street, San
+Diego, CA 92037", and keeps the house number and unit the customer typed, since
+OpenStreetMap has no house numbers for most US streets. Picking one is optional:
+whatever is in the field is what's sent.
 
 **Shipping estimates.** For Ship it, the quote picks the cheapest USPS Priority
 Mail Flat Rate box the priced parts fit (`shipBox()` in `index.html`): plates lie
@@ -264,8 +270,8 @@ Three layers stop that:
    Both must be set; with either missing the check is off and the form works
    as before. The pass is signed with a key derived from `ORDERS_KEY`.
 2. **Rate limits per IP address**, in the functions: 8 orders, 20 bot checks,
-   40 upload tokens and 15 discount-code checks per 10 minutes (the last so
-   codes can't be found by guessing). They live in each function instance's
+   40 upload tokens, 15 discount-code checks (so codes can't be found by
+   guessing) and 150 address lookups per 10 minutes. They live in each function instance's
    memory, so they stop bursts but reset when Vercel starts a fresh instance.
 3. **The Vercel Firewall**, in the dashboard under the project's **Firewall**
    tab: turn on **Bot Protection** (it challenges known bad bots before they

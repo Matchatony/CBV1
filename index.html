@@ -132,8 +132,8 @@
       <h1>Precision CNC parts for <em>FTC teams nationwide</em></h1>
       <p class="lede">
         CNC-machined plates and additively manufactured components, built to your
-        drawings on an 8&nbsp;mm hole grid. Priced below major suppliers, with a
-        1–3 business day turnaround in San Diego and shipping anywhere in the US.
+        drawings on an 8&nbsp;mm hole grid. Priced below major suppliers, made in
+        1–3 business days, and shipped anywhere in the US (shipping time not included).
       </p>
       <div class="actions">
         <a class="btn" href="#quote">Get a quote</a>
@@ -149,7 +149,7 @@
      </div>
 
       <dl class="facts">
-        <div><dt>San Diego turnaround</dt><dd>1–3 business days</dd></div>
+        <div><dt>Turnaround, before shipping</dt><dd>1–3 business days</dd></div>
         <div><dt>Hole grid</dt><dd>8 mm</dd></div>
         <div><dt>Minimum order</dt><dd>None</dd></div>
         <div><dt>Quote time</dt><dd>Same day</dd></div>
@@ -250,7 +250,7 @@
       <ul class="terms">
         <li><span>No setup fee</span> on simple parts</li>
         <li><span>No minimum order</span> — a single bracket qualifies</li>
-        <li><span>No rush fee</span> — standard turnaround in San Diego is 1–3 business days</li>
+        <li><span>No rush fee</span> — standard turnaround is 1–3 business days, plus shipping time</li>
         <li><span>No account</span> required</li>
         <li><span>Deburring</span> included on every part, standard</li>
         <li><span>Venmo, Cash App, or PayPal</span> accepted</li>
@@ -404,9 +404,10 @@
       </details>
       <details>
         <summary>How fast will I get my parts?</summary>
-        <p>In San Diego, 1–3 business days is typical. Local delivery goes out in batches: orders close
+        <p>We usually make your parts in 1–3 business days (Monday to Friday). That's the time to make
+          them, not counting shipping or delivery. Local delivery goes out in batches: orders close
           Monday, Wednesday and Friday at 6&nbsp;pm and are delivered the next day. Shipped orders add
-          1–3 days of USPS Priority Mail transit. Need it sooner? Tick "rush" and we'll tell you what's possible.</p>
+          1–3 days of USPS Priority Mail transit on top. Need it sooner? Tick "rush" and we'll tell you what's possible.</p>
       </details>
       <details>
         <summary>Do you ship outside San Diego?</summary>
@@ -441,7 +442,7 @@
       <li><span>Estimates, confirmed by file</span> The price you see here is final once we see the actual design; if the real file costs more (extra material, tighter tolerances, extra setup), we tell you before starting, not after.</li>
       <li><span>Payment</span> Venmo, Cash App, or PayPal, arranged by email once a quote is confirmed. We don't take payment on this site.</li>
       <li><span>Shipping, pickup or delivery</span> We ship anywhere in the US by USPS Priority Mail: your quote includes the flat rate box price when your parts fit one, and bigger orders get a shipping quote by email. Shipping is paid along with the order. In San Diego, pickup is free and local delivery is a flat $15.99.</li>
-      <li><span>Turnaround</span> 1&ndash;3 business days in San Diego is typical, not guaranteed; material availability or order volume can push it out, and we'll say so. Shipped orders add the carrier's transit time.</li>
+      <li><span>Turnaround</span> 1&ndash;3 business days (Monday to Friday) to make your parts is typical, not guaranteed; material availability or order volume can push it out, and we'll say so. It doesn't include shipping or delivery time: shipped orders add the carrier's transit time on top.</li>
       <li><span>Cancellations</span> Full refund any time before we start cutting or printing. Once your part is cut or printed it isn't refundable, except when we made the mistake.</li>
       <li><span>Deburring</span> Included standard, no added charge.</li>
     </ul>
@@ -597,10 +598,12 @@
       <div class="calc-group" id="q-delivery-group" hidden>
         <div class="field field-wide address-search">
           <label for="q-address" id="q-address-label">Delivery address</label>
-          <input id="q-address" name="address" type="text" placeholder="Start typing an address…"
-                 autocomplete="off" role="combobox" aria-expanded="false" aria-autocomplete="list"
-                 aria-controls="q-address-suggestions">
-          <ul class="address-suggestions" id="q-address-suggestions" role="listbox" hidden></ul>
+          <div class="address-box">
+            <input id="q-address" name="address" type="text" placeholder="Start typing an address…"
+                   autocomplete="off" role="combobox" aria-expanded="false" aria-autocomplete="list"
+                   aria-controls="q-address-suggestions" aria-describedby="q-geo-status">
+            <ul class="address-suggestions" id="q-address-suggestions" role="listbox" aria-label="Matching addresses" hidden></ul>
+          </div>
           <p class="hint" id="q-geo-status">
             Start typing and pick your address from the list. Local delivery is a flat $15.99.
           </p>
@@ -765,10 +768,11 @@
   var STEP_MAX_THICK_IN = 0.5; // thicker STEP parts aren't plate stock: priced by hand
   var PLATE_LB_PER_CU_IN = { aluminum: 0.0975, poly: 0.043, 'other-mat': 0.0975 };
 
-  /* Keyless public endpoint: Nominatim turns the typed address into a list
-     of matching suggestions. It's a free community service with no uptime
-     promise, so a failed lookup just falls back to whatever was typed. */
-  var GEOCODE_URL = 'https://nominatim.openstreetmap.org/search';
+  /* Address suggestions come from api/address.js, which looks the typed text
+     up in OpenStreetMap (Photon, or Nominatim as a backup). They're a free
+     community service with no uptime promise, so a failed lookup just falls
+     back to whatever was typed. */
+  var ADDRESS_URL = '/api/address';
 
   var CUTOFF_DAYS = [1, 3, 5]; // Mon, Wed, Fri (Sun = 0)
   var CUTOFF_HOUR = 18;
@@ -891,33 +895,62 @@
   }
 
   /* -------------------- ADDRESS SEARCH -------------------- */
-  /* A live search-as-you-type dropdown (Nominatim) so visitors pick a real,
-     unambiguous address instead of typing something we might misread. It
-     doesn't feed pricing — local delivery is a flat rate regardless of distance,
-     and shipping is quoted by email — it's just there to get a clean address. */
+  /* A live search-as-you-type dropdown so visitors pick a real, unambiguous
+     address instead of typing something we might misread. It doesn't feed
+     pricing — local delivery is a flat rate regardless of distance, and
+     shipping is quoted from the box size — it's just there to get a clean
+     address. api/address.js does the lookup and keeps the house number and
+     unit the customer typed in every suggestion. Typing a full address and
+     never picking one is fine too: it's taken as typed. */
 
   var geoTimer = null;
+  var geoRequest = null;   // the lookup in flight, so a newer keystroke can cancel it
+  var geoCache = {};       // typed text -> suggestions, so backspacing doesn't look things up again
   var suggestions = [];
   var activeIndex = -1;
-  var justSelected = false;
 
   function geoSay(message) {
     els.geoStatus.textContent = message;
   }
 
+  function cancelLookup() {
+    clearTimeout(geoTimer);
+    if (geoRequest && geoRequest.abort) geoRequest.abort();
+    geoRequest = null;
+  }
+
+  // Resolves to a list of { label, exact }, or null when the lookup failed
+  // (as opposed to found nothing) or was cancelled by newer typing.
   function fetchSuggestions(query) {
-    var url = GEOCODE_URL + '?format=json&limit=5&countrycodes=us&q=' + encodeURIComponent(query);
-    return fetch(url, { headers: { Accept: 'application/json' } })
-      .then(function (r) { return r.ok ? r.json() : []; })
-      .then(function (hits) {
-        return (hits || []).map(function (h) { return { label: h.display_name }; });
+    if (geoCache[query]) return Promise.resolve(geoCache[query]);
+    var ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+    geoRequest = ctrl;
+    return fetch(ADDRESS_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ q: query }),
+      signal: ctrl ? ctrl.signal : undefined
+    })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) {
+        if (geoRequest === ctrl) geoRequest = null;
+        if (!data || !Array.isArray(data.suggestions)) return null;
+        var list = data.suggestions.filter(function (s) { return s && typeof s.label === 'string'; });
+        geoCache[query] = list;
+        return list;
       })
-      .catch(function () { return []; });
+      .catch(function () { return null; });
   }
 
   function updateActiveSuggestion() {
     var items = els.addressList.querySelectorAll('button');
     items.forEach(function (btn, i) { btn.classList.toggle('is-active', i === activeIndex); });
+    if (activeIndex >= 0 && items[activeIndex]) {
+      els.address.setAttribute('aria-activedescendant', items[activeIndex].id);
+      items[activeIndex].scrollIntoView({ block: 'nearest' });
+    } else {
+      els.address.removeAttribute('aria-activedescendant');
+    }
   }
 
   function hideSuggestions() {
@@ -926,43 +959,73 @@
     suggestions = [];
     activeIndex = -1;
     els.address.setAttribute('aria-expanded', 'false');
+    els.address.removeAttribute('aria-activedescendant');
+  }
+
+  // The street line of a suggestion ("4380 Miramar Street") has no number in
+  // it when OpenStreetMap only knows the street and none was typed.
+  function needsNumber(label) {
+    return !/\d/.test(label.split(',')[0]);
   }
 
   function selectSuggestion(item) {
-    justSelected = true;
+    cancelLookup();
     els.address.value = item.label;
     hideSuggestions();
-    geoSay(addressHint(true));
+    if (needsNumber(item.label)) {
+      // Put the cursor at the start, ready for the house number.
+      geoSay('Add your house or building number at the start of the address.');
+      els.address.focus();
+      try { els.address.setSelectionRange(0, 0); } catch (e) {}
+    } else {
+      geoSay(addressHint(true));
+    }
+  }
+
+  // On a phone the keyboard covers the bottom half of the screen, so scroll
+  // just enough for the list to show above it (never so far the field leaves).
+  function keepListInView() {
+    var vv = window.visualViewport;
+    var top = vv ? vv.offsetTop : 0;
+    var height = vv ? vv.height : window.innerHeight;
+    var listBottom = els.addressList.getBoundingClientRect().bottom - top;
+    var fieldTop = els.address.getBoundingClientRect().top - top;
+    var over = listBottom - height + 8;
+    if (over > 0 && fieldTop > 8) window.scrollBy(0, Math.min(over, fieldTop - 8));
   }
 
   function renderSuggestions(list) {
+    hideSuggestions();
+    if (!list.length) return;
     suggestions = list;
-    activeIndex = -1;
-    els.addressList.innerHTML = '';
-    if (!list.length) { hideSuggestions(); return; }
-    list.forEach(function (item) {
+    list.forEach(function (item, i) {
       var li = document.createElement('li');
+      li.setAttribute('role', 'presentation');
       var btn = document.createElement('button');
       btn.type = 'button';
+      btn.id = 'q-address-option-' + i;
+      btn.tabIndex = -1; // arrow keys move through the list; Tab leaves the field
+      btn.setAttribute('role', 'option');
       btn.textContent = item.label;
       // mousedown (not click) fires before the input blurs, so the pick
-      // registers before anything treats this as "typed and walked away".
+      // registers before the blur handler closes the list. A tap that starts
+      // a scroll of the list never sends one, so scrolling doesn't pick.
       btn.addEventListener('mousedown', function (e) {
         e.preventDefault();
         selectSuggestion(item);
       });
+      btn.addEventListener('click', function () { selectSuggestion(item); });
       li.appendChild(btn);
       els.addressList.appendChild(li);
     });
     els.addressList.hidden = false;
     els.address.setAttribute('aria-expanded', 'true');
+    keepListInView();
   }
 
   els.address.addEventListener('input', function () {
-    if (justSelected) { justSelected = false; return; }
-    clearTimeout(geoTimer);
-
-    var query = els.address.value.trim();
+    cancelLookup();
+    var query = els.address.value.replace(/\s+/g, ' ').trim();
     if (query.length < 4) {
       hideSuggestions();
       geoSay(addressHint(false));
@@ -971,16 +1034,31 @@
     geoSay('Searching…');
     geoTimer = setTimeout(function () {
       fetchSuggestions(query).then(function (list) {
-        if (els.address.value.trim() !== query) return; // input moved on; drop this stale response
+        // Typing moved on, or they left the field: drop this answer.
+        if (els.address.value.replace(/\s+/g, ' ').trim() !== query || document.activeElement !== els.address) return;
+        if (list === null) {
+          hideSuggestions();
+          geoSay('Address suggestions aren\'t loading right now. Type the full address and we\'ll take it as typed.');
+          return;
+        }
         renderSuggestions(list);
         geoSay(list.length
-          ? 'Pick your address from the list below.'
-          : 'No matches yet — keep typing, or enter the full address and we\'ll take it as typed.');
+          ? 'Pick your address from the list below, or keep typing.'
+          : 'No matches yet. Keep typing, or enter the full address and we\'ll take it as typed.');
       });
-    }, 350);
+    }, 300);
   });
 
   els.address.addEventListener('keydown', function (e) {
+    // Enter never sends the whole quote from this field (a phone's Go key
+    // is Enter): with a suggestion highlighted it picks it, otherwise it
+    // just closes the list.
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (!els.addressList.hidden && activeIndex >= 0) selectSuggestion(suggestions[activeIndex]);
+      else hideSuggestions();
+      return;
+    }
     if (els.addressList.hidden) return;
     if (e.key === 'ArrowDown') {
       e.preventDefault();
@@ -988,11 +1066,8 @@
       updateActiveSuggestion();
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      activeIndex = Math.max(activeIndex - 1, 0);
+      activeIndex = Math.max(activeIndex - 1, -1);
       updateActiveSuggestion();
-    } else if (e.key === 'Enter' && activeIndex >= 0) {
-      e.preventDefault();
-      selectSuggestion(suggestions[activeIndex]);
     } else if (e.key === 'Escape') {
       hideSuggestions();
     }
@@ -1001,7 +1076,11 @@
   // Typed (or pasted) a full address and moved on without picking a
   // suggestion — that's fine, we take it as typed since it doesn't affect price.
   els.address.addEventListener('blur', function () {
-    setTimeout(function () { hideSuggestions(); }, 150); // outlasts the suggestion button's mousedown, so a click still wins
+    cancelLookup();
+    if (els.geoStatus.textContent === 'Searching…') geoSay(addressHint(false));
+    setTimeout(function () {
+      if (document.activeElement !== els.address) hideSuggestions();
+    }, 150); // outlasts the suggestion button's mousedown, so a click still wins
   });
 
   document.addEventListener('click', function (e) {
@@ -1032,7 +1111,7 @@
 
   function batchMessage(delivery) {
     if (delivery === 'ship') {
-      return 'Ships as soon as it\'s made, usually within 1–3 business days, plus the carrier\'s transit time. We\'ll email you tracking.';
+      return 'Ships as soon as it\'s made, usually within 1–3 business days. USPS transit time comes on top of that. We\'ll email you tracking.';
     }
     if (delivery === 'pickup') {
       return 'No batch to wait for — ready for pickup in San Diego as soon as it\'s made, usually within 1–3 business days.';
@@ -2378,7 +2457,7 @@
       if (q.shipBox) {
         q.deliveryCost = q.shipBox.price;
         q.deliveryLine = 'Shipping, USPS Priority Mail ' + q.shipBox.name + ': ' + money(q.shipBox.price);
-        notes.push('Shipping is USPS Priority Mail in a ' + q.shipBox.name + ', 1–3 days in transit after it ships. If your parts need a different box, we\'ll tell you before charging.');
+        notes.push('Shipping is USPS Priority Mail in a ' + q.shipBox.name + ', 1–3 days in transit after it ships (on top of the 1–3 business days to make your parts). If your parts need a different box, we\'ll tell you before charging.');
       } else {
         q.deliveryLine = 'Ship it — shipping cost quoted by email' + (q.partial ? '' : ' (too big for a flat rate box)');
         if (!q.partial) notes.push('These parts are too big for a USPS flat rate box, so we\'ll email you the shipping cost.');
@@ -2807,7 +2886,7 @@
       'This price is an estimate, confirmed once we see the actual design file.',
       'Payment via Venmo, Cash App, or PayPal, arranged by email once confirmed.',
       'We ship anywhere in the US by USPS Priority Mail: flat rate shipping is in this estimate when your parts fit a flat rate box, otherwise quoted by email. In San Diego: free pickup, or local delivery for a flat $15.99.',
-      'Turnaround in San Diego is typically 1–3 business days, not guaranteed; shipping adds transit time. Deburring is included, standard.',
+      'Turnaround is typically 1–3 business days to make your parts, not guaranteed, and doesn\'t include shipping time. Deburring is included, standard.',
       'Full refund any time before we start cutting or printing; not refundable once your part is made, except when the mistake is ours. Full terms: see the site\'s Terms & conditions.'
     ].forEach(function (line) { block(line, 13.5); y += 2; });
 

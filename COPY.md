@@ -24,8 +24,8 @@ roughly in order of how much I'd actually use them:
 One-line descriptors (for a Discord server description, Instagram bio, or the
 `<meta description>`):
 
-- Custom CNC aluminum for FTC teams — cheaper than the big suppliers, 1–3 day
-  local delivery or shop pickup in San Diego.
+- Custom CNC aluminum for FTC teams — cheaper than the big suppliers, made in
+  1–3 business days (plus shipping), local delivery or shop pickup in San Diego.
 - 1/8 in. plates, threaded 8 mm grid beams and custom 3D printed parts, made by
   students from Runtime Terror (#22105) and All Systems Go (#21239).
 

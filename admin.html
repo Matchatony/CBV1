@@ -1536,7 +1536,7 @@
   }
 
   // ---- Delivery map: Leaflet + OpenStreetMap tiles. Each address is looked up once
-  // with Nominatim (the same service the quote form uses) and saved on the order. ----
+  // with Nominatim (the quote form's backup lookup) and saved on the order. ----
   var LEAFLET = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/';
   var DAY_COLORS = ['#9fb7ff', '#8fd6a8', '#f2c27b', '#7fd8d8', '#c9a3ff', '#ffb38a'];
   var mapState = { map: null, layer: null, loading: null, sig: '', geocoding: false, pins: [], legend: [] };

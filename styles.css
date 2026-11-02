@@ -400,7 +400,8 @@ a:focus-visible {
 
 /* Address search dropdown: a plain positioned list under the input, not a
    native <datalist> (no styling control) or select (no free-text search). */
-.address-search { position: relative; }
+/* The list hangs right under the input (not under the hint below it). */
+.address-box { position: relative; }
 .address-suggestions {
   position: absolute;
   top: 100%;
