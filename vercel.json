@@ -17,6 +17,10 @@
   },
   "rewrites": [
     {
+      "source": "/api/address",
+      "destination": "/api/human"
+    },
+    {
       "source": "/discountFirst",
       "destination": "/discount-first.html"
     },

@@ -73,9 +73,9 @@ list in `admin.html`. Only a model with no flat plate in it, or one thicker than
 **Getting it to them.** Three choices: free pickup in San Diego, local delivery
 in the San Diego area for a flat $15.99, or **Ship it** anywhere in the US by USPS
 Priority Mail. Delivery and shipping both ask for an address. The address field
-suggests matches as you type (`api/address.js` looks the text up in
-OpenStreetMap through Photon, or Nominatim if Photon is down, and nothing is
-saved). Each suggestion is a short mailing line, "4380 Miramar Street, San
+suggests matches as you type (`/api/address`: `api/_lib/address.js` looks the
+text up in OpenStreetMap through Photon, or Nominatim if Photon is down, and
+nothing is saved). Each suggestion is a short mailing line, "4380 Miramar Street, San
 Diego, CA 92037", and keeps the house number and unit the customer typed, since
 OpenStreetMap has no house numbers for most US streets. Picking one is optional:
 whatever is in the field is what's sent.
@@ -575,6 +575,14 @@ most of the attention-grabbing, so a black-and-white print loses a lot.
 The live site is on Vercel at **crackbotics.com** (crackbotics.vercel.app
 redirects there). The order form, uploads and admin need Vercel's functions, so
 the Cloudflare and GitHub Pages options below only suit a static copy.
+
+**Function limit:** on the Hobby plan a deployment can have at most 12
+functions, and the site has exactly 12 (each `api/*.js` file plus
+`api/mcp/[key].js`; files in `api/_lib/` don't count). One more file in `api/`
+makes the build fail ("No more than 12 Serverless Functions") and the live site
+stays on the last good deployment. Add new endpoints to an existing function
+instead and point a `vercel.json` rewrite at it, the way `/api/address` is
+served by `api/human.js`.
 
 **SEO:** `robots.txt` and `sitemap.xml` sit at the root (update `<lastmod>` and add
 new public pages to the sitemap). `index.html` carries the title/description,

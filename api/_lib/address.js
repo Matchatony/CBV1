@@ -1,14 +1,19 @@
-import { rateLimited, tooMany } from './_lib/guard.js';
+import { rateLimited, tooMany } from './guard.js';
 
-// Address suggestions for the quote form's delivery / shipping address field:
-// POST { q } → { suggestions: [{ label, exact }] }, at most 5, US only.
+// Address suggestions for the quote form's delivery / shipping address field,
+// served at /api/address: POST { q } (what the page sends) or GET ?q=, →
+// { suggestions: [{ label, exact }] }, at most 5, US only. vercel.json
+// rewrites /api/address to api/human.js, which hands it to suggestAddresses()
+// here: the Hobby plan allows only 12 functions per deployment and the site
+// already has 12, so this rides along in an existing one.
 //
 // Looks the text up with Photon (komoot's OpenStreetMap search, built for
 // search-as-you-type, so half-typed words like "4380 Mira" still match), and
-// with Nominatim if Photon is down. Done here rather than in the browser so the
-// geocoder only ever gets the typed text, never the visitor's IP address, and
-// so Nominatim gets the identifying User-Agent its usage policy asks for.
-// POST so the text stays out of request logs. Nothing is saved.
+// with Nominatim if Photon is down. Done on the server rather than in the
+// browser so the geocoder only ever gets the typed text, never the visitor's
+// IP address, and so Nominatim gets the identifying User-Agent its usage
+// policy asks for. The page uses POST so the text stays out of request logs.
+// Nothing is saved.
 //
 // Each suggestion is a short mailing-style line ("4380 Miramar Street,
 // San Diego, CA 92037"). The house number and unit the customer typed always
@@ -118,11 +123,9 @@ async function lookUp(q) {
   return fromNominatim(await res.json());
 }
 
-export async function POST(request) {
+export async function suggestAddresses(request, text) {
   if (rateLimited('address', request, 150, 10)) return tooMany();
-  let body;
-  try { body = await request.json(); } catch { return Response.json({ error: 'Invalid request' }, { status: 400 }); }
-  const q = typeof (body && body.q) === 'string' ? body.q.replace(/\s+/g, ' ').trim() : '';
+  const q = typeof text === 'string' ? text.replace(/\s+/g, ' ').trim() : '';
   if (q.length < 3 || q.length > 200) return Response.json({ error: 'Type 3 to 200 characters.' }, { status: 400 });
   const typed = typedParts(q);
   try {
