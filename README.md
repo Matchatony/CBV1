@@ -143,7 +143,10 @@ Sending a quote is three steps:
    [FormSubmit](https://formsubmit.co)'s AJAX endpoint, from the server, to
    `FORMSUBMIT_TO` (default anthonyhuynh980@gmail.com), copying
    `FORMSUBMIT_CC` (default crackboticssandiego@gmail.com; comma-separate to add
-   more, set it empty for none). The first file's download link is in the
+   more, set it empty for none). It's set in Vercel to also copy the team's
+   crackbotics.com inboxes, kept out of this public repository; change the
+   list there and redeploy. If the server can't send, the page posts the form
+   to FormSubmit itself with the same copy list. The first file's download link is in the
    `design_file` field and the rest in `design_file_2`, `design_file_3` and so
    on. The quote PDF and the summary list every file with its quantity, size and
    price. FormSubmit strips CAD attachments, which is why files travel as links.

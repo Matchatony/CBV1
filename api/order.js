@@ -156,12 +156,15 @@ export async function POST(request) {
     sendMail(mailFields(body.email_fields, order))
   ]);
   // If the email didn't go, the page posts the form to FormSubmit itself (the
-  // way it used to), so the request still reaches the inbox.
+  // way it used to), so the request still reaches the inbox, copying the same
+  // FORMSUBMIT_CC list (the page's own _cc is only the shop inbox, so the
+  // other addresses aren't in the public page).
   const fallback = emailed ? undefined : formsubmitUrl();
-  if (!saved && !emailed) return Response.json({ error: 'Could not save or send', fallback }, { status: 502 });
+  const fallback_cc = fallback ? MAIL_CC() : undefined;
+  if (!saved && !emailed) return Response.json({ error: 'Could not save or send', fallback, fallback_cc }, { status: 502 });
   // The customer's confirmation (api/_lib/confirm.js; off until Gmail is set
   // up). Only for a saved order, since it links to the order's status page.
   if (saved) await rememberRequest('order', body.request_id, { id: order.id });
   const confirmed = saved ? await sendConfirmation(order) : false;
-  return Response.json({ ok: true, id: saved ? order.id : undefined, saved, emailed, confirmed, fallback });
+  return Response.json({ ok: true, id: saved ? order.id : undefined, saved, emailed, confirmed, fallback, fallback_cc });
 }

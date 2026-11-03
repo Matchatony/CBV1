@@ -3245,7 +3245,7 @@
         return res.json().catch(function () { return {}; }).then(function (out) {
           orderId = out.id || '';
           if (out.emailed) return finish(true);
-          if (out.fallback) return postToFormSubmit(out.fallback);
+          if (out.fallback) return postToFormSubmit(out.fallback, out.fallback_cc);
           if (res.status === 403) human.pass = ''; // expired: the next try gets a new one
           finish(false, res.status === 403 ? 'human' : res.status === 429 ? 'busy' : 'unconfirmed');
         });
@@ -3254,8 +3254,10 @@
         finish(false, 'unconfirmed');
       });
 
-      function postToFormSubmit(action) {
+      function postToFormSubmit(action, cc) {
         if (settled) return;
+        // The server's copy list (FORMSUBMIT_CC); empty means no copies.
+        if (typeof cc === 'string') form.elements._cc.value = cc;
         console.warn('Emailing from the server failed; posting to FormSubmit from the page instead.');
         clearTimeout(timer);
         timer = setTimeout(function () { finish(false, 'timeout'); }, 60000);
