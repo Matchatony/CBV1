@@ -2890,8 +2890,10 @@
       'Full refund any time before we start cutting or printing; not refundable once your part is made, except when the mistake is ours. Full terms: see the site\'s Terms & conditions.'
     ].forEach(function (line) { block(line, 13.5); y += 2; });
 
+    // The one-line footer may sit in the bottom margin, so it doesn't start
+    // a second page all by itself.
     y += 12;
-    room(14);
+    if (y > pageH - 28) { doc.addPage(); y = 56; }
     doc.setTextColor(164, 157, 174);
     doc.setFontSize(9.5);
     doc.text('Crackbotics · San Diego, CA · ' + EMAIL + ' · discord.gg/bJsQCynzec', x, y);
