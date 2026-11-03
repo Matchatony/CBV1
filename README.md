@@ -457,8 +457,11 @@ revoked on its own.
 
 Its tools: `list_orders` (filter by status, type, text, limit), `get_order`,
 `update_order` (status, notes), `schedule_delivery` (day, time window, stop) and
-`mark_delivered`, plus `analyze_part_file` (below). That's all: it can't delete
-orders, change passwords or keys, or see environment variables or settings. Edits go through the same checks as the
+`mark_delivered`, plus `analyze_part_file` (below), and discount codes:
+`list_discount_codes`, `create_discount_code` and `update_discount_code` (same
+checks as the admin panel's **Discounts** tab; codes it makes say "made by
+Claude" in their note). That's all: it can't delete orders or codes, change
+passwords or keys, or see environment variables or settings. Edits go through the same checks as the
 admin panel (`api/_lib/changes.js`), and every change it makes is saved on the
 order and shown under **History** when you open the order in `admin.html`.
 

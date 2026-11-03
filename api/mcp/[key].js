@@ -3,15 +3,18 @@ import { createMcpHandler, fromJsonSchema, McpServer } from '@modelcontextprotoc
 import { STATUSES, getOrder, isValidId, listOrders, updateOrder } from '../_lib/orders.js';
 import { orderChanges } from '../_lib/changes.js';
 import { UserError, analyzeStep, downloadDesignFile, isStepUrl, isStoreUrl } from '../_lib/step.js';
+import { readCodes, saveCodes, cleanCode, normalizeCode, forAdmin, describe } from '../_lib/discounts.js';
 
 // The Claude connector: a remote MCP server (Streamable HTTP, stateless) at
 // /api/mcp/<CLAUDE_CONNECTOR_KEY>. The key in the path is its only credential,
 // separate from ADMIN_PASSWORD so it can be revoked on its own (change or delete
 // the env var, then redeploy). It can read orders, measure their STEP files
 // (api/_lib/step.js), and change status, notes and delivery details, through the
-// same rules as the admin API. It can't delete orders or touch passwords, keys or
-// settings. Every change it makes is added to the order's activity history, which
-// the admin panel shows.
+// same rules as the admin API. It can also list, make and edit discount codes
+// (same checks as admin.html's Discounts tab, api/discounts.js), but not delete
+// them. It can't delete orders or touch passwords, keys or settings. Every order
+// change it makes is added to the order's activity history, which the admin
+// panel shows; codes it makes say so in their note.
 
 // Every refusal is this same response, so it tells nothing about the key.
 const notFound = () => new Response('Not found', {
@@ -130,7 +133,7 @@ const READ = { readOnlyHint: true, openWorldHint: false };
 const EDIT = { readOnlyHint: false, destructiveHint: false, openWorldHint: false };
 
 function buildServer() {
-  const server = new McpServer({ name: 'crackbotics-orders', version: '1.5.0' }, {
+  const server = new McpServer({ name: 'crackbotics-orders', version: '1.6.0' }, {
     instructions: 'Crackbotics is a student-run CNC and 3D-print shop for FTC robotics teams. These tools read and update its order log. ' +
       'An order moves new → quoted → paid → in-progress → ready → done (or cancelled). Paid, in-progress and ready delivery orders go on a delivery day. ' +
       'An order is picked up in San Diego (delivery "pickup"), delivered locally for a flat $15.99 ("delivery"), or shipped anywhere in the US ("ship"); ' +
@@ -141,7 +144,8 @@ function buildServer() {
       'The quote page prices DXF and STEP plates itself. A STEP file with something unusual (sloped faces, features on both faces, a step around the edge, ' +
       'holes under the 1/8 in. tool, a thickness other than the 1/8 in. on the order, several different parts) is still priced, and its specs.items entry ' +
       'lists checks for the shop to look over before confirming the price. analyze_part_file measures STEP files the same way the quote page does ' +
-      '(plate size, thickness, cut length, holes, pockets) and adds machine time, electricity and a picture.'
+      '(plate size, thickness, cut length, holes, pockets) and adds machine time, electricity and a picture. ' +
+      'Discount codes (list_discount_codes, create_discount_code, update_discount_code) are what customers type on the quote form: a percent or dollars off the parts, never shipping or delivery.'
   });
 
   server.registerTool('list_orders', {
@@ -352,6 +356,70 @@ function buildServer() {
       ]
     };
   });
+
+  // ---- Discount codes ----
+
+  const CODE_FIELDS = {
+    kind: { type: 'string', enum: ['percent', 'amount'], description: 'percent: value is a percent off the parts. amount: value is dollars off the parts.' },
+    value: { type: 'number', exclusiveMinimum: 0, description: 'How much off: a percent (up to 100) or dollars (up to 10000).' },
+    expires: { type: 'string', description: 'Last day it works, YYYY-MM-DD (San Diego time), or "" for no end date.' },
+    max_uses: { type: 'integer', minimum: 0, maximum: 100000, description: 'How many orders can use it in total; 0 for no limit.' },
+    once: { type: 'boolean', description: 'One use per customer (matched by email, team number and device). Needs a team number on the order.' },
+    note: { type: 'string', maxLength: 200, description: 'Private note for the shop, e.g. who it is for.' }
+  };
+  const codeView = (c) => ({ ...c, label: describe(c) });
+
+  server.registerTool('list_discount_codes', {
+    title: 'List discount codes',
+    description: 'Every discount code: code, kind (percent or amount), value, label (e.g. "5% off"), active, expires, max_uses, uses so far, once, note, created.',
+    inputSchema: fromJsonSchema({ type: 'object', properties: {}, additionalProperties: false }),
+    annotations: READ
+  }, () => guarded('load the discount codes', async () => json({ codes: forAdmin(await readCodes()).map(codeView) })));
+
+  server.registerTool('create_discount_code', {
+    title: 'Create a discount code',
+    description: 'Make a new discount code that customers can type on the quote form. It works right away. Codes are 3 to 24 letters, digits, - or _ (stored in capitals). ' +
+      'It takes a percent or dollars off the parts, never shipping or delivery. Turn one off later with update_discount_code (active: false).',
+    inputSchema: fromJsonSchema({
+      type: 'object',
+      properties: { code: { type: 'string', description: 'The code, 3 to 24 letters, digits, - or _.' }, ...CODE_FIELDS },
+      required: ['code', 'kind', 'value'],
+      additionalProperties: false
+    }),
+    annotations: EDIT
+  }, (args) => guarded('save the discount code', async () => {
+    const codes = await readCodes();
+    if (codes.some((c) => c.code === normalizeCode(args.code))) return fail('That code already exists.');
+    if (codes.length >= 200) return fail('That\'s the most codes the shop can keep; delete some in the admin panel first.');
+    const note = ((args.note || '').trim() + ' (made by Claude)').trim().slice(0, 200);
+    const { code, error } = cleanCode({ ...args, note }, null);
+    if (error) return fail(error);
+    codes.push(code);
+    await saveCodes(codes);
+    return json({ created: codeView(forAdmin([code])[0]) });
+  }));
+
+  server.registerTool('update_discount_code', {
+    title: 'Change or turn off a discount code',
+    description: 'Change an existing code\'s kind, value, end date, use limit, once-per-customer rule or note, or turn it off or back on (active). Only the fields you send change. Codes can\'t be deleted from here.',
+    inputSchema: fromJsonSchema({
+      type: 'object',
+      properties: { code: { type: 'string', description: 'The code to change.' }, active: { type: 'boolean', description: 'false turns the code off; true turns it back on.' }, ...CODE_FIELDS },
+      required: ['code'],
+      additionalProperties: false
+    }),
+    annotations: EDIT
+  }, ({ code: name, ...changes }) => guarded('save the discount code', async () => {
+    const codes = await readCodes();
+    const i = codes.findIndex((c) => c.code === normalizeCode(name));
+    if (i === -1) return fail('No such code.');
+    if (!Object.keys(changes).length) return fail('Nothing to change');
+    const { code, error } = cleanCode(changes, codes[i]);
+    if (error) return fail(error);
+    codes[i] = code;
+    await saveCodes(codes);
+    return json({ saved: codeView(forAdmin([code])[0]) });
+  }));
 
   return server;
 }
