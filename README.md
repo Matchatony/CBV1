@@ -144,7 +144,7 @@ Sending a quote is three steps:
    `FORMSUBMIT_TO` (default anthonyhuynh980@gmail.com), copying
    `FORMSUBMIT_CC` (default crackboticssandiego@gmail.com; comma-separate to add
    more, set it empty for none). It's set in Vercel to also copy the team's
-   crackbotics.com inboxes, kept out of this public repository; change the
+   crackbotics.com inboxes, kept out of the repository; change the
    list there and redeploy. If the server can't send, the page posts the form
    to FormSubmit itself with the same copy list. The first file's download link is in the
    `design_file` field and the rest in `design_file_2`, `design_file_3` and so
@@ -293,7 +293,8 @@ What protects the site and its data, and what to keep up:
   toolpath records are stored encrypted (AES-256-GCM, `ORDERS_KEY`) in the
   Blob store, which is public; design and toolpath files sit at unguessable
   paths. **Never change `ORDERS_KEY`**, and keep every secret in Vercel's
-  environment variables, never in the code: this repository is public.
+  environment variables, never in the code: treat this repository as public
+  (it was public until November 2026, and its history may have been copied).
 - **Admin:** every admin call checks `ADMIN_PASSWORD` (12+ characters) in
   constant time with a delay on a wrong one, and after 10 wrong passwords
   from one address in 15 minutes that address is refused for the rest of the
@@ -361,7 +362,7 @@ orders at the same instant can count as one.
 polaroids: **+ Add a photo** (shrunk in the browser, with an optional caption),
 × to remove one for everyone, **Hide** to fold them away on that device. They're
 stored encrypted next to the orders (`settings/crew/`, `api/crew.js`), never in
-the site's files or this public repository, so only a signed-in admin sees them.
+the site's files or the repository, so only a signed-in admin sees them.
 
 **Download files** saves the design files for the orders on screen as one ZIP
 (every file of every order), with an `orders.csv` index, one row per file.
@@ -586,6 +587,12 @@ makes the build fail ("No more than 12 Serverless Functions") and the live site
 stays on the last good deployment. Add new endpoints to an existing function
 instead and point a `vercel.json` rewrite at it, the way `/api/address` is
 served by `api/human.js`.
+
+**Commit author:** with the repository private, Vercel's Hobby plan only
+deploys commits whose author is the account owner; anyone else's are blocked
+("Hobby doesn't support collaboration on private repositories"). So commits are
+authored as Matchatony (set with `git config user.name` / `user.email` in the
+checkout), with other contributors credited in a `Co-Authored-By:` line.
 
 **SEO:** `robots.txt` and `sitemap.xml` sit at the root (update `<lastmod>` and add
 new public pages to the sitemap). `index.html` carries the title/description,
