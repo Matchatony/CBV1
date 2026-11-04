@@ -4,6 +4,7 @@ import { adminGate, isValidId, getOrder, encrypt, decrypt } from './_lib/orders.
 import { downloadDesignFile, isStoreUrl, readStepModel, UserError } from './_lib/step.js';
 import { CAM, CamError, stepPart, dxfPart, planSheet, reportText } from './_lib/cam.js';
 import { c2dFile } from './_lib/c2d.js';
+import { inShopStore } from './_lib/store.js';
 
 // Toolpaths for the shop's Shapeoko 5 Pro, for admin.html only (ADMIN_PASSWORD
 // as a Bearer token). POST { id, file, part, thickness_mm, qty, climb, save, reuse }:
@@ -104,7 +105,7 @@ export async function GET(request) {
   if (!kind) return Response.json({ versions }, { headers: noStore });
   if (!['nc', 'c2d'].includes(kind)) return fail('Bad request');
   const c = versions.find((x) => x.file_name === q.get('file') && x.name === q.get('name'));
-  if (!c || !CAM_URL.test(c[kind] || '')) return fail('No such toolpath file.', 404);
+  if (!c || !CAM_URL.test(c[kind] || '') || !inShopStore(c[kind])) return fail('No such toolpath file.', 404);
   const res = await fetch(c[kind], { signal: AbortSignal.timeout(20000) });
   if (!res.ok) return fail(`The file couldn't be read from the store (HTTP ${res.status}).`, 502);
   const body = Buffer.from(await res.arrayBuffer());

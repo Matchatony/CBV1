@@ -3,6 +3,7 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import occtimportjs from 'occt-import-js';
+import { inShopStore } from './store.js';
 import { READ_OPTIONS, MM_PER_IN, cutLength, machineMinutes, measureModel, measureStepText, passesFor } from '../../step-measure.js';
 
 // STEP file analysis for the Claude connector's analyze_part_file tool.
@@ -59,11 +60,11 @@ function occt() {
 // Only design files in the shop's own Blob store (what api/order.js accepts),
 // never an arbitrary URL.
 const FILE_URL = /^https:\/\/[a-z0-9]+\.public\.blob\.vercel-storage\.com\/quotes\/[^?#]+$/;
-export const isStoreUrl = (url) => FILE_URL.test(url || '');
+export const isStoreUrl = (url) => FILE_URL.test(url || '') && inShopStore(url);
 export const isStepUrl = (url) => /\.(step|stp)$/i.test(url || '');
 
 export async function downloadDesignFile(url) {
-  if (!FILE_URL.test(url || '')) throw new UserError('The order\'s design file isn\'t in the shop\'s file store.');
+  if (!isStoreUrl(url)) throw new UserError('The order\'s design file isn\'t in the shop\'s file store.');
   const res = await fetch(url, { redirect: 'error', signal: AbortSignal.timeout(20000) });
   if (!res.ok) throw new UserError(`The design file couldn't be downloaded (HTTP ${res.status}).`);
   if (Number(res.headers.get('content-length')) > MAX_FILE_BYTES) throw new UserError('The design file is over 10 MB.');
@@ -178,6 +179,21 @@ export async function readStepModel(bytes, opts) {
   return { model: measureModel(result.meshes, SHOP), mesh: true };
 }
 
+// A counterbore comes out of step-measure.js as two round "holes" on one
+// center: the wide bore, open from the top face, and the narrower through hole
+// starting at the bore's floor (api/_lib/cam.js relies on that). For the report
+// they're one hole plus its counterbore, not two through holes.
+function counterbores(contours) {
+  const round = contours.filter((x) => x.type === 'hole' && x.center);
+  const found = [];
+  for (const wide of round) {
+    const neck = round.find((x) => x.diameter < wide.diameter - 0.01 && x.from > wide.from + 0.01 &&
+      Math.hypot(x.center[0] - wide.center[0], x.center[1] - wide.center[1]) < 0.02);
+    if (neck) found.push({ wide, depth: neck.from - wide.from, hole: neck.diameter });
+  }
+  return found;
+}
+
 export async function analyzeStep(bytes) {
   const { model } = await readStepModel(bytes);
   const { solids, groups } = model;
@@ -189,6 +205,10 @@ export async function analyzeStep(bytes) {
     const kind = (t) => m.contours.filter((x) => x.type === t);
     const sizes = (list) => Object.entries(list.reduce((acc, x) => { const d = r2(x.diameter); acc[d] = (acc[d] || 0) + 1; return acc; }, {}))
       .map(([d, count]) => ({ diameter_mm: Number(d), diameter_in: r3(d / MM_PER_IN), count })).sort((a, b) => a.diameter_mm - b.diameter_mm);
+    const bores = counterbores(m.contours);
+    const holes = kind('hole').filter((x) => !bores.some((b) => b.wide === x));
+    const flags = m.flags.map((f) => f.text);
+    if (bores.length) flags.push(`${bores.length} counterbored hole(s). The machine time counts each counterbore as a through hole, so it runs a little high.`);
     const cut = cutLength(m);
     const est = estimate(m);
     if (pictures.length < MAX_PICTURES) {
@@ -203,10 +223,11 @@ export async function analyzeStep(bytes) {
       plate_size_in: [r2(m.rect.length / MM_PER_IN), r2(m.rect.width / MM_PER_IN)],
       stock_area_in2: r2((m.rect.length * m.rect.width) / MM_PER_IN ** 2),
       cut_length_mm: r1(cut), cut_length_in: r1(cut / MM_PER_IN),
-      holes: { count: kind('hole').length, sizes: sizes(kind('hole')) },
+      holes: { count: holes.length, sizes: sizes(holes) },
+      ...(bores.length ? { counterbores: bores.map((b) => ({ diameter_mm: r2(b.wide.diameter), depth_mm: r2(b.depth), hole_diameter_mm: r2(b.hole) })) } : {}),
       cutouts: kind('cutout').length,
       pockets: kind('pocket').map((x) => ({ area_mm2: r1(x.area), depth_mm: r2(x.depth), ...(x.diameter ? { diameter_mm: r2(x.diameter) } : {}) })),
-      flags: m.flags.map((f) => f.text),
+      flags,
       estimate_each: est
     };
   });

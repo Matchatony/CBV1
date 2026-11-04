@@ -3,6 +3,7 @@ import { passOk, rateLimited, tooMany } from './_lib/guard.js';
 import { sendConfirmation } from './_lib/confirm.js';
 import { sendMail, MAIL_CC, formsubmitUrl } from './_lib/mail.js';
 import { readCodes, saveCodes, normalizeCode, problem, customerProblem, remember, publicView, MESSAGES } from './_lib/discounts.js';
+import { inShopStore } from './_lib/store.js';
 
 // The quote form's send: saves the request to the admin order log and emails
 // it through FormSubmit, from here rather than from the browser, so the
@@ -21,6 +22,7 @@ const MAX_FILES = 10;
 // An uploaded design file lives in this project's public Blob store; anything
 // else (a failed upload) is kept only as the "UPLOAD FAILED" note.
 const FILE_URL = /^(https:\/\/[a-z0-9]+\.public\.blob\.vercel-storage\.com\/|UPLOAD FAILED)/;
+const fileOk = (u) => FILE_URL.test(u) && (u.startsWith('UPLOAD FAILED') || inShopStore(u));
 
 const FIELD_NAME = /^[a-z][a-z0-9_]{0,39}$/;
 
@@ -142,11 +144,11 @@ export async function POST(request) {
   if (!order.name || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(order.email)) {
     return Response.json({ error: 'Name and a valid email are required' }, { status: 400 });
   }
-  if (order.design_file && !FILE_URL.test(order.design_file)) order.design_file = '';
+  if (order.design_file && !fileOk(order.design_file)) order.design_file = '';
   // Every file in the request ({ name, url }), in the order they were added.
   order.files = (Array.isArray(body.files) ? body.files : []).slice(0, MAX_FILES)
     .filter((f) => f && typeof f === 'object')
-    .map((f) => ({ name: clip(f.name, 200), url: FILE_URL.test(clip(f.url, 600)) ? clip(f.url, 600) : '' }))
+    .map((f) => ({ name: clip(f.name, 200), url: fileOk(clip(f.url, 600)) ? clip(f.url, 600) : '' }))
     .filter((f) => f.name || f.url);
   if (!order.files.length && (order.design_file || order.file_name)) order.files = [{ name: order.file_name, url: order.design_file }];
   const discount = await takeCode(body.discount_code, { email: order.email, team: order.team, device: body.device });

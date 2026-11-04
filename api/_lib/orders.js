@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { put, list, del, head } from '@vercel/blob';
 import { clientIp } from './guard.js';
+import { inShopStore } from './store.js';
 
 // Order records live in the same Blob store as the design files, under
 // orders/<id>/<version>.json. The store is public, so every record is
@@ -116,7 +117,7 @@ export async function deleteOrder(id, { withFile }) {
     // Every design file on the order (older orders only have design_file).
     const files = [found.order.design_file, ...(found.order.files || []).map((f) => f && f.url)];
     for (const file of new Set(files)) {
-      if (/^https:\/\/[a-z0-9]+\.public\.blob\.vercel-storage\.com\/quotes\//.test(file || '')) urls.push(file);
+      if (/^https:\/\/[a-z0-9]+\.public\.blob\.vercel-storage\.com\/quotes\//.test(file || '') && inShopStore(file)) urls.push(file);
     }
   }
   await del(urls);
