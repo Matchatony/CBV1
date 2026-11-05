@@ -70,9 +70,11 @@ a `check_before_confirming` field at the top, and shows a **Check** tag and the
 list in `admin.html`. Only a model with no flat plate in it, or one thicker than
 1/2 in., goes to a hand quote.
 
-**Getting it to them.** Three choices: free pickup in San Diego, local delivery
-in the San Diego area for a flat $15.99, or **Ship it** anywhere in the US by USPS
-Priority Mail. Delivery and shipping both ask for an address. The address field
+**Getting it to them.** Two choices: free pickup in San Diego, or **Ship it**
+anywhere in the US. Shipping asks for an address. (Local delivery for a flat
+$15.99 was dropped in November 2026: `api/order.js` turns a "delivery" from an
+old page into "ship", and the admin panel still shows and schedules older
+delivery orders.) The address field
 suggests matches as you type (`/api/address`: `api/_lib/address.js` looks the
 text up in OpenStreetMap through Photon, or Nominatim if Photon is down, and
 nothing is saved). Each suggestion is a short mailing line, "4380 Miramar Street, San
@@ -374,8 +376,7 @@ and **Shipped**, which marks it done. They never go on a delivery day or the map
 Drop-offs are scheduled automatically:
 once an order is Paid, In progress or Ready it goes on the delivery day the
 customer was promised (orders close Mon/Wed/Fri at 6 pm and go out the next
-day, the same rule as the quote form's `CUTOFF_DAYS` / `CUTOFF_HOUR` — keep the
-two in step), or the next delivery day if that has passed, as the last stop.
+day, the rule the quote form promised while local delivery was offered), or the next delivery day if that has passed, as the last stop.
 Use Edit to move one; overdue days get a "Move to <next day>" button, and
 "Optimize order" sorts a day's stops into the shortest straight-line route from
 the fab shop (exact up to 12 stops). Pickups have no batch, so they only get a

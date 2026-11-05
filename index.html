@@ -242,9 +242,8 @@
           flagged with suggested revisions before work begins.
         </p>
         <p>
-          We ship to FTC teams anywhere in the US by USPS Priority Mail, priced
-          right in your quote. In San Diego, pickup is free and local delivery is a
-          flat $15.99, regardless of distance.
+          We ship to FTC teams anywhere in the US, priced right in your quote.
+          In San Diego, pickup is free.
         </p>
       </div>
       <ul class="terms">
@@ -405,13 +404,12 @@
       <details>
         <summary>How fast will I get my parts?</summary>
         <p>We usually make your parts in 1–3 business days (Monday to Friday). That's the time to make
-          them, not counting shipping or delivery. Local delivery goes out in batches: orders close
-          Monday, Wednesday and Friday at 6&nbsp;pm and are delivered the next day. Shipped orders add
-          1–3 days of USPS Priority Mail transit on top. Need it sooner? Tick "rush" and we'll tell you what's possible.</p>
+          them, not counting shipping. Shipped orders add the carrier's transit time on top, usually
+          a few days. Need it sooner? Tick "rush" and we'll tell you what's possible.</p>
       </details>
       <details>
         <summary>Do you ship outside San Diego?</summary>
-        <p>Yes, anywhere in the US, by USPS Priority Mail. When your parts fit a USPS flat rate box, the
+        <p>Yes, anywhere in the US. When your parts fit a USPS flat rate box, the
           quote form adds that box's price to your estimate; bigger orders get a shipping quote by email.
           You'll get a tracking number when it ships.</p>
       </details>
@@ -441,7 +439,7 @@
     <ul class="terms contract-terms">
       <li><span>Estimates, confirmed by file</span> The price you see here is final once we see the actual design; if the real file costs more (extra material, tighter tolerances, extra setup), we tell you before starting, not after.</li>
       <li><span>Payment</span> Venmo, Cash App, or PayPal, arranged by email once a quote is confirmed. We don't take payment on this site.</li>
-      <li><span>Shipping, pickup or delivery</span> We ship anywhere in the US by USPS Priority Mail: your quote includes the flat rate box price when your parts fit one, and bigger orders get a shipping quote by email. Shipping is paid along with the order. In San Diego, pickup is free and local delivery is a flat $15.99.</li>
+      <li><span>Shipping or pickup</span> We ship anywhere in the US: your quote includes the flat rate box price when your parts fit one, and bigger orders get a shipping quote by email. Shipping is paid along with the order. In San Diego, pickup is free.</li>
       <li><span>Turnaround</span> 1&ndash;3 business days (Monday to Friday) to make your parts is typical, not guaranteed; material availability or order volume can push it out, and we'll say so. It doesn't include shipping or delivery time: shipped orders add the carrier's transit time on top.</li>
       <li><span>Cancellations</span> Full refund any time before we start cutting or printing. Once your part is cut or printed it isn't refundable, except when we made the mistake.</li>
       <li><span>Deburring</span> Included standard, no added charge.</li>
@@ -590,9 +588,8 @@
 
       <fieldset class="calc-flags">
         <legend>Delivery</legend>
-        <label><input type="radio" name="delivery" value="ship" id="q-delivery-ship"> Ship it — anywhere in the US <span class="opt">USPS Priority Mail</span></label>
+        <label><input type="radio" name="delivery" value="ship" id="q-delivery-ship"> Ship it — anywhere in the US</label>
         <label><input type="radio" name="delivery" value="pickup" id="q-delivery-pickup" checked> Pickup — San Diego, CA <span class="opt">free</span></label>
-        <label><input type="radio" name="delivery" value="delivery" id="q-delivery-drive"> Local delivery — San Diego area <span class="opt">flat $15.99</span></label>
       </fieldset>
 
       <div class="calc-group" id="q-delivery-group" hidden>
@@ -605,7 +602,7 @@
             <ul class="address-suggestions" id="q-address-suggestions" role="listbox" aria-label="Matching addresses" hidden></ul>
           </div>
           <p class="hint" id="q-geo-status">
-            Start typing and pick your address from the list. Local delivery is a flat $15.99.
+            Start typing and pick your address from the list. Shipping is priced in your quote when your parts fit a USPS flat rate box.
           </p>
         </div>
       </div>
@@ -745,8 +742,7 @@
     // not a hard escalation, just a fair surcharge on top of the base price.
     surchargeTapped: 4,
     surchargeTolerance: 6,
-    surchargeComplex: 8,
-    flatDeliveryRate: 15.99
+    surchargeComplex: 8
   };
 
   /* Shipping: USPS Priority Mail Flat Rate boxes, inside sizes in inches,
@@ -774,8 +770,6 @@
      back to whatever was typed. */
   var ADDRESS_URL = '/api/address';
 
-  var CUTOFF_DAYS = [1, 3, 5]; // Mon, Wed, Fri (Sun = 0)
-  var CUTOFF_HOUR = 18;
 
   /* ------------------------------------------------------------------- */
 
@@ -867,17 +861,16 @@
     input.addEventListener('input', function () { items.forEach(updateRow); });
   });
 
-  // 'pickup', 'delivery' (local, flat rate) or 'ship' (anywhere in the US, quoted by email).
+  // 'pickup' or 'ship' (anywhere in the US). Local delivery was dropped in Nov 2026.
   function deliveryMode() { return document.querySelector('input[name="delivery"]:checked').value; }
   function addressHint(picked) {
-    if (deliveryMode() === 'ship') return picked ? 'Shipping to that address is in your quote when your parts fit a USPS flat rate box.' : 'Start typing and pick your address from the list. Shipping is priced in your quote when your parts fit a USPS flat rate box.';
-    return picked ? 'Local delivery is a flat $15.99 to that address.' : 'Start typing and pick your address from the list. Local delivery is a flat $15.99.';
+    return picked ? 'Shipping to that address is in your quote when your parts fit a USPS flat rate box.' : 'Start typing and pick your address from the list. Shipping is priced in your quote when your parts fit a USPS flat rate box.';
   }
   document.querySelectorAll('input[name="delivery"]').forEach(function (r) {
     r.addEventListener('change', function () {
       var mode = deliveryMode(), needsAddress = mode !== 'pickup';
       els.deliveryGroup.hidden = !needsAddress;
-      // A delivery or shipping order with no address can't go anywhere.
+      // A shipping order with no address can't go anywhere.
       els.address.required = needsAddress;
       els.addressLabel.textContent = mode === 'ship' ? 'Shipping address' : 'Delivery address';
       if (needsAddress) geoSay(addressHint(!!els.address.value.trim()));
@@ -897,8 +890,7 @@
   /* -------------------- ADDRESS SEARCH -------------------- */
   /* A live search-as-you-type dropdown so visitors pick a real, unambiguous
      address instead of typing something we might misread. It doesn't feed
-     pricing — local delivery is a flat rate regardless of distance, and
-     shipping is quoted from the box size — it's just there to get a clean
+     pricing (shipping is quoted from the box size); it's just there to get a clean
      address. api/address.js does the lookup and keeps the house number and
      unit the customer typed in every suggestion. Typing a full address and
      never picking one is fine too: it's taken as typed. */
@@ -1087,40 +1079,12 @@
     if (!els.address.contains(e.target) && !els.addressList.contains(e.target)) hideSuggestions();
   });
 
-  function nextCutoff(now) {
-    var d = new Date(now);
-    for (var i = 0; i < 8; i++) {
-      if (CUTOFF_DAYS.indexOf(d.getDay()) !== -1) {
-        var cutoff = new Date(d.getFullYear(), d.getMonth(), d.getDate(), CUTOFF_HOUR, 0, 0);
-        if (cutoff > now) return cutoff;
-      }
-      d.setDate(d.getDate() + 1);
-      d.setHours(0, 0, 0, 0);
-    }
-    return null;
-  }
-
-  var DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  function fmtDate(d) {
-    return DAY_NAMES[d.getDay()].slice(0, 3) + ' ' + (d.getMonth() + 1) + '/' + d.getDate();
-  }
-  function fmtTime(d) {
-    var h = d.getHours() % 12 || 12;
-    return h + (d.getHours() < 12 ? 'am' : 'pm');
-  }
 
   function batchMessage(delivery) {
     if (delivery === 'ship') {
       return 'Ships as soon as it\'s made, usually within 1–3 business days. USPS transit time comes on top of that. We\'ll email you tracking.';
     }
-    if (delivery === 'pickup') {
-      return 'No batch to wait for — ready for pickup in San Diego as soon as it\'s made, usually within 1–3 business days.';
-    }
-    var cutoff = nextCutoff(new Date());
-    var out = new Date(cutoff);
-    out.setDate(out.getDate() + 1);
-    return 'Order by ' + fmtDate(cutoff) + ' · ' + fmtTime(cutoff) +
-      ' to make that batch — expect delivery around ' + fmtDate(out) + '.';
+    return 'No batch to wait for — ready for pickup in San Diego as soon as it\'s made, usually within 1–3 business days.';
   }
 
   function renderResult(html, kind) {
@@ -2154,7 +2118,7 @@
         if (out.valid) {
           discount = { code: out.code, kind: out.kind, value: out.value, label: out.label, once: !!out.once };
           discountKey = key;
-          codeSay(out.code + ': ' + out.label + ' your parts (not delivery or shipping).' +
+          codeSay(out.code + ': ' + out.label + ' your parts (not shipping).' +
             (out.expires ? ' Valid through ' + new Date(out.expires + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + '.' : '') +
             (out.once ? ' One per team' + (who.team ? '.' : ': add your team number above.') : ''));
           return true;
@@ -2449,15 +2413,15 @@
       q.code = { code: discount.code, label: discount.label, amount: Math.round(Math.min(off, q.partsTotal) * 100) / 100 };
       if (q.partial) notes.push('Your code ' + discount.code + ' also comes off the files we price by hand.');
     }
-    q.deliveryCost = delivery === 'delivery' ? RATE.flatDeliveryRate : null;
-    q.deliveryLine = delivery === 'delivery' ? 'Local delivery (flat rate): ' + money(RATE.flatDeliveryRate) : 'Pickup in San Diego — free';
+    q.deliveryCost = null;
+    q.deliveryLine = 'Pickup in San Diego — free';
     if (delivery === 'ship') {
       // Only when every file is priced: a by-hand file's size isn't known yet.
       q.shipBox = q.partial ? null : shipBox(priced);
       if (q.shipBox) {
         q.deliveryCost = q.shipBox.price;
-        q.deliveryLine = 'Shipping, USPS Priority Mail ' + q.shipBox.name + ': ' + money(q.shipBox.price);
-        notes.push('Shipping is USPS Priority Mail in a ' + q.shipBox.name + ', 1–3 days in transit after it ships (on top of the 1–3 business days to make your parts). If your parts need a different box, we\'ll tell you before charging.');
+        q.deliveryLine = 'Shipping, USPS ' + q.shipBox.name + ': ' + money(q.shipBox.price);
+        notes.push('Shipping is in a USPS ' + q.shipBox.name + ', a few days in transit after it ships (on top of the 1–3 business days to make your parts). If your parts need a different box, we\'ll tell you before charging.');
       } else {
         q.deliveryLine = 'Ship it — shipping cost quoted by email' + (q.partial ? '' : ' (too big for a flat rate box)');
         if (!q.partial) notes.push('These parts are too big for a USPS flat rate box, so we\'ll email you the shipping cost.');
@@ -2482,7 +2446,6 @@
 
   // The row for how the order gets to the customer: [label, price text].
   function handoffRow(q) {
-    if (q.delivery === 'delivery') return ['Delivery', money(q.deliveryCost)];
     if (q.delivery === 'ship') return q.shipBox ? ['Shipping, USPS ' + q.shipBox.name, money(q.shipBox.price)] : ['Shipping', 'Quoted by email'];
     return ['Pickup', 'Free'];
   }
@@ -2885,7 +2848,7 @@
     [
       'This price is an estimate, confirmed once we see the actual design file.',
       'Payment via Venmo, Cash App, or PayPal, arranged by email once confirmed.',
-      'We ship anywhere in the US by USPS Priority Mail: flat rate shipping is in this estimate when your parts fit a flat rate box, otherwise quoted by email. In San Diego: free pickup, or local delivery for a flat $15.99.',
+      'We ship anywhere in the US: flat rate shipping is in this estimate when your parts fit a USPS flat rate box, otherwise quoted by email. In San Diego, pickup is free.',
       'Turnaround is typically 1–3 business days to make your parts, not guaranteed, and doesn\'t include shipping time. Deburring is included, standard.',
       'Full refund any time before we start cutting or printing; not refundable once your part is made, except when the mistake is ours. Full terms: see the site\'s Terms & conditions.'
     ].forEach(function (line) { block(line, 13.5); y += 2; });

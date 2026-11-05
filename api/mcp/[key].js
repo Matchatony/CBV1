@@ -136,7 +136,7 @@ function buildServer() {
   const server = new McpServer({ name: 'crackbotics-orders', version: '1.6.0' }, {
     instructions: 'Crackbotics is a student-run CNC and 3D-print shop for FTC robotics teams. These tools read and update its order log. ' +
       'An order moves new → quoted → paid → in-progress → ready → done (or cancelled). Paid, in-progress and ready delivery orders go on a delivery day. ' +
-      'An order is picked up in San Diego (delivery "pickup"), delivered locally for a flat $15.99 ("delivery"), or shipped anywhere in the US ("ship"); ' +
+      'An order is picked up in San Diego (delivery "pickup") or shipped anywhere in the US ("ship"); older orders may be local deliveries ("delivery", a flat $15.99, no longer offered). ' +
       'shipping is in the total when the quote page could fit the parts in a USPS flat rate box (specs.shipping_box, cost in specs.price.delivery), otherwise it\'s quoted by hand. A discount code on an order (specs.discount) was checked when the order came in; ' +
       'its dollar amount is already taken off the total (specs.price.code_discount), or, for a hand quote, still has to be. ' +
       'Every change you make is saved in the order\'s history, which the shop\'s admins can see. Orders can\'t be deleted from here. ' +

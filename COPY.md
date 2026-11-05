@@ -25,7 +25,7 @@ One-line descriptors (for a Discord server description, Instagram bio, or the
 `<meta description>`):
 
 - Custom CNC aluminum for FTC teams — cheaper than the big suppliers, made in
-  1–3 business days (plus shipping), local delivery or shop pickup in San Diego.
+  1–3 business days (plus shipping), shipped anywhere in the US or picked up in San Diego.
 - 1/8 in. plates, threaded 8 mm grid beams and custom 3D printed parts, made by
   students from Runtime Terror (#22105) and All Systems Go (#21239).
 

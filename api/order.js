@@ -17,7 +17,8 @@ const clip = (v, n) => (typeof v === 'string' ? v.trim().slice(0, n) : '');
 const num = (v, min, max) => (typeof v === 'number' && Number.isFinite(v) && v >= min && v <= max ? v : null);
 const OPTIONS = ['tapped', 'tight_tolerances', 'complex_geometry'];
 const PRICE_KEYS = ['material', 'machine', 'labor', 'flags', 'minimum', 'delivery', 'code_discount', 'per_part', 'total'];
-const DELIVERY = ['pickup', 'delivery', 'ship'];
+// Local delivery ('delivery') was dropped in Nov 2026; older orders keep it.
+const DELIVERY = ['pickup', 'ship'];
 const MAX_FILES = 10;
 // An uploaded design file lives in this project's public Blob store; anything
 // else (a failed upload) is kept only as the "UPLOAD FAILED" note.
@@ -138,7 +139,8 @@ export async function POST(request) {
 
   const order = { id: newId(), createdAt: new Date().toISOString(), status: 'new', notes: '' };
   for (const [field, max] of Object.entries(LIMITS)) order[field] = clip(body[field], max);
-  order.delivery = DELIVERY.includes(body.delivery) ? body.delivery : 'pickup';
+  // A page loaded before local delivery was dropped may still send it: they gave an address, so ship.
+  order.delivery = body.delivery === 'delivery' ? 'ship' : DELIVERY.includes(body.delivery) ? body.delivery : 'pickup';
   order.escalated = body.escalated === true;
   order.specs = cleanSpecs(body.specs);
   if (!order.name || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(order.email)) {

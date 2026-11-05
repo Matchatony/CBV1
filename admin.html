@@ -1037,7 +1037,7 @@
           el('h2', { text: handoffName(o) }),
           el('dl', { class: 'facts' }, [].concat(
             fact('Method', o.delivery === 'delivery' ? 'Local delivery (flat $15.99)'
-              : o.delivery === 'ship' ? (sp && sp.shipping_box ? 'Ship it: USPS Priority Mail, ' + sp.shipping_box : 'Ship it (shipping quoted by email)') : 'Pickup in San Diego'),
+              : o.delivery === 'ship' ? (sp && sp.shipping_box ? 'Ship it: USPS ' + sp.shipping_box : 'Ship it (shipping quoted by email)') : 'Pickup in San Diego'),
             o.delivery !== 'pickup' ? fact('Address', o.address || el('span', { class: 'warn', text: 'No address given' })) : [],
             fact('Date', o.delivered_at ? 'Handed over ' + new Date(o.delivered_at).toLocaleString()
               : o.delivery_date ? dayLabel(o.delivery_date) + (o.delivery_window ? ', ' + o.delivery_window : '') : 'Not scheduled yet'),
@@ -1288,7 +1288,7 @@
 
   // ---- Automatic scheduling ----
   // The same rule the quote form promises customers: orders close Mon/Wed/Fri at
-  // 6 pm and go out the next day. Keep in step with CUTOFF_DAYS/CUTOFF_HOUR in index.html.
+  // 6 pm and go out the next day (what the quote form promised while it offered local delivery).
   var CUTOFF_DAYS = [1, 3, 5], CUTOFF_HOUR = 18;
   function nextCutoff(now) {
     var d = new Date(now);

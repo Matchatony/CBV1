@@ -38,7 +38,7 @@ function estimate(o) {
 }
 function handoff(o) {
   const box = o.specs && o.specs.shipping_box;
-  if (o.delivery === 'ship') return 'Shipped by USPS Priority Mail' + (box ? ' (' + box + ')' : '') + ' to the address you gave.';
+  if (o.delivery === 'ship') return 'Shipped' + (box ? ' in a USPS ' + box : '') + ' to the address you gave.';
   if (o.delivery === 'delivery') return 'Local delivery in San Diego, to the address you gave.';
   return 'Pickup in San Diego. We\'ll email you when it\'s ready.';
 }
